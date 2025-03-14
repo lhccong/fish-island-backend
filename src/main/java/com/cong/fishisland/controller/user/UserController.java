@@ -96,6 +96,46 @@ public class UserController {
     }
 
     /**
+     * 用户邮箱注册
+     *
+     * @param userRegisterRequest 用户注册请求
+     * @return {@link BaseResponse}<{@link Long}>
+     */
+    @PostMapping("/email/register")
+    @ApiOperation(value = "用户邮箱注册")
+    public BaseResponse<Long> userEmailRegister(@RequestBody UserRegisterRequest userRegisterRequest) {
+        if (userRegisterRequest == null) {
+            throw new BusinessException(ErrorCode.PARAMS_ERROR);
+        }
+        String email = userRegisterRequest.getEmail();
+        String userPassword = userRegisterRequest.getUserPassword();
+        String checkPassword = userRegisterRequest.getCheckPassword();
+        String code=userRegisterRequest.getCode();
+        if (StringUtils.isAnyBlank(email, userPassword, checkPassword)) {
+            return null;
+        }
+        long result = userService.userEmilRegister(email, userPassword, checkPassword,code);
+        return ResultUtils.success(result);
+    }
+
+    /**
+     * 用户邮箱验证码
+     *
+     * @param userRegisterRequest 用户注册请求
+     * @return {@link BaseResponse}<{@link Long}>
+     */
+    @PostMapping("/email/send")
+    @ApiOperation(value = "用户邮箱验证码")
+    public BaseResponse<Boolean> userEmailSend(@RequestBody UserRegisterRequest userRegisterRequest) {
+        String email = userRegisterRequest.getEmail();
+        if (email == null) {
+            throw new BusinessException(ErrorCode.PARAMS_ERROR);
+        }
+        boolean result = userService.userEmailSend(email);
+        return ResultUtils.success(result);
+    }
+
+    /**
      * 用户登录
      *
      * @param userLoginRequest 用户登录请求
@@ -116,6 +156,26 @@ public class UserController {
         return ResultUtils.success(loginUserVO);
     }
 
+    /**
+     * 用户登录
+     *
+     * @param userLoginRequest 用户登录请求
+     * @return {@link BaseResponse}<{@link LoginUserVO}>
+     */
+    @PostMapping("/email/login")
+    @ApiOperation(value = "用户邮箱登录")
+    public BaseResponse<LoginUserVO> userEmailLogin(@RequestBody UserLoginRequest userLoginRequest) {
+        if (userLoginRequest == null) {
+            throw new BusinessException(ErrorCode.PARAMS_ERROR);
+        }
+        String email = userLoginRequest.getEmail();
+        String userPassword = userLoginRequest.getUserPassword();
+        if (StringUtils.isAnyBlank(email, userPassword)) {
+            throw new BusinessException(ErrorCode.PARAMS_ERROR);
+        }
+        LoginUserVO loginUserVO = userService.userEmailLogin(email, userPassword);
+        return ResultUtils.success(loginUserVO);
+    }
 
     /**
      * 用户通过 GitHub 登录

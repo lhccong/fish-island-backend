@@ -25,6 +25,9 @@ create table if not exists user
     isDelete     tinyint      default 0                 not null comment '是否删除',
     index idx_unionId (unionId)
 ) comment '用户' collate = utf8mb4_unicode_ci;
+ALTER TABLE user
+    ADD COLUMN email VARCHAR(256) NULL COMMENT '邮箱' after  mpOpenId,
+    ADD UNIQUE INDEX idx_email (email);
 
 -- 用户积分表
 create table if not exists user_points

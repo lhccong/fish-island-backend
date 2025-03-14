@@ -10,10 +10,11 @@ import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import com.cong.fishisland.common.ErrorCode;
+import com.cong.fishisland.common.exception.BusinessException;
 import com.cong.fishisland.config.GitHubConfig;
 import com.cong.fishisland.constant.CommonConstant;
 import com.cong.fishisland.constant.SystemConstants;
-import com.cong.fishisland.common.exception.BusinessException;
+import com.cong.fishisland.manager.EmailManager;
 import com.cong.fishisland.mapper.user.UserMapper;
 import com.cong.fishisland.model.dto.user.UserQueryRequest;
 import com.cong.fishisland.model.entity.user.User;
@@ -25,13 +26,6 @@ import com.cong.fishisland.model.vo.user.UserVO;
 import com.cong.fishisland.service.UserPointsService;
 import com.cong.fishisland.service.UserService;
 import com.cong.fishisland.utils.SqlUtils;
-
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Map;
-import java.util.concurrent.ConcurrentHashMap;
-import java.util.stream.Collectors;
-
 import lombok.extern.slf4j.Slf4j;
 import me.zhyd.oauth.model.AuthCallback;
 import me.zhyd.oauth.model.AuthResponse;
@@ -39,10 +33,17 @@ import me.zhyd.oauth.model.AuthUser;
 import me.zhyd.oauth.request.AuthRequest;
 import org.apache.commons.lang3.StringUtils;
 import org.springframework.beans.BeanUtils;
+import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.util.DigestUtils;
 
 import javax.annotation.Resource;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.TimeUnit;
+import java.util.stream.Collectors;
 
 /**
  * 用户服务实现
@@ -55,6 +56,13 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements Us
     private GitHubConfig gitHubConfig;
     @Resource
     private UserPointsService userPointsService;
+    @Resource
+    private EmailManager emailManager;
+
+    @Resource
+    StringRedisTemplate stringRedisTemplate;
+
+    private static final String EMAIL_CODE_PREFIX = "email:code:";
 
     @Override
     public long userRegister(String userAccount, String userPassword, String checkPassword) {
@@ -106,6 +114,95 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements Us
         }
     }
 
+    /**
+     * 用户邮箱注册
+     *
+     * @param email         邮箱
+     * @param userPassword  用户密码
+     * @param checkPassword 校验密码
+     * @return 用户id
+     */
+    @Override
+    public long userEmilRegister(String email, String userPassword, String checkPassword, String code) {
+
+        String EMAIL_REGISTER_LOCK = "email:register:lock:";
+
+        // 校验参数
+        if (StringUtils.isAnyBlank(email, code, userPassword, checkPassword)) {
+            throw new BusinessException(ErrorCode.PARAMS_ERROR, "参数不能为空");
+        }
+        if (!email.matches("^[A-Za-z0-9+_.-]+@(.+)$")) {
+            throw new BusinessException(ErrorCode.PARAMS_ERROR, "邮箱格式不正确");
+        }
+        if (!userPassword.equals(checkPassword)) {
+            throw new BusinessException(ErrorCode.PARAMS_ERROR, "两次密码输入不一致");
+        }
+
+        // 获取分布式锁，防止并发注册
+        String lockKey = EMAIL_REGISTER_LOCK + email;
+        Boolean isLocked = stringRedisTemplate.opsForValue().setIfAbsent(lockKey, "1", 10, TimeUnit.SECONDS);
+        if (Boolean.FALSE.equals(isLocked)) {
+            throw new BusinessException(ErrorCode.PARAMS_ERROR, "该邮箱正在注册中，请稍后重试");
+        }
+        try {
+            //  校验邮箱是否已注册
+            QueryWrapper<User> queryWrapper = new QueryWrapper<>();
+            queryWrapper.eq("email", email);
+            long count = this.baseMapper.selectCount(queryWrapper);
+            if (count > 0) {
+                throw new BusinessException(ErrorCode.PARAMS_ERROR, "该邮箱已注册");
+            }
+            // 校验验证码
+            String correctCode = stringRedisTemplate.opsForValue().get(EMAIL_CODE_PREFIX + email);
+            if (correctCode == null || !correctCode.equals(code)) {
+                throw new BusinessException(ErrorCode.PARAMS_ERROR, "验证码错误或已过期");
+            }
+
+            // 验证码比对成功后删除 Redis 中的验证码，防止重复使用
+            stringRedisTemplate.delete(EMAIL_CODE_PREFIX + email);
+
+            //  加密
+            String encryptPassword = DigestUtils.md5DigestAsHex((SALT + userPassword).getBytes());
+
+            // 插入数据
+            User user = new User();
+            user.setEmail(email);
+            user.setUserAccount("邮箱用户" + email);
+            user.setUserPassword(encryptPassword);
+            boolean saveResult = this.save(user);
+            if (!saveResult) {
+                throw new BusinessException(ErrorCode.SYSTEM_ERROR, "注册失败，数据库错误");
+            }
+            //保存积分
+            savePoints(user);
+            return user.getId();
+        } finally {
+            // 释放 Redis 锁
+            stringRedisTemplate.delete(lockKey);
+        }
+    }
+
+    @Override
+    public boolean userEmailSend(String email) {
+        // 校验邮箱格式
+        if (StringUtils.isBlank(email) || !email.matches("^[A-Za-z0-9+_.-]+@(.+)$")) {
+            throw new BusinessException(ErrorCode.PARAMS_ERROR, "邮箱格式不正确");
+        }
+        // 检查 Redis 是否已有验证码，防止频繁发送
+        String existingCode = stringRedisTemplate.opsForValue().get(EMAIL_CODE_PREFIX + email);
+        if (StringUtils.isNotBlank(existingCode)) {
+            throw new BusinessException(ErrorCode.PARAMS_ERROR, "验证码已发送，请稍后再试");
+        }
+        // 发送验证码邮件
+        String sendCode = emailManager.sendVerificationCode(email);
+        // 存入 Redis，秒有效
+        stringRedisTemplate.opsForValue().set(EMAIL_CODE_PREFIX + email, sendCode, 1, TimeUnit.MINUTES);
+        String redisKey = EMAIL_CODE_PREFIX + email;
+        log.info("尝试写入 Redis 的键: {}", redisKey);
+        log.info("验证码已发送至邮箱：" + email);
+        return true;
+    }
+
     private void savePoints(User user) {
         UserPoints userPoints = new UserPoints();
         userPoints.setUserId(user.getId());
@@ -140,6 +237,42 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements Us
             throw new BusinessException(ErrorCode.PARAMS_ERROR, "用户不存在或密码错误");
         }
         // 3. 记录用户的登录态
+        StpUtil.login(user.getId());
+        StpUtil.getTokenSession().set(SystemConstants.USER_LOGIN_STATE, user);
+        return this.getTokenLoginUserVO(user);
+    }
+
+    /**
+     * 用户通过邮箱登录
+     * @param email        邮箱
+     * @param userPassword 用户密码
+     * @return
+     */
+    @Override
+    public LoginUserVO userEmailLogin(String email, String userPassword) {
+        // 1. 校验
+        if (StringUtils.isAnyBlank(email, userPassword)) {
+            throw new BusinessException(ErrorCode.PARAMS_ERROR, "参数为空");
+        }
+        // 校验邮箱格式
+        if (StringUtils.isBlank(email) || !email.matches("^[A-Za-z0-9+_.-]+@(.+)$")) {
+            throw new BusinessException(ErrorCode.PARAMS_ERROR, "邮箱格式不正确");
+        }
+        if (userPassword.length() < 8) {
+            throw new BusinessException(ErrorCode.PARAMS_ERROR, "密码错误");
+        }
+        // 2. 加密
+        String encryptPassword = DigestUtils.md5DigestAsHex((SALT + userPassword).getBytes());
+        // 查询用户是否存在
+        QueryWrapper<User> queryWrapper = new QueryWrapper<>();
+        queryWrapper.eq("email", email);
+        queryWrapper.eq("userPassword", encryptPassword);
+        User user = this.baseMapper.selectOne(queryWrapper);
+        // 用户不存在
+        if (user == null) {
+            log.info("user login failed, email cannot match userPassword");
+            throw new BusinessException(ErrorCode.PARAMS_ERROR, "用户不存在或密码错误");
+        }
         // 3. 记录用户的登录态
         StpUtil.login(user.getId());
         StpUtil.getTokenSession().set(SystemConstants.USER_LOGIN_STATE, user);
@@ -185,7 +318,6 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements Us
         loginUserVO.setLastSignInDate(userPoints.getLastSignInDate());
         return loginUserVO;
     }
-
 
     /**
      * 获取登录用户

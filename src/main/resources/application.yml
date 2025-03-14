@@ -15,6 +15,16 @@ spring:
     multipart:
       # 大小限制
       max-file-size: 10MB
+  # 邮箱
+  mail:
+    host: smtp.qq.com  # 平台地址（这里是QQ邮箱）
+    username: 111@qq.com # 发送者邮箱
+    properties:
+      mail:
+        smtp:
+          ssl:
+            enable: true  # 启用 SSL
+    default-encoding: UTF-8  # 编码格式
 server:
   address: 0.0.0.0
   port: 8123
@@ -28,7 +38,7 @@ mybatis-plus:
   configuration:
     map-underscore-to-camel-case: false
     ## 打印 sql 日志（线上时可关闭）
-#    log-impl: org.apache.ibatis.logging.stdout.StdOutImpl
+  #    log-impl: org.apache.ibatis.logging.stdout.StdOutImpl
   global-config:
     db-config:
       logic-delete-field: isDelete # 全局逻辑删除的实体字段名

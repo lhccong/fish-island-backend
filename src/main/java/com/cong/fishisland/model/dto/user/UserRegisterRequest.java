@@ -1,6 +1,7 @@
 package com.cong.fishisland.model.dto.user;
 
 import java.io.Serializable;
+
 import lombok.Data;
 
 /**
@@ -13,6 +14,10 @@ public class UserRegisterRequest implements Serializable {
     private static final long serialVersionUID = 3191241716373120793L;
 
     private String userAccount;
+
+    private String email;
+
+    private String code;
 
     private String userPassword;
 

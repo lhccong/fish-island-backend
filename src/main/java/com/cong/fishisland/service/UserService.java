@@ -29,6 +29,24 @@ public interface UserService extends IService<User> {
     long userRegister(String userAccount, String userPassword, String checkPassword);
 
     /**
+     * 用户邮箱注册
+     *
+     * @param email         邮箱
+     * @param userPassword  用户密码
+     * @param checkPassword 校验密码
+     * @return 新用户 id
+     */
+    long userEmilRegister(String email, String userPassword, String checkPassword, String code);
+
+    /**
+     * 用户邮箱发验证码
+     *
+     * @param email 邮箱
+     * @return 验证码
+     */
+    boolean userEmailSend(String email);
+
+    /**
      * 用户登录
      *
      * @param userAccount  用户账户
@@ -36,6 +54,15 @@ public interface UserService extends IService<User> {
      * @return 脱敏后的用户信息
      */
     LoginUserVO userLogin(String userAccount, String userPassword);
+
+    /**
+     * 用户邮箱登录
+     *
+     * @param email        邮箱
+     * @param userPassword 用户密码
+     * @return 脱敏后的用户信息
+     */
+    LoginUserVO userEmailLogin(String email, String userPassword);
 
     /**
      * 获取当前登录用户根据token

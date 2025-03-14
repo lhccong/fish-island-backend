@@ -117,6 +117,10 @@
             <artifactId>JustAuth</artifactId>
             <version>1.16.6</version>
         </dependency>
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-mail</artifactId>
+        </dependency>
         <!-- https://github.com/alibaba/easyexcel -->
         <dependency>
             <groupId>com.alibaba</groupId>
