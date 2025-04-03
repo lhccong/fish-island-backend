@@ -7,17 +7,19 @@ import com.cong.fishisland.model.entity.hot.HotPost;
 import com.cong.fishisland.model.enums.CategoryTypeEnum;
 import com.cong.fishisland.model.enums.UpdateIntervalEnum;
 import com.cong.fishisland.model.vo.hot.HotPostDataVO;
+import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.jsoup.Jsoup;
 import org.jsoup.nodes.Document;
 import org.jsoup.nodes.Element;
 import org.jsoup.select.Elements;
+import org.springframework.retry.RetryContext;
+import org.springframework.retry.support.RetryTemplate;
 import org.springframework.stereotype.Component;
 
+import java.io.IOException;
 import java.util.ArrayList;
-import java.util.HashMap;
 import java.util.List;
-import java.util.Map;
 
 
 /**
@@ -27,12 +29,19 @@ import java.util.Map;
  */
 @Slf4j
 @Component
+@RequiredArgsConstructor
 public class ZhiBo8DataSource implements DataSource {
 
     private static final String ZHIBO8_URL = "https://zhibo8.com/";
 
+    private final RetryTemplate retryTemplate;
+
     @Override
     public HotPost getHotPost() {
+        return retryTemplate.execute(this::fetchHotPost);
+    }
+
+    public HotPost fetchHotPost(RetryContext context) {
         List<HotPostDataVO> dataList = new ArrayList<>();
         try {
             Document document = Jsoup.connect(ZHIBO8_URL)
@@ -42,9 +51,13 @@ public class ZhiBo8DataSource implements DataSource {
             extractNews(document, ".vct-box.lanqiu-news ._content a.list-item", dataList);
             // 抓取足球资讯
             extractNews(document, ".vct-box.zuqiu-news ._content a.list-item", dataList);
-
-        } catch (Exception e) {
-            log.error("获取数据失败: {}", e.getMessage(), e);
+            // 如果数据为空，则抛出异常进行重试
+            if (dataList.isEmpty()) {
+                log.warn("获取数据为空，尝试重试... 剩余次数：{}", context.getRetryCount());
+                throw new BusinessException(ErrorCode.NOT_FOUND_ERROR, "获取数据为空");
+            }
+        } catch (IOException e) {
+            log.error("获取数据失败，尝试重试... 剩余次数：{}", context.getRetryCount(), e);
             throw new BusinessException(ErrorCode.NOT_FOUND_ERROR, "获取数据失败");
         }
 

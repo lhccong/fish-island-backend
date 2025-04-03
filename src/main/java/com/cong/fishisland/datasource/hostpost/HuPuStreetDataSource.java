@@ -1,15 +1,20 @@
 package com.cong.fishisland.datasource.hostpost;
 
 import com.alibaba.fastjson.JSON;
+import com.cong.fishisland.common.ErrorCode;
+import com.cong.fishisland.common.exception.BusinessException;
 import com.cong.fishisland.model.entity.hot.HotPost;
 import com.cong.fishisland.model.enums.CategoryTypeEnum;
 import com.cong.fishisland.model.enums.UpdateIntervalEnum;
 import com.cong.fishisland.model.vo.hot.HotPostDataVO;
+import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.jsoup.Jsoup;
 import org.jsoup.nodes.Document;
 import org.jsoup.nodes.Element;
 import org.jsoup.select.Elements;
+import org.springframework.retry.RetryContext;
+import org.springframework.retry.support.RetryTemplate;
 import org.springframework.stereotype.Component;
 
 import java.io.IOException;
@@ -24,15 +29,22 @@ import java.util.stream.Collectors;
  */
 @Slf4j
 @Component
+@RequiredArgsConstructor
 public class HuPuStreetDataSource implements DataSource {
 
     private static final String HUPU_URL = "https://bbs.hupu.com";
     private static final String USER_AGENT = "Mozilla/5.0(Windows NT 10.0;Win64;x64;rv:66.0)Gecko/20100101 Firefox/66.0";
-    String hupuStreetURL = "https://bbs.hupu.com/all-gambia";
+    String huPPuStreetURL = "https://bbs.hupu.com/all-gambia";
+
+    private final RetryTemplate retryTemplate;
 
     @Override
     public HotPost getHotPost() {
-        Document document = fetchDocument(hupuStreetURL);
+        return retryTemplate.execute(this::fetchHotPost);
+    }
+
+    public HotPost fetchHotPost(RetryContext context) {
+        Document document = fetchDocument(huPPuStreetURL);
 
         if (document == null) {
             log.error("无法获取虎扑步行街网页内容");
@@ -47,8 +59,12 @@ public class HuPuStreetDataSource implements DataSource {
             if (dataVO != null) {
                 dataList.add(dataVO);
             }
+            // 如果数据为空，则抛出异常进行重试
+            if (dataList.isEmpty()) {
+                log.warn("获取数据为空，尝试重试... 剩余次数：{}", context.getRetryCount());
+                throw new BusinessException(ErrorCode.NOT_FOUND_ERROR, "获取数据为空");
+            }
         }
-
         return HotPost.builder()
                 .sort(CategoryTypeEnum.GENERAL_DISCUSSION.getValue())
                 .name("虎扑步行街热榜")
@@ -89,7 +105,7 @@ public class HuPuStreetDataSource implements DataSource {
         try {
             String postUrl = listItem.select("a").attr("href");
             // 只有当 postUrl 为相对路径且有效时，才进行拼接并处理
-            if (postUrl.trim().isEmpty() || postUrl.equals(hupuStreetURL)) {
+            if (postUrl.trim().isEmpty() || postUrl.equals(huPPuStreetURL)) {
                 return null;
             }
             // 拼接完整的帖子 URL

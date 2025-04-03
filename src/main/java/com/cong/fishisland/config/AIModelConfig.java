@@ -18,5 +18,8 @@ public class AIModelConfig {
      */
     private String siliconFlow;
 
+    private  String Url;
+
+    private  String Authorization;
 
 }
