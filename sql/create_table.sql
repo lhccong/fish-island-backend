@@ -98,9 +98,8 @@ create table if not exists post_favour
     index idx_userId (userId)
 ) comment '帖子收藏';
 
-
 -- 热点表
-drop table hot_post;
+drop table if exists hot_post;
 create table if not exists hot_post
 (
     id             bigint auto_increment comment 'id' primary key,
@@ -168,3 +167,19 @@ create table if not exists emoticon_favour
     updateTime     datetime      default CURRENT_TIMESTAMP not null on update CURRENT_TIMESTAMP comment '更新时间',
     index idx_userId (userId)
 ) comment '收藏表情包表' collate = utf8mb4_unicode_ci;
+
+-- 第三方用户关联表
+create table if not exists  `user_third_auth` (
+   `id` bigint(20) not null auto_increment,
+   `user_id` bigint(20) not null comment '本地用户id',
+   `nickname` varchar(200) collate utf8mb4_general_ci default null comment '昵称',
+   `avatar` varchar(200) collate utf8mb4_general_ci default null comment '头像',
+   `platform` varchar(20) character set utf8mb4 collate utf8mb4_general_ci not null comment '平台：github/gitee',
+   `openid` varchar(100) character set utf8mb4 collate utf8mb4_general_ci not null comment '平台用户id',
+   `access_token` varchar(500) character set utf8mb4 collate utf8mb4_general_ci default null comment 'access_token',
+   `refresh_token` varchar(500) character set utf8mb4 collate utf8mb4_general_ci default null comment 'refresh_token',
+   `expire_time` datetime default null comment '过期时间',
+   `raw_data` json default null comment '原始响应数据',
+   primary key (`id`),
+   unique key `idx_platform_openid` (`platform`,`openid`)
+) comment '第三方用户关联表' collate = utf8mb4_general_ci;

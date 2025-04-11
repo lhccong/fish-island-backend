@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.cong.fishisland.mapper.user.UserThirdAuthMapper">
+  <resultMap id="BaseResultMap" type="com.cong.fishisland.model.entity.user.UserThirdAuth">
+    <!--@mbg.generated-->
+    <!--@Table user_third_auth-->
+    <id column="id" jdbcType="BIGINT" property="id" />
+    <result column="user_id" jdbcType="BIGINT" property="userId" />
+    <result column="nickname" jdbcType="VARCHAR" property="nickname" />
+    <result column="avatar" jdbcType="VARCHAR" property="avatar" />
+    <result column="platform" jdbcType="VARCHAR" property="platform" />
+    <result column="openid" jdbcType="VARCHAR" property="openid" />
+    <result column="access_token" jdbcType="VARCHAR" property="accessToken" />
+    <result column="refresh_token" jdbcType="VARCHAR" property="refreshToken" />
+    <result column="expire_time" jdbcType="TIMESTAMP" property="expireTime" />
+    <result column="raw_data" jdbcType="VARCHAR" property="rawData" />
+  </resultMap>
+  <sql id="Base_Column_List">
+    <!--@mbg.generated-->
+    id, user_id, nickname, avatar, platform, openid, access_token, refresh_token, expire_time, 
+    raw_data
+  </sql>
+</mapper>

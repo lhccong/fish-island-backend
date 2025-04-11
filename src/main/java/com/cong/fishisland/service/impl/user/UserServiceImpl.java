@@ -6,6 +6,7 @@ import cn.hutool.core.collection.CollUtil;
 import cn.hutool.core.text.CharSequenceUtil;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
+import com.baomidou.mybatisplus.core.toolkit.Wrappers;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import com.cong.fishisland.common.ErrorCode;
 import com.cong.fishisland.common.exception.BusinessException;
@@ -14,21 +15,26 @@ import com.cong.fishisland.constant.CommonConstant;
 import com.cong.fishisland.constant.SystemConstants;
 import com.cong.fishisland.manager.EmailManager;
 import com.cong.fishisland.mapper.user.UserMapper;
+import com.cong.fishisland.mapper.user.UserThirdAuthMapper;
 import com.cong.fishisland.model.dto.user.UserQueryRequest;
 import com.cong.fishisland.model.entity.user.User;
 import com.cong.fishisland.model.entity.user.UserPoints;
+import com.cong.fishisland.model.entity.user.UserThirdAuth;
 import com.cong.fishisland.model.enums.UserRoleEnum;
 import com.cong.fishisland.model.vo.user.LoginUserVO;
+import com.cong.fishisland.model.vo.user.PlatformBindVO;
 import com.cong.fishisland.model.vo.user.TokenLoginUserVo;
 import com.cong.fishisland.model.vo.user.UserVO;
 import com.cong.fishisland.service.UserPointsService;
 import com.cong.fishisland.service.UserService;
+import com.cong.fishisland.service.UserThirdAuthService;
 import com.cong.fishisland.utils.SqlUtils;
 import lombok.extern.slf4j.Slf4j;
 import me.zhyd.oauth.model.AuthCallback;
 import me.zhyd.oauth.model.AuthResponse;
 import me.zhyd.oauth.model.AuthUser;
 import me.zhyd.oauth.request.AuthRequest;
+import org.apache.commons.compress.utils.Lists;
 import org.apache.commons.lang3.StringUtils;
 import org.redisson.api.RRateLimiter;
 import org.redisson.api.RateIntervalUnit;
@@ -70,6 +76,9 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements Us
     @Resource
     private RedissonClient redissonClient;
 
+    @Resource
+    private UserThirdAuthMapper userThirdAuthMapper;
+
 
     @Override
     public long userRegister(String userAccount, String userPassword, String checkPassword) {
@@ -110,7 +119,7 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements Us
                 if (!saveResult) {
                     throw new BusinessException(ErrorCode.SYSTEM_ERROR, "注册失败，数据库错误");
                 }
-                //保存积分
+                // 保存积分
                 savePoints(user);
 
                 return user.getId();
@@ -188,7 +197,7 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements Us
             if (!saveResult) {
                 throw new BusinessException(ErrorCode.SYSTEM_ERROR, "注册失败，数据库错误");
             }
-            //保存积分
+            // 保存积分
             savePoints(user);
             return user.getId();
         } finally {
@@ -320,7 +329,7 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements Us
         }
         TokenLoginUserVo loginUserVO = new TokenLoginUserVo();
         BeanUtils.copyProperties(user, loginUserVO);
-        //获取 Token  相关参数
+        // 获取 Token  相关参数
         SaTokenInfo tokenInfo = StpUtil.getTokenInfo();
         loginUserVO.setSaTokenInfo(tokenInfo);
 
@@ -428,6 +437,21 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements Us
         loginUserVO.setUsedPoints(userPoints.getUsedPoints());
         loginUserVO.setLastSignInDate(userPoints.getLastSignInDate());
 
+        List<UserThirdAuth> userThirdAuths = userThirdAuthMapper.selectList(
+                Wrappers.lambdaQuery(UserThirdAuth.class)
+                        .eq(UserThirdAuth::getUserId, user.getId())
+        );
+        List<PlatformBindVO> bindPlatforms  = userThirdAuths.stream().map(
+                userThirdAuth -> {
+                    PlatformBindVO platformBindVO = new PlatformBindVO();
+                    platformBindVO.setPlatform(userThirdAuth.getPlatform());
+                    platformBindVO.setNickname(userThirdAuth.getNickname());
+                    platformBindVO.setAvatar(userThirdAuth.getAvatar());
+                    return platformBindVO;
+                }
+        ).collect(Collectors.toList());
+        loginUserVO.setBindPlatforms(bindPlatforms);
+
         return loginUserVO;
     }
 
@@ -485,15 +509,15 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements Us
         if (authUser == null) {
             throw new BusinessException(ErrorCode.SYSTEM_ERROR, "Github 登录失败，获取用户信息失败");
         }
-        //判断用户是否存在
+        // 判断用户是否存在
         String userAccount = authUser.getUsername();
 
-        //1、用户不存在，则注册
+        // 1、用户不存在，则注册
         User user = this.getOne(new LambdaQueryWrapper<User>().eq(User::getUserAccount, userAccount));
         if (user == null) {
             saveGithubUser(userAccount, authUser);
         }
-        //2、用户存在，则登录
+        // 2、用户存在，则登录
         return this.userLogin(userAccount, authUser.getUuid() + authUser.getUsername());
     }
 

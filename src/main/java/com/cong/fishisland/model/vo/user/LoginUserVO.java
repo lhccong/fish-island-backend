@@ -2,6 +2,7 @@ package com.cong.fishisland.model.vo.user;
 
 import java.io.Serializable;
 import java.util.Date;
+import java.util.List;
 
 import com.baomidou.mybatisplus.annotation.TableField;
 import lombok.Data;
@@ -79,6 +80,11 @@ public class LoginUserVO implements Serializable {
      */
     @TableField(value = "lastSignInDate")
     private Date lastSignInDate;
+
+    /**
+     * 第三方平台绑定信息
+     */
+    private List<PlatformBindVO> bindPlatforms;
 
     private static final long serialVersionUID = 1L;
 }

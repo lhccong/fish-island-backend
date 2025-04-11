@@ -65,7 +65,12 @@ cos:
 github:
   client-id: xxx
   client-secret: xxx
-  redirect-uri: xxx
+  redirect-uri: localhost:8123/api/oauth/callback/github
+############### Gitee 配置 ##############
+gitee:
+  client-id: xxx
+  client-secret: xxx
+  redirect-uri: http://localhost:8123/api/oauth/callback/gitee
 ############### Sa-Token 配置 (文档: https://sa-token.cc) ##############
 sa-token:
   # token 名称（同时也是 cookie 名称）

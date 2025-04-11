@@ -2,6 +2,7 @@ package com.cong.fishisland.config;
 
 import com.cong.fishisland.cache.AuthStateRedisCache;
 import me.zhyd.oauth.config.AuthConfig;
+import me.zhyd.oauth.request.AuthGiteeRequest;
 import me.zhyd.oauth.request.AuthGithubRequest;
 import me.zhyd.oauth.request.AuthRequest;
 import org.springframework.beans.factory.annotation.Value;
@@ -16,23 +17,23 @@ import javax.annotation.Resource;
  * @date 2024/04/22
  */
 @Configuration
-public class GitHubConfig {
+public class GiteeConfig {
 
     @Resource
     private AuthStateRedisCache stateRedisCache;
 
-    @Value("${github.client-id}")
+    @Value("${gitee.client-id}")
     private String clientId;
 
-    @Value("${github.client-secret}")
+    @Value("${gitee.client-secret}")
     private String clientSecret;
 
-    @Value("${github.redirect-uri}")
+    @Value("${gitee.redirect-uri}")
     private String redirectUri;
 
 
     public AuthRequest getAuthRequest(){
-        return new AuthGithubRequest(AuthConfig.builder()
+        return new AuthGiteeRequest(AuthConfig.builder()
                 .clientId(clientId)
                 .clientSecret(clientSecret)
                 .redirectUri(redirectUri)
