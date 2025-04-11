@@ -147,6 +147,12 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements Us
             throw new BusinessException(ErrorCode.PARAMS_ERROR, "两次密码输入不一致");
         }
 
+        // 注册时，邮箱不能重复
+        boolean emailExists = this.baseMapper.selectCount(new QueryWrapper<User>().eq("email", email)) > 0;
+        if (emailExists) {
+            throw new BusinessException(ErrorCode.PARAMS_ERROR, "该邮箱已注册，请直接登录");
+        }
+
         // 使用 Redisson 限流，一分钟最多 10 次
         RRateLimiter rateLimiter = redissonClient.getRateLimiter(RATE_LIMITER_KEY);
         rateLimiter.trySetRate(RateType.OVERALL, 10, 1, RateIntervalUnit.MINUTES);
@@ -202,11 +208,6 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements Us
         // 校验邮箱格式
         validateEmailFormat(email);
 
-        // 邮箱不能重复
-        boolean emailExists = this.baseMapper.selectCount(new QueryWrapper<User>().eq("email", email)) > 0;
-        if (emailExists) {
-            throw new BusinessException(ErrorCode.PARAMS_ERROR, "该邮箱已注册，无法发送验证码");
-        }
         // 检查 Redis 是否已有验证码，防止频繁发送
         String existingCode = stringRedisTemplate.opsForValue().get(EMAIL_CODE_PREFIX + email);
         if (StringUtils.isNotBlank(existingCode)) {
@@ -294,6 +295,167 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements Us
         StpUtil.login(user.getId());
         StpUtil.getTokenSession().set(SystemConstants.USER_LOGIN_STATE, user);
         return this.getTokenLoginUserVO(user);
+    }
+
+    /**
+     * 用户邮箱找回密码
+     *
+     * @param email         邮箱
+     * @param userPassword  新密码
+     * @param checkPassword 确认密码
+     * @param code          验证码
+     * @return 脱敏后的用户信息
+     */
+    @Override
+    public boolean userEmailResetPassword(String email, String userPassword, String checkPassword, String code) {
+
+        // 使用常量定义Redis键模式
+        String EMAIL_RESET_LOCK = "email:RESET:lock:";
+        String RATE_LIMITER_KEY = "email:reset:rate_limiter";
+
+        // 参数校验
+        if (StringUtils.isAnyBlank(email, code, userPassword, checkPassword)) {
+            throw new BusinessException(ErrorCode.PARAMS_ERROR, "参数不能为空");
+        }
+
+        // 校验邮箱格式
+        validateEmailFormat(email);
+
+        // 输入密码与确认密码必须一致
+        if (!userPassword.equals(checkPassword)) {
+            throw new BusinessException(ErrorCode.PARAMS_ERROR, "两次密码输入不一致,请重新输入");
+        }
+
+        // 获取当前登录用户
+        User loginUser = this.getLoginUser();
+
+        // 用户必须登录
+        if (loginUser == null) {
+            throw new BusinessException(ErrorCode.NOT_LOGIN_ERROR,"请先登录");
+        }
+
+        // 确保输入的邮箱与当前登录用户的邮箱一致
+        if (!email.equals(loginUser.getEmail())) {
+            throw new BusinessException(ErrorCode.PARAMS_ERROR, "邮箱与当前用户邮箱不一致，请输入正确邮箱");
+        }
+
+        // 使用 Redisson 限流，一分钟最多 10 次
+        RRateLimiter rateLimiter = redissonClient.getRateLimiter(RATE_LIMITER_KEY);
+        rateLimiter.trySetRate(RateType.OVERALL, 10, 1, RateIntervalUnit.MINUTES);
+        if (!rateLimiter.tryAcquire()) {
+            throw new BusinessException(ErrorCode.SYSTEM_ERROR, "操作过于频繁，请稍后再试");
+        }
+        // 获取分布式锁，防止并发注册
+        String lockKey = EMAIL_RESET_LOCK + email;
+        Boolean isLocked = stringRedisTemplate.opsForValue().setIfAbsent(lockKey, "1", 10, TimeUnit.SECONDS);
+        if (Boolean.FALSE.equals(isLocked)) {
+            throw new BusinessException(ErrorCode.PARAMS_ERROR, "该邮箱正在重置密码中，请稍后重试");
+        }
+        try {
+            // 校验验证码
+            String correctCode = stringRedisTemplate.opsForValue().get(EMAIL_CODE_PREFIX + email);
+            if (correctCode == null || !correctCode.equals(code)) {
+                throw new BusinessException(ErrorCode.PARAMS_ERROR, "验证码错误或已过期");
+            }
+
+            // 验证码比对成功后删除 Redis 中的验证码，防止重复使用
+            stringRedisTemplate.delete(EMAIL_CODE_PREFIX + email);
+
+            //  加密
+            String encryptPassword = DigestUtils.md5DigestAsHex((SALT + userPassword).getBytes());
+
+            // 新密码不能和原来的密码一致
+            if (encryptPassword.equals(loginUser.getUserPassword())) {
+                throw new BusinessException(ErrorCode.PARAMS_ERROR, "新密码不能和原来的密码一致");
+            }
+
+            // 更新数据
+            loginUser.setUserPassword(encryptPassword);
+            boolean updateResult  = this.updateById(loginUser);
+            if (!updateResult ) {
+                throw new BusinessException(ErrorCode.SYSTEM_ERROR, "重置密码，数据库错误");
+            }
+        } finally {
+            // 释放 Redis 锁
+            stringRedisTemplate.delete(lockKey);
+        }
+        return true;
+    }
+
+    /**
+     * 用户通过邮箱绑定账号
+     *
+     * @param email 邮箱
+     * @return 脱敏后的用户信息
+     */
+    @Override
+    public boolean userEmailBindToAccount(String email, String code) {
+
+        // 使用常量定义Redis键模式
+        String EMAIL_BIND_LOCK = "email:bind:lock:";
+        String RATE_LIMITER_KEY = "email:bind:rate_limiter";
+
+        // 参数校验
+        if (StringUtils.isAnyBlank(email, code)) {
+            throw new BusinessException(ErrorCode.PARAMS_ERROR, "参数不能为空");
+        }
+
+        // 校验邮箱格式
+        validateEmailFormat(email);
+
+        // 绑定邮箱不能重复
+        boolean emailExists = this.baseMapper.selectCount(new QueryWrapper<User>().eq("email", email)) > 0;
+        if (emailExists) {
+            throw new BusinessException(ErrorCode.PARAMS_ERROR, "该邮箱已被绑定，请重新输入");
+        }
+
+        // 获取当前登录用户
+        User loginUser = this.getLoginUser();
+        // 用户必须登录
+        if (loginUser == null) {
+            throw new BusinessException(ErrorCode.NOT_LOGIN_ERROR,"请先登录");
+        }
+
+        // 使用 Redisson 限流，一分钟最多 10 次
+        RRateLimiter rateLimiter = redissonClient.getRateLimiter(RATE_LIMITER_KEY);
+        rateLimiter.trySetRate(RateType.OVERALL, 10, 1, RateIntervalUnit.MINUTES);
+        if (!rateLimiter.tryAcquire()) {
+            throw new BusinessException(ErrorCode.SYSTEM_ERROR, "操作过于频繁，请稍后再试");
+        }
+        // 获取分布式锁，防止并发注册
+        String lockKey = EMAIL_BIND_LOCK + email;
+        Boolean isLocked = stringRedisTemplate.opsForValue().setIfAbsent(lockKey, "1", 10, TimeUnit.SECONDS);
+        if (Boolean.FALSE.equals(isLocked)) {
+            throw new BusinessException(ErrorCode.PARAMS_ERROR, "该邮箱正在绑定中，请稍后重试");
+        }
+        try {
+            //  校验邮箱是否已注册
+            QueryWrapper<User> queryWrapper = new QueryWrapper<>();
+            queryWrapper.eq("email", email);
+            long count = this.baseMapper.selectCount(queryWrapper);
+            if (count > 0) {
+                throw new BusinessException(ErrorCode.PARAMS_ERROR, "该邮箱已绑定");
+            }
+            // 校验验证码
+            String correctCode = stringRedisTemplate.opsForValue().get(EMAIL_CODE_PREFIX + email);
+            if (correctCode == null || !correctCode.equals(code)) {
+                throw new BusinessException(ErrorCode.PARAMS_ERROR, "验证码错误或已过期");
+            }
+
+            // 验证码比对成功后删除 Redis 中的验证码，防止重复使用
+            stringRedisTemplate.delete(EMAIL_CODE_PREFIX + email);
+
+            // 插入数据
+            loginUser.setEmail(email);
+            boolean updateResult  = this.updateById(loginUser);
+            if (!updateResult ) {
+                throw new BusinessException(ErrorCode.SYSTEM_ERROR, "绑定失败，数据库错误");
+            }
+        } finally {
+            // 释放 Redis 锁
+            stringRedisTemplate.delete(lockKey);
+        }
+        return true;
     }
 
     @Override

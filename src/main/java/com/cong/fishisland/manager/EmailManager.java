@@ -47,16 +47,46 @@ public class EmailManager {
             String code = generateCode();
             // 邮件内容
             // 邮件内容，使用HTML格式
-            String emailContent = "<html><body>"
-                    + "<h2>亲爱的用户，恭喜你成功注册摸鱼岛！🎉</h2>"
-                    + "<p>为了确保账户安全，请输入以下验证码完成验证：</p>"
-                    + "<h3 style='color: #FF6347;'>验证码：<strong>" + code + "</strong></h3>"
-                    + "<p>该验证码将在 60 秒内有效，请尽快完成验证。</p>"
-                    + "<p>如果您没有发起此请求，请忽略此邮件。</p>"
-                    + "<br>"
-                    + "<p>更多信息请访问我们的官网：</p>"
-                    + "<a href='https://fish.codebug.icu/' target='_blank'>摸鱼岛官网</a>"
-                    + "</body></html>";
+            String emailContent ="<html>" +
+                    "<head>" +
+                    "  <meta charset='UTF-8'>" +
+                    "  <meta name='viewport' content='width=device-width, initial-scale=1.0'>" +
+                    "  <style>" +
+                    "    body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background-color: #f5f5f5; margin: 0; padding: 0; color: #333; }" +
+                    "    .container { max-width: 600px; margin: 30px auto; background-color: #ffffff; padding: 25px; border-radius: 8px; box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1); }" +
+                    "    .header { text-align: center; margin-bottom: 20px; }" +
+                    "    .header h2 { color: #333; font-size: 24px; font-weight: bold; }" +
+                    "    .content { font-size: 16px; line-height: 1.6; color: #555; }" +
+                    "    .code { font-size: 28px; font-weight: bold; color: #FF6347; padding: 10px 20px; background-color: #f4f4f4; border-radius: 8px; margin: 20px 0; text-align: center; display: block; }" +
+                    "    .footer { margin-top: 30px; text-align: center; font-size: 14px; color: #888; }" +
+                    "    .footer p { margin-bottom: 10px; }" +
+                    "    a { color: #1E90FF; text-decoration: none; font-weight: bold; }" +
+                    "    a:hover { text-decoration: underline; }" +
+                    "    .cta-button { background-color: #007BFF; color: black; text-align: center; padding: 12px 20px; font-size: 16px; text-decoration: none; border-radius: 5px; display: inline-block; margin-top: 20px; }" +
+                    "    .cta-button:hover { background-color: #0056b3; }" +  // Darker blue on hover
+                    "  </style>" +
+                    "</head>" +
+                    "<body>" +
+                    "  <div class='container'>" +
+                    "    <div class='header'>" +
+                    "      <h2>亲爱的用户，您好！ 🎉</h2>" +
+                    "    </div>" +
+                    "    <div class='content'>" +
+                    "      <p>为了确保您的账户安全，我们需要您输入以下验证码完成验证：</p>" +
+                    "      <p class='code'>验证码：<strong>" + code + "</strong></p>" +
+                    "      <p>请注意：该验证码将在 <strong>60 秒</strong> 内过期，请尽快完成验证。</p>" +
+                    "      <p>如果您未发起此请求，或对此操作不感兴趣，请忽略此邮件。</p>" +
+                    "      <p>为确保您的安全，建议不要将验证码泄露给他人。</p>" +
+                    "    </div>" +
+                    "    <div class='footer'>" +
+                    "      <p>如有任何疑问或需要帮助，请访问我们的官方帮助中心。</p>" +
+                    "      <p><a href='https://yucoder.cn' target='_blank' class='cta-button'>访问摸鱼岛官网</a></p>" +
+                    "      <p>© 2025 摸鱼岛. 保留所有权利。</p>" +
+                    "    </div>" +
+                    "  </div>" +
+                    "</body>" +
+                    "</html>";
+
             // 设置邮件内容，true表示HTML格式
             mailMessage.setText(emailContent, true);
             log.info("您收到的验证码是：" + code);

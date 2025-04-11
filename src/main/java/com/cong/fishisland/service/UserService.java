@@ -65,6 +65,22 @@ public interface UserService extends IService<User> {
     LoginUserVO userEmailLogin(String email, String userPassword);
 
     /**
+     * 用户邮箱找回密码
+     *
+     * @param email 邮箱
+     * @return 脱敏后的用户信息
+     */
+    boolean userEmailResetPassword(String email, String userPassword, String checkPassword, String code);
+
+    /**
+     * 用户邮箱绑定账号
+     *
+     * @param email 邮箱
+     * @return 脱敏后的用户信息
+     */
+    boolean userEmailBindToAccount(String email, String code);
+
+    /**
      * 获取当前登录用户根据token
      *
      * @param token 令 牌

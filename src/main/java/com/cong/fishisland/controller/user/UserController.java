@@ -78,7 +78,7 @@ public class UserController {
         CaptchaVO captchaVO = new CaptchaVO();
         captchaVO.setCaptchaVerification(userRegisterRequest.getCaptchaVerification());
         ResponseModel response = captchaService.verification(captchaVO);
-        if(!response.isSuccess()){
+        if (!response.isSuccess()) {
             //验证码校验失败，返回信息告诉前端
             //repCode  0000  无异常，代表成功
             //repCode  9999  服务器内部异常
@@ -86,7 +86,7 @@ public class UserController {
             //repCode  6110  验证码已失效，请重新获取
             //repCode  6111  验证失败
             //repCode  6112  获取验证码失败,请联系管理员
-            throw new BusinessException(ErrorCode.FORBIDDEN_ERROR,"验证码错误请重试");
+            throw new BusinessException(ErrorCode.FORBIDDEN_ERROR, "验证码错误请重试");
 
         }
         if (StringUtils.isAnyBlank(userAccount, userPassword, checkPassword)) {
@@ -112,28 +112,11 @@ public class UserController {
         String email = userRegisterRequest.getEmail();
         String userPassword = userRegisterRequest.getUserPassword();
         String checkPassword = userRegisterRequest.getCheckPassword();
-        String code=userRegisterRequest.getCode();
+        String code = userRegisterRequest.getCode();
         if (StringUtils.isAnyBlank(email, userPassword, checkPassword)) {
             return null;
         }
-        long result = userService.userEmilRegister(userAccount,email, userPassword, checkPassword,code);
-        return ResultUtils.success(result);
-    }
-
-    /**
-     * 用户邮箱验证码
-     *
-     * @param userRegisterRequest 用户注册请求
-     * @return {@link BaseResponse}<{@link Long}>
-     */
-    @PostMapping("/email/send")
-    @ApiOperation(value = "用户邮箱验证码")
-    public BaseResponse<Boolean> userEmailSend(@RequestBody UserRegisterRequest userRegisterRequest) {
-        String email = userRegisterRequest.getEmail();
-        if (email == null) {
-            throw new BusinessException(ErrorCode.PARAMS_ERROR);
-        }
-        boolean result = userService.userEmailSend(email);
+        long result = userService.userEmilRegister(userAccount, email, userPassword, checkPassword, code);
         return ResultUtils.success(result);
     }
 
@@ -181,6 +164,7 @@ public class UserController {
 
     /**
      * 用户通过 GitHub 登录
+     *
      * @param callback 回调
      * @return {@link BaseResponse}<{@link TokenLoginUserVo}>
      */
@@ -188,7 +172,7 @@ public class UserController {
     @ApiOperation(value = "用户GitHub登录")
     public BaseResponse<TokenLoginUserVo> userLoginByGithub(AuthCallback callback) {
         if (callback.getCode() == null) {
-            throw new BusinessException(ErrorCode.PARAMS_ERROR,"Github 登录失败，code 为空");
+            throw new BusinessException(ErrorCode.PARAMS_ERROR, "Github 登录失败，code 为空");
         }
         TokenLoginUserVo tokenLoginUserVo = userService.userLoginByGithub(callback);
         return ResultUtils.success(tokenLoginUserVo);
@@ -218,6 +202,58 @@ public class UserController {
     public BaseResponse<LoginUserVO> getLoginUser() {
         User user = userService.getLoginUser();
         return ResultUtils.success(userService.getLoginUserVO(user));
+    }
+
+    // endregion
+
+    // region 邮箱相关
+
+    /**
+     * 用户邮箱验证码
+     *
+     * @param userRegisterRequest 用户注册请求
+     * @return {@link BaseResponse}<{@link Long}>
+     */
+    @PostMapping("/email/send")
+    @ApiOperation(value = "用户邮箱验证码")
+    public BaseResponse<Boolean> userEmailSend(@RequestBody UserRegisterRequest userRegisterRequest) {
+        String email = userRegisterRequest.getEmail();
+        if (email == null) {
+            throw new BusinessException(ErrorCode.PARAMS_ERROR);
+        }
+        boolean result = userService.userEmailSend(email);
+        return ResultUtils.success(result);
+    }
+
+    /**
+     * 用户找回密码（邮箱）
+     *
+     * @return {@link BaseResponse}<{@link LoginUserVO}>
+     */
+    @PostMapping("/email/resetPassword")
+    @ApiOperation(value = "用户邮箱找回密码")
+    public BaseResponse<Boolean> userEmailResetPassword(@RequestBody UserEmailResetPasswordRequest userEmailRestPasswordRequest) {
+        if (userEmailRestPasswordRequest == null) {
+            throw new BusinessException(ErrorCode.PARAMS_ERROR, "重置密码失败，参数为空");
+        }
+        boolean result = userService.userEmailResetPassword(userEmailRestPasswordRequest.getEmail(), userEmailRestPasswordRequest.getUserPassword(), userEmailRestPasswordRequest.getCheckPassword(), userEmailRestPasswordRequest.getCode());
+        return ResultUtils.success(result);
+    }
+
+    /**
+     * 用户邮箱绑定账号
+     *
+     * @return {@link BaseResponse}<{@link LoginUserVO}>
+     */
+    @PostMapping("/email/bindToAccount")
+    @ApiOperation(value = "用户邮箱绑定账号")
+    public BaseResponse<Boolean> userEmailBindToAccount(@RequestBody UserBindEmailRequest userBindEmailRequest) {
+        if (userBindEmailRequest == null) {
+            throw new BusinessException(ErrorCode.PARAMS_ERROR, "邮箱绑定失败，参数为空");
+        }
+        boolean result = userService.userEmailBindToAccount(userBindEmailRequest.getEmail(), userBindEmailRequest.getCode()
+        );
+        return ResultUtils.success(result);
     }
 
     // endregion
@@ -389,6 +425,6 @@ public class UserController {
     @PostMapping("/signIn")
     @ApiOperation(value = "签到")
     public BaseResponse<Boolean> signIn() {
-       return ResultUtils.success(userPointsService.signIn());
+        return ResultUtils.success(userPointsService.signIn());
     }
 }
