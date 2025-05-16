@@ -32,6 +32,11 @@ public interface RedisKey {
     String HOT_POST_CACHE_KEY = "hot_post_list";
 
     /**
+     * 用户猜对的英雄
+     */
+    String GUESS_HERO_USER_CURRENT_HERO = "guess:hero:user:%d:current_hero";
+
+    /**
      * 记录猜对英雄次数
      */
     String GUESS_HERO_SUCCESS_COUNT = "guess:hero:success:count";

@@ -16,7 +16,7 @@ public class HeroVO implements Serializable {
     /**
      * 主键ID
      */
-    private Long id;
+    private String id;
 
     /**
      * 英雄英文标识(如177)

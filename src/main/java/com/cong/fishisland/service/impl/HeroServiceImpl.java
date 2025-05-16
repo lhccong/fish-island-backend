@@ -205,6 +205,10 @@ public class HeroServiceImpl extends ServiceImpl<HeroMapper, Hero>
     private HeroVO convertToHeroVO(Hero hero) {
         HeroVO vo = new HeroVO();
         BeanUtils.copyProperties(hero, vo);
+        Long id = hero.getId();
+        if (id != null){
+            vo.setId(id.toString());
+        }
         vo.setSkinsNum(getSkinsNum(hero.getSkins()));
         return vo;
     }

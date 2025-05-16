@@ -1,8 +1,11 @@
 package com.cong.fishisland.controller.hero;
 
 import cn.dev33.satoken.annotation.SaCheckRole;
+import com.alibaba.fastjson.JSON;
 import com.cong.fishisland.common.BaseResponse;
+import com.cong.fishisland.common.ErrorCode;
 import com.cong.fishisland.common.ResultUtils;
+import com.cong.fishisland.common.exception.ThrowUtils;
 import com.cong.fishisland.constant.RedisKey;
 import com.cong.fishisland.constant.UserConstant;
 import com.cong.fishisland.model.entity.user.User;
@@ -11,21 +14,27 @@ import com.cong.fishisland.model.vo.hero.HeroVO;
 import com.cong.fishisland.model.vo.hero.SimpleHeroVO;
 import com.cong.fishisland.service.HeroService;
 import com.cong.fishisland.service.UserService;
+import com.cong.fishisland.utils.CryptoUtils;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.data.redis.core.ZSetOperations;
-import org.springframework.web.bind.annotation.*;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RestController;
 
 import javax.annotation.Resource;
 import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
 import java.util.Set;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.stream.Collectors;
 
 /**
  * 王者荣耀英雄控制器
+ *
  * @author 许林涛
  * @date 2025年05月02日 16:50
  */
@@ -43,6 +52,7 @@ public class HeroController {
 
     /**
      * 初始化英雄列表（仅限管理员使用）
+     *
      * @return
      */
     @SaCheckRole(UserConstant.ADMIN_ROLE)
@@ -55,9 +65,26 @@ public class HeroController {
      * 随机获取一个英雄数据
      */
     @GetMapping("/get/random")
-    public BaseResponse<HeroVO> getRandomHero() {
-        return ResultUtils.success(heroService.getRandomHero());
+    public BaseResponse<String> getRandomHero() {
+        // 获取当前用户信息
+        User loginUser = userService.getLoginUserPermitNull();
+        HeroVO hero = heroService.getRandomHero();
+        //  判断当前用户是否登录
+        if (loginUser != null && hero != null) {
+            Long userId = loginUser.getId();
+            // 构建 Redis Key 和 Value
+            String redisKey = String.format(RedisKey.GUESS_HERO_USER_CURRENT_HERO, userId);
+            // 存储到 Redis，设置过期时间10分钟
+            redisTemplate.opsForValue().set(
+                    redisKey,
+                    Long.valueOf(hero.getId()),
+                    10, TimeUnit.MINUTES
+            );
+        }
+        String json = JSON.toJSONString(hero);
+        return ResultUtils.success(CryptoUtils.encryptSafely(json));
     }
+
 
     /**
      * 获取最新英雄数据
@@ -85,25 +112,37 @@ public class HeroController {
 
     /**
      * 记录猜对英雄次数
+     *
      * @return 是否记录成功
      */
     @PostMapping("/guess/success")
-    public BaseResponse<Boolean> recordGuessSuccess() {
+    public BaseResponse<Boolean> recordGuessSuccess(Long heroId) {
         User loginUser = userService.getLoginUser();
         Long userId = loginUser.getId();
-        // 直接使用原子递增操作
+        // 构建 Redis Key 和 Value
+        String redisKey = String.format(RedisKey.GUESS_HERO_USER_CURRENT_HERO, userId);
+        // 获取用户当前英雄
+        Long storedHeroId = (Long) redisTemplate.opsForValue().get(redisKey);
+        //如果不存在，提示错误请先开始游戏
+        ThrowUtils.throwIf(storedHeroId == null, ErrorCode.OPERATION_ERROR, "请先开始游戏");
+        //redisKey的value值与heroId比较,不相等提示盗刷错误
+        ThrowUtils.throwIf(!Objects.equals(storedHeroId, heroId), ErrorCode.OPERATION_ERROR, "请不要进行非法操作");
+        // 原子操作记录数据
         redisTemplate.opsForValue().increment(RedisKey.GUESS_HERO_SUCCESS_COUNT);
-        // 记录排行榜
         redisTemplate.opsForZSet().incrementScore(
                 RedisKey.GUESS_HERO_RANKING,
-                userId.toString(),
+                loginUser.getId().toString(),
                 1
         );
+        // 成功后删除记录
+        redisTemplate.delete(redisKey);
         return ResultUtils.success(true);
     }
 
+
     /**
      * 获取猜对英雄次数
+     *
      * @return 猜对英雄次数
      */
     @GetMapping("/guess/count")
@@ -114,6 +153,7 @@ public class HeroController {
 
     /**
      * 获取英雄排行榜
+     *
      * @return 英雄排行榜
      */
     @GetMapping("/guess/ranking")
@@ -142,6 +182,5 @@ public class HeroController {
 
         return ResultUtils.success(ranking);
     }
-
 
 }
