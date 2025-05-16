@@ -11,9 +11,11 @@
             <result property="reason" column="reason" />
             <result property="createTime" column="createTime" />
             <result property="updateTime" column="updateTime" />
+        <result property="bannedIp" column="bannedIp" />
     </resultMap>
 
     <sql id="Base_Column_List">
-        id,email,emailSuffix,reason,createTime,updateTime
+        id,email,emailSuffix,reason,createTime,updateTime,
+        bannedIp
     </sql>
 </mapper>

@@ -4,6 +4,7 @@ import cn.dev33.satoken.stp.SaTokenInfo;
 import cn.dev33.satoken.stp.StpUtil;
 import cn.hutool.core.collection.CollUtil;
 import cn.hutool.core.text.CharSequenceUtil;
+import cn.hutool.extra.servlet.ServletUtil;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
 import com.baomidou.mybatisplus.core.toolkit.Wrappers;
@@ -36,6 +37,7 @@ import me.zhyd.oauth.model.AuthResponse;
 import me.zhyd.oauth.model.AuthUser;
 import me.zhyd.oauth.request.AuthRequest;
 import org.apache.commons.lang3.StringUtils;
+import org.apache.commons.validator.routines.EmailValidator;
 import org.redisson.api.RRateLimiter;
 import org.redisson.api.RateIntervalUnit;
 import org.redisson.api.RateType;
@@ -46,6 +48,8 @@ import org.springframework.stereotype.Service;
 import org.springframework.util.DigestUtils;
 
 import javax.annotation.Resource;
+import javax.servlet.http.HttpServletRequest;
+import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -75,10 +79,18 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements Us
     @Resource
     private EmailBanService emailBanService;
 
+    private static final EmailValidator EMAIL_VALIDATOR = EmailValidator.getInstance(true);
+
     @Resource
     StringRedisTemplate stringRedisTemplate;
 
     private static final String EMAIL_CODE_PREFIX = "email:code:";
+
+    private static final String IP_COUNT_PREFIX = "email:ip:";
+
+    // 限流阈值：同一 IP 10 分钟内最多 5 次
+    private static final int IP_THRESHOLD = 5;
+    private static final Duration IP_WINDOW = Duration.ofMinutes(10);
 
     @Resource
     private RedissonClient redissonClient;
@@ -226,13 +238,39 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements Us
     }
 
     @Override
-    public boolean userEmailSend(String email) {
+    public boolean userEmailSend(String email, HttpServletRequest request) {
         // 校验邮箱格式
         validateEmailFormat(email);
+        // 获取客户端 IP
+        String clientIP = ServletUtil.getClientIP(request);
+        // IP 黑名单检查
+        boolean ipBanned = emailBanService.lambdaQuery()
+                .eq(EmailBan::getBannedIp, clientIP)
+                .exists();
+        if (ipBanned) {
+            throw new BusinessException(ErrorCode.PARAMS_ERROR, "您的 IP 已被封禁，暂时无法发送验证码");
+        }
+        // IP 限流 & 日志告警
+        String ipKey = IP_COUNT_PREFIX + clientIP;
+        Long ipCount = stringRedisTemplate.opsForValue().increment(ipKey);
+        if (ipCount != null) {
+            if (ipCount == 1) {
+                // 第一次请求，设置过期时间
+                stringRedisTemplate.expire(ipKey, IP_WINDOW);
+            }
+            if (ipCount > IP_THRESHOLD) {
+                // 超出阈值，记录警告日志
+                log.warn("频繁请求警告：来自 IP [{}] 在 {} 分钟内已请求 {} 次",
+                        clientIP, IP_WINDOW.toMinutes(), ipCount);
+            }
+        }
 
         // 检查 Redis 是否已有验证码，防止频繁发送
-        String existingCode = stringRedisTemplate.opsForValue().get(EMAIL_CODE_PREFIX + email);
-        if (StringUtils.isNotBlank(existingCode)) {
+        String redisKey = EMAIL_CODE_PREFIX + email;
+        Boolean occupied = stringRedisTemplate.opsForValue()
+                .setIfAbsent(redisKey, "SENT", Duration.ofMinutes(5));
+        if (Boolean.FALSE.equals(occupied)) {
+            // 如果已存在占位（意味着该邮箱已被处理过），直接拒绝
             throw new BusinessException(ErrorCode.PARAMS_ERROR, "验证码已发送，请稍后再试");
         }
         try {
@@ -392,8 +430,8 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements Us
 
             // 更新数据
             loginUser.setUserPassword(encryptPassword);
-            boolean updateResult  = this.updateById(loginUser);
-            if (!updateResult ) {
+            boolean updateResult = this.updateById(loginUser);
+            if (!updateResult) {
                 throw new BusinessException(ErrorCode.SYSTEM_ERROR, "重置密码，数据库错误");
             }
         } finally {
@@ -474,8 +512,8 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements Us
 
             // 插入数据
             loginUser.setEmail(email);
-            boolean updateResult  = this.updateById(loginUser);
-            if (!updateResult ) {
+            boolean updateResult = this.updateById(loginUser);
+            if (!updateResult) {
                 throw new BusinessException(ErrorCode.SYSTEM_ERROR, "绑定失败，数据库错误");
             }
         } finally {
@@ -621,7 +659,7 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements Us
                 Wrappers.lambdaQuery(UserThirdAuth.class)
                         .eq(UserThirdAuth::getUserId, user.getId())
         );
-        List<PlatformBindVO> bindPlatforms  = userThirdAuths.stream().map(
+        List<PlatformBindVO> bindPlatforms = userThirdAuths.stream().map(
                 userThirdAuth -> {
                     PlatformBindVO platformBindVO = new PlatformBindVO();
                     platformBindVO.setPlatform(userThirdAuth.getPlatform());
@@ -725,7 +763,7 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements Us
         if (StringUtils.isBlank(email)) {
             throw new BusinessException(ErrorCode.PARAMS_ERROR, "邮箱不能为空");
         }
-        if (StringUtils.isBlank(email) || !email.matches("^[A-Za-z0-9+_.-]+@[A-Za-z0-9.-]+\\.[A-Za-z]{2,}$")) {
+        if (!EMAIL_VALIDATOR.isValid(email)) {
             throw new BusinessException(ErrorCode.PARAMS_ERROR, "邮箱格式不正确");
         }
 

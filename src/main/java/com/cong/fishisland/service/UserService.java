@@ -7,10 +7,10 @@ import com.cong.fishisland.model.entity.user.User;
 import com.cong.fishisland.model.vo.user.LoginUserVO;
 import com.cong.fishisland.model.vo.user.TokenLoginUserVo;
 import com.cong.fishisland.model.vo.user.UserVO;
-
-import java.util.List;
-
 import me.zhyd.oauth.model.AuthCallback;
+
+import javax.servlet.http.HttpServletRequest;
+import java.util.List;
 
 /**
  * 用户服务
@@ -44,7 +44,7 @@ public interface UserService extends IService<User> {
      * @param email 邮箱
      * @return 验证码
      */
-    boolean userEmailSend(String email);
+    boolean userEmailSend(String email, HttpServletRequest request);
 
     /**
      * 用户登录
