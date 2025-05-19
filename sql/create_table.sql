@@ -252,3 +252,5 @@ create table if not exists `email_ban`
     createTime  datetime     default CURRENT_TIMESTAMP not null comment '创建时间',
     updateTime  datetime     default CURRENT_TIMESTAMP not null on update CURRENT_TIMESTAMP comment '更新时间'
 ) comment '邮箱封禁表' collate = utf8mb4_unicode_ci;
+ALTER TABLE `email_ban`
+    ADD COLUMN `bannedIp` VARCHAR(45) NULL COMMENT '封禁的 IP 地址' after emailSuffix;

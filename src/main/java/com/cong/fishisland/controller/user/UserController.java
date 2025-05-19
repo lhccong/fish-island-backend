@@ -22,6 +22,7 @@ import com.cong.fishisland.service.UserService;
 
 import java.util.List;
 import javax.annotation.Resource;
+import javax.servlet.http.HttpServletRequest;
 
 import io.swagger.annotations.ApiOperation;
 import lombok.extern.slf4j.Slf4j;
@@ -216,12 +217,12 @@ public class UserController {
      */
     @PostMapping("/email/send")
     @ApiOperation(value = "用户邮箱验证码")
-    public BaseResponse<Boolean> userEmailSend(@RequestBody UserEmailSendRequest userEmailSendRequest) {
+    public BaseResponse<Boolean> userEmailSend(@RequestBody UserEmailSendRequest userEmailSendRequest, HttpServletRequest request) {
         String email = userEmailSendRequest.getEmail();
         if (email == null) {
             throw new BusinessException(ErrorCode.PARAMS_ERROR);
         }
-        boolean result = userService.userEmailSend(email);
+        boolean result = userService.userEmailSend(email,request);
         return ResultUtils.success(result);
     }
 
