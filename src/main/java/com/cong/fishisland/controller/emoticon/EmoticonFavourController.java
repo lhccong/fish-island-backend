@@ -2,6 +2,7 @@ package com.cong.fishisland.controller.emoticon;
 
 import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
+import com.cong.fishisland.annotation.NoRepeatSubmit;
 import com.cong.fishisland.common.*;
 import com.cong.fishisland.common.exception.BusinessException;
 import com.cong.fishisland.common.exception.ThrowUtils;
@@ -39,6 +40,7 @@ public class EmoticonFavourController{
      * @param emoticonSrc 收藏表情包地址
      * @return 是否收藏成功
      */
+    @NoRepeatSubmit
     @PostMapping("/add")
     @ApiOperation(value = "新增收藏表情包")
     public BaseResponse<Boolean> addEmoticonFavour(@RequestBody String emoticonSrc) {

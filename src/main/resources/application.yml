@@ -28,7 +28,7 @@ mybatis-plus:
   configuration:
     map-underscore-to-camel-case: false
     ## 打印 sql 日志（线上时可关闭）
-  #    log-impl: org.apache.ibatis.logging.stdout.StdOutImpl
+    log-impl: org.apache.ibatis.logging.stdout.StdOutImpl
   global-config:
     db-config:
       logic-delete-field: isDelete # 全局逻辑删除的实体字段名
@@ -64,11 +64,11 @@ aj:
     # 请打开CaptchaCacheServiceRedisImpl.java注释。
     # redis ----->  SPI： 在resources目录新建META-INF.services文件夹(两层)，参考当前服务resources。
     # 缓存local/redis...
-    cache-type: local
+    cache-type: redis
     # local缓存的阈值,达到这个值，清除缓存
-    #cache-number: 1000
+    cache-number: 1000
     # local定时清除过期缓存(单位秒),设置为0代表不执行
-    #timing-clear: 180
+    timing-clear: 180
     #spring.redis.host: 10.108.11.46
     #spring.redis.port: 6379
     #spring.redis.password:
@@ -76,11 +76,11 @@ aj:
     #spring.redis.timeout: 6000
 
     # 验证码类型default两种都实例化。
-    type: default
+    type: BLOCKPUZZLE
     # 汉字统一使用Unicode,保证程序通过@value读取到是中文，可通过这个在线转换;yml格式不需要转换
     # https://tool.chinaz.com/tools/unicode.aspx 中文转Unicode
     # 右下角水印文字(我的水印)
-    water-mark: "\u6211\u7684\u6c34\u5370"
+    water-mark: "摸鱼岛"
     # 右下角水印字体(不配置时，默认使用文泉驿正黑)
     # 由于宋体等涉及到版权，我们jar中内置了开源字体【文泉驿正黑】
     # 方式一：直接配置OS层的现有的字体名称，比如：宋体

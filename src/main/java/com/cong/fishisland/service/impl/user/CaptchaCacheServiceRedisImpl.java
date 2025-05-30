@@ -1,7 +1,9 @@
 package com.cong.fishisland.service.impl.user;
 
 import com.anji.captcha.service.CaptchaCacheService;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.redis.core.StringRedisTemplate;
+import org.springframework.stereotype.Service;
 
 import java.util.concurrent.TimeUnit;
 
@@ -21,6 +23,7 @@ import java.util.concurrent.TimeUnit;
  * @author Devli
  * @date 2020-05-12
  */
+@Service
 public class CaptchaCacheServiceRedisImpl implements CaptchaCacheService {
 
     @Override
@@ -28,10 +31,7 @@ public class CaptchaCacheServiceRedisImpl implements CaptchaCacheService {
         return "redis";
     }
 
-    public void setStringRedisTemplate(StringRedisTemplate stringRedisTemplate) {
-        this.stringRedisTemplate = stringRedisTemplate;
-    }
-
+    @Autowired
     private StringRedisTemplate stringRedisTemplate;
 
     @Override

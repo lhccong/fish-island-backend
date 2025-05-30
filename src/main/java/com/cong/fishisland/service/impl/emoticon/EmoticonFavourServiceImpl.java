@@ -5,19 +5,16 @@ import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import com.cong.fishisland.common.ErrorCode;
 import com.cong.fishisland.common.exception.BusinessException;
 import com.cong.fishisland.common.exception.ThrowUtils;
-import com.cong.fishisland.constant.RedisKey;
+import com.cong.fishisland.mapper.emoticon.EmoticonFavourMapper;
 import com.cong.fishisland.model.entity.emoticon.EmoticonFavour;
 import com.cong.fishisland.model.entity.user.User;
 import com.cong.fishisland.service.EmoticonFavourService;
-import com.cong.fishisland.mapper.emoticon.EmoticonFavourMapper;
-import com.cong.fishisland.utils.RedisUtils;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.aop.framework.AopContext;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import javax.annotation.Resource;
-import java.time.Duration;
 
 /**
 * @author 许林涛
@@ -42,21 +39,13 @@ public class EmoticonFavourServiceImpl extends ServiceImpl<EmoticonFavourMapper,
         ThrowUtils.throwIf(loginUser == null, ErrorCode.NOT_LOGIN_ERROR);
         ThrowUtils.throwIf(emoticonSrc == null, ErrorCode.PARAMS_ERROR, "收藏表情包路径为空");
         Long userId = loginUser.getId();
-        // 防抖校验（使用项目现有Redis工具类）
-        String debounceKey = RedisKey.getKey(RedisKey.EMOTICON_FAVOUR_DEBOUNCE, userId, emoticonSrc);
-        if (!RedisUtils.setIfAbsent(debounceKey, "1", Duration.ofSeconds(2))) {
-            throw new BusinessException(ErrorCode.OPERATION_ERROR, "操作过于频繁，请稍后再试");
-        }
         // 判断是否已收藏
         boolean existed = existEmoticonFavour(emoticonSrc, userId);
         if (existed) {
             throw new BusinessException(ErrorCode.PARAMS_ERROR, "该表情包已收藏过");
         }
-        // 每个用户串行收藏（保留原有同步块保证单机线程安全）
         EmoticonFavourService emoticonFavourService = (EmoticonFavourService) AopContext.currentProxy();
-        synchronized (String.valueOf(userId).intern()) {
-            return emoticonFavourService.addEmoticonFavourInner(emoticonSrc, userId);
-        }
+        return emoticonFavourService.addEmoticonFavourInner(emoticonSrc, userId);
     }
 
     /**

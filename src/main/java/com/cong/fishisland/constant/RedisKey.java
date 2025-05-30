@@ -20,15 +20,8 @@ public interface RedisKey {
     String OFFLINE_UID_ZET = "offline";
 
     /**
-     * 用户信息
+     * 热帖缓存
      */
-    String USER_INFO_STRING = "userInfo:uid_%d";
-
-    /**
-     * 用户token存放
-     */
-    String USER_TOKEN_STRING = "userToken:uid_%d";
-
     String HOT_POST_CACHE_KEY = "hot_post_list";
 
     /**
@@ -47,19 +40,14 @@ public interface RedisKey {
     String GUESS_HERO_RANKING = "guess:hero:ranking";
 
     /**
-     * 表情包收藏防抖
-     */
-    String EMOTICON_FAVOUR_DEBOUNCE = "emoticon:favour:debounce:%d:%s";
-
-    /**
      * 用户改名限制 user:rename:{userId}:{yyyyMM}
      */
     String USER_RENAME_LIMIT = "user:rename:%d:%s";
 
     /**
-     * 新增防抖相关常量
+     * 防止重复提交 key 前缀
      */
-    String USER_DEBOUNCE_PREFIX = "user:debounce:";
+    String NO_REPEAT_SUBMIT_PREFIX = "noRepeatSubmit:%s:%s";
 
     static String getKey(String key, Object... objects) {
         return BASE_KEY + String.format(key, objects);

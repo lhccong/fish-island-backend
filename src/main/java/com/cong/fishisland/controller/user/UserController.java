@@ -5,6 +5,7 @@ import com.anji.captcha.model.common.ResponseModel;
 import com.anji.captcha.model.vo.CaptchaVO;
 import com.anji.captcha.service.CaptchaService;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
+import com.cong.fishisland.annotation.NoRepeatSubmit;
 import com.cong.fishisland.common.BaseResponse;
 import com.cong.fishisland.common.DeleteRequest;
 import com.cong.fishisland.common.ErrorCode;
@@ -412,6 +413,7 @@ public class UserController {
      * @param userUpdateMyRequest 用户更新我请求
      * @return {@link BaseResponse}<{@link Boolean}>
      */
+    @NoRepeatSubmit
     @PostMapping("/update/my")
     @ApiOperation(value = "更新个人信息")
     @Transactional(rollbackFor = Exception.class) // 添加事务注解
@@ -425,15 +427,6 @@ public class UserController {
         User loginUser = userService.getLoginUser();
         String loginUserUserName = loginUser.getUserName();
         String userRole = loginUser.getUserRole();
-
-        // ========== 新增防抖逻辑 ==========
-        String debounceKey = RedisKey.getKey(RedisKey.USER_DEBOUNCE_PREFIX, "updateMy", loginUser.getId());
-        if (RedisUtils.hasKey(debounceKey)) {
-            throw new BusinessException(ErrorCode.OPERATION_ERROR, "操作过于频繁，请稍后再试");
-        }
-        // 设置3秒防抖期
-        RedisUtils.set(debounceKey, "1", Duration.ofSeconds(3));
-
         // ========== 先执行更新操作，除了用户名 ==========
         User user = new User();
         //新用户名为空或者是管理员时，设置用户名
