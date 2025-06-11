@@ -50,6 +50,7 @@ import javax.annotation.Resource;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.locks.ReentrantLock;
 import java.util.stream.Collectors;
 
 import static com.cong.fishisland.constant.SystemConstants.SALT;
@@ -67,6 +68,8 @@ public class UserThirdAuthServiceImpl extends ServiceImpl<UserThirdAuthMapper, U
 
     @Resource
     private UserPointsService userPointsService;
+
+    private static final ConcurrentHashMap<String, ReentrantLock> LOCK_MAP = new ConcurrentHashMap<>();
 
     /**
      * 获取三方平台关联信息
@@ -94,9 +97,8 @@ public class UserThirdAuthServiceImpl extends ServiceImpl<UserThirdAuthMapper, U
         // 1. 校验
         // 生成用户账户
         String userAccount = rowData.getSource().toLowerCase() + "_" + rowData.getUuid();
-        Map<String, Object> lockMap = new ConcurrentHashMap<>();
-        Object lock = lockMap.computeIfAbsent(userAccount, key -> new Object());
-        synchronized (lock) {
+        ReentrantLock lock = LOCK_MAP.computeIfAbsent(userAccount, k -> new ReentrantLock());
+        lock.lock();
             try {
                 // 账户不能重复
                 QueryWrapper<User> queryWrapper = new QueryWrapper<>();
@@ -122,9 +124,9 @@ public class UserThirdAuthServiceImpl extends ServiceImpl<UserThirdAuthMapper, U
                 savePoints(user);
                 return user.getId();
             } finally {
+                lock.unlock();
                 // 防止内存泄漏
-                lockMap.remove(userAccount);
-            }
+                LOCK_MAP.remove(userAccount);
         }
     }
 

@@ -12,7 +12,7 @@ import java.util.Map;
 @Data
 public class SiliconFlowRequest {
     // 默认模型
-    private String model = "Qwen/QwQ-32B";
+    private String model = "Qwen/Qwen2.5-14B-Instruct";
     private List<Message> messages;
     private boolean stream = false;
     private int max_tokens = 512;

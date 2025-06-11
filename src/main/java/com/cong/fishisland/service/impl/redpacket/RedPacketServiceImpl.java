@@ -7,6 +7,7 @@ import com.cong.fishisland.model.dto.redpacket.CreateRedPacketRequest;
 import com.cong.fishisland.model.entity.redpacket.RedPacket;
 import com.cong.fishisland.model.entity.redpacket.RedPacketRecord;
 import com.cong.fishisland.model.entity.user.User;
+import com.cong.fishisland.model.entity.user.UserPoints;
 import com.cong.fishisland.model.enums.UserRoleEnum;
 import com.cong.fishisland.model.vo.redpacket.RedPacketRecordVO;
 import com.cong.fishisland.service.RedPacketService;
@@ -17,6 +18,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.BeanUtils;
 import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Duration;
 import java.util.*;
@@ -42,23 +44,61 @@ public class RedPacketServiceImpl implements RedPacketService {
     private static final String RED_PACKET_RECORD_KEY_PREFIX = "redpacket:record:";
     private static final String RED_PACKET_USER_KEY_PREFIX = "redpacket:user:";
     private static final String RED_PACKET_LOCK_KEY_PREFIX = "redpacket:lock:";
+    private static final String RED_PACKET_DAILY_COUNT_KEY_PREFIX = "redpacket:daily_count:";
 
     // 红包过期时间（24小时）
     private static final long RED_PACKET_EXPIRE_TIME = 24 * 60 * 60;
-    
+    // 每日发红包次数限制
+    private static final int NORMAL_USER_DAILY_LIMIT = 1;
+    private static final int ADMIN_DAILY_LIMIT = 3;
+
     // 锁的过期时间（10秒）
     private static final long LOCK_EXPIRE_TIME = 10;
 
     @Override
+    @Transactional(rollbackFor = Exception.class)
     public String createRedPacket(CreateRedPacketRequest request) {
         // 获取当前登录用户ID
         User loginUser = userService.getLoginUser();
-        if (!Objects.equals(loginUser.getUserRole(), UserRoleEnum.ADMIN.getValue())) {
-            throw new BusinessException(ErrorCode.NO_AUTH_ERROR, "无法发送红包");
+
+        if (request.getTotalAmount() / request.getCount() > 10) {
+            throw new BusinessException(ErrorCode.OPERATION_ERROR, "操作红包异常,不能发送大额红包");
         }
+
+        //获取当前用户积分
+        UserPoints userPoints = userPointsService.getById(loginUser.getId());
+        if (userPoints.getLevel() < 6 && !Objects.equals(loginUser.getUserRole(), UserRoleEnum.ADMIN.getValue())) {
+            throw new BusinessException(ErrorCode.OPERATION_ERROR, "您的等级不足，无法发送红包");
+        }
+
+        // 判断用户是否有足够的积分
+        if ((userPoints.getPoints() - userPoints.getUsedPoints() < request.getTotalAmount()) && !Objects.equals(loginUser.getUserRole(), UserRoleEnum.ADMIN.getValue())) {
+            throw new BusinessException(ErrorCode.OPERATION_ERROR, "积分不足");
+        }
+
         if (request.getTotalAmount() <= 0 || request.getCount() <= 0 || request.getTotalAmount() > 100) {
-            throw new BusinessException(ErrorCode.OPERATION_ERROR, "操作红包异常");
+            throw new BusinessException(ErrorCode.OPERATION_ERROR, "操作红包异常,不能发送大额红包");
         }
+
+
+        // 检查用户每日发红包次数限制
+        String dailyCountKey = RED_PACKET_DAILY_COUNT_KEY_PREFIX + loginUser.getId() + ":" + getTodayDate();
+        Integer dailyCount = (Integer) redisTemplate.opsForValue().get(dailyCountKey);
+        if (dailyCount == null) {
+            dailyCount = 0;
+        }
+
+        int dailyLimit = Objects.equals(loginUser.getUserRole(), UserRoleEnum.ADMIN.getValue())
+                ? ADMIN_DAILY_LIMIT
+                : NORMAL_USER_DAILY_LIMIT;
+
+        if (dailyCount >= dailyLimit) {
+            throw new BusinessException(ErrorCode.OPERATION_ERROR,
+                    Objects.equals(loginUser.getUserRole(), UserRoleEnum.ADMIN.getValue())
+                            ? "管理员每日最多只能发送3次红包"
+                            : "您今日已发送过红包，请明天再来");
+        }
+
 
         // 生成红包ID
         String redPacketId = generateRedPacketId();
@@ -96,6 +136,14 @@ public class RedPacketServiceImpl implements RedPacketService {
         String redPacketUserKey = RED_PACKET_USER_KEY_PREFIX + redPacketId;
         redisTemplate.opsForSet().add(redPacketUserKey, new HashSet<>());
         redisTemplate.expire(redPacketUserKey, Duration.ofSeconds(RED_PACKET_EXPIRE_TIME));
+
+        //扣减用户可用积分
+        if (!Objects.equals(loginUser.getUserRole(), UserRoleEnum.ADMIN.getValue())) {
+            userPointsService.updateUsedPoints(loginUser.getId(), request.getTotalAmount());
+        }
+
+        // 更新用户每日发红包次数
+        redisTemplate.opsForValue().set(dailyCountKey, dailyCount + 1, Duration.ofDays(1));
 
         return redPacketId;
     }
@@ -184,7 +232,7 @@ public class RedPacketServiceImpl implements RedPacketService {
             redisTemplate.opsForSet().add(redPacketRecordKey, record);
 
             //增加用户积分
-            userPointsService.updatePoints(userId, amount,false);
+            userPointsService.updateUsedPoints(userId, -amount);
 
             return amount;
         } finally {
@@ -237,7 +285,7 @@ public class RedPacketServiceImpl implements RedPacketService {
         // 获取红包记录
         String redPacketRecordKey = RED_PACKET_RECORD_KEY_PREFIX + redPacketId;
         Set<Object> records = redisTemplate.opsForSet().members(redPacketRecordKey);
-        
+
         // 设置已抢红包数量
         if (records != null) {
             redPacket.setGrabCount(records.size());
@@ -285,13 +333,20 @@ public class RedPacketServiceImpl implements RedPacketService {
         int minAmount = 1;
         // 取剩余金额和最大允许金额中的较小值作为上限
         int maxAmount = Math.min(
-            redPacket.getRemainingAmount() - (redPacket.getRemainingCount() - 1) * minAmount,
-            maxAllowedAmount
+                redPacket.getRemainingAmount() - (redPacket.getRemainingCount() - 1) * minAmount,
+                maxAllowedAmount
         );
 
         // 使用Random生成随机数
         Random random = new Random();
 
         return random.nextInt(maxAmount) + minAmount;
+    }
+
+    /**
+     * 获取今天的日期字符串（格式：yyyyMMdd）
+     */
+    private String getTodayDate() {
+        return java.time.LocalDate.now().format(java.time.format.DateTimeFormatter.ofPattern("yyyyMMdd"));
     }
 } 

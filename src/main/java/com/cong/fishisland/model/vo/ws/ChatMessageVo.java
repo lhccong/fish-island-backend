@@ -5,7 +5,7 @@ import lombok.Data;
 /**
  * 消息VO
  *
- * @author liuhuaicong
+ * @author cong
  * @date 2023/10/31
  */
 @Data

@@ -17,6 +17,7 @@ import com.cong.fishisland.model.entity.chat.RoomMessage;
 import com.cong.fishisland.model.entity.user.User;
 import com.cong.fishisland.model.enums.MessageTypeEnum;
 import com.cong.fishisland.model.vo.user.LoginUserVO;
+import com.cong.fishisland.model.vo.user.UserMuteVO;
 import com.cong.fishisland.model.vo.ws.ChatMessageVo;
 import com.cong.fishisland.model.ws.request.Message;
 import com.cong.fishisland.model.ws.request.MessageWrapper;
@@ -26,6 +27,7 @@ import com.cong.fishisland.model.ws.response.DrawPlayer;
 import com.cong.fishisland.model.ws.response.UserChatResponse;
 import com.cong.fishisland.model.ws.response.WSBaseResp;
 import com.cong.fishisland.service.RoomMessageService;
+import com.cong.fishisland.service.UserMuteService;
 import com.cong.fishisland.service.UserService;
 import com.cong.fishisland.websocket.cache.UserCache;
 import com.cong.fishisland.websocket.event.AIAnswerEvent;
@@ -55,7 +57,7 @@ import java.util.stream.Collectors;
  * Description: websocket处理类
  * Date: 2023-03-19 16:21
  *
- * @author liuhuaicong
+ * @author cong
  */
 @Component
 @Slf4j
@@ -73,6 +75,7 @@ public class WebSocketServiceImpl implements WebSocketService {
 
     private static final String ROOM_ID = "roomId";
     private final RoomMessageService roomMessageService;
+    private final UserMuteService userMuteService;
 
 
     /**
@@ -226,6 +229,14 @@ public class WebSocketServiceImpl implements WebSocketService {
                 Message message = messageDto.getMessage();
                 String resultContent = fixMessage(message);
                 message.setContent(resultContent);
+                UserMuteVO userMuteInfo = userMuteService.getUserMuteInfo(loginUserId);
+                if (userMuteInfo.getIsMuted()){
+                    //用户被禁言
+                    // 异常返回
+                    WSBaseResp<Object> errorResp = WSBaseResp.builder().type(MessageTypeEnum.ERROR.getType()).data(userMuteInfo.getRemainingTime()).build();
+                    sendMsg(channel, errorResp);
+                    return;
+                }
                 applicationEventPublisher.publishEvent(new AddSpeakPointEvent(this, message.getSender().getId()));
                 sendToAllOnline(WSBaseResp.builder()
                         .type(MessageTypeEnum.CHAT.getType())

@@ -86,6 +86,6 @@ public class SiliconFlowDataSource implements AIChatDataSource {
 
     @Override
     public AiResponse getAiResponse(String prompt) {
-        return getAiResponse(prompt, "internlm/internlm2_5-20b-chat");
+        return getAiResponse(prompt, "Qwen/Qwen2.5-14B-Instruct");
     }
 }

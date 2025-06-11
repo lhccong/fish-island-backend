@@ -11,6 +11,8 @@ import java.util.List;
 
 import me.zhyd.oauth.model.AuthCallback;
 
+import javax.servlet.http.HttpServletRequest;
+
 /**
  * 用户服务
  * # @author <a href="https://github.com/lhccong">程序员聪</a>
@@ -43,7 +45,7 @@ public interface UserService extends IService<User> {
      * @param email 邮箱
      * @return 验证码
      */
-    boolean userEmailSend(String email);
+    boolean userEmailSend(String email, HttpServletRequest request);
 
     /**
      * 用户登录

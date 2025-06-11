@@ -109,7 +109,7 @@ public class AIPuzzleAnswerListener {
         }});
 
         // 调用 AI
-        AiResponse aiResponse = aiChatDataSource.getAiResponse(requestMessages, "internlm/internlm2_5-20b-chat");
+        AiResponse aiResponse = aiChatDataSource.getAiResponse(requestMessages, "Qwen/Qwen2.5-14B-Instruct");
 
         // 添加 AI 响应消息
         SiliconFlowRequest.Message assistantMessage = new SiliconFlowRequest.Message() {{

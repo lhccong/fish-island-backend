@@ -8,7 +8,7 @@ import java.io.Serializable;
 
 /**
  * 使用Token登录
- * @author liuhuaicong
+ * @author cong
  * @date 2023/09/11
  */
 @EqualsAndHashCode(callSuper = true)

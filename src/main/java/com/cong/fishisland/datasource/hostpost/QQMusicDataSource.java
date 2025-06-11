@@ -18,14 +18,15 @@ import java.util.List;
 @Slf4j
 public class QQMusicDataSource implements DataSource {
 
+
     private static final String musicDetailUrl = "https://y.qq.com/n/ryqq/songDetail/";
+
 
 
     //提交
     @Override
     public HotPost getHotPost() {
 
-        //调用接口 https://u.y.qq.com/cgi-bin/musicu.fcg?data=，GET请求，最终获取到json格式的字符串数据，需要传data,data为json格式的字符串，生成一下以下代码
         String jsonData = "{\n" +
                 "        \"detail\": {\n" +
                 "            \"module\": \"musicToplist.ToplistInfoServer\",\n" +
@@ -40,22 +41,28 @@ public class QQMusicDataSource implements DataSource {
                 "    }";
         //发送请求
         String response = HttpUtil.get("https://u.y.qq.com/cgi-bin/musicu.fcg?data=" + jsonData);
+
 //        log.info("获取数据成功：{}", response);
 
         JSONObject jsonObject = JSON.parseObject(response);
 
 //        System.out.println(jsonObject);
 
+
+        JSONObject jsonObject = JSON.parseObject(response);
+
+
+
         JSONArray jsonArray = jsonObject.getJSONObject("detail").getJSONObject("data").getJSONObject("data").getJSONArray("song");
 
-        List<HotPostDataVO> hotPostDataVOS = new ArrayList<>();
+        List<HotPostDataVO> hotPostDataVos = new ArrayList<>();
         // 3. 遍历数组，提取 title 和 songId
         for (int i = 0; i < jsonArray.size(); i++) {
             JSONObject song = jsonArray.getJSONObject(i);
             String title = song.getString("title");
-            long songId = song.getLongValue("songId"); // 或 getLong("songId")
+            long songId = song.getLongValue("songId");
             Integer rank = song.getInteger("rank");
-            hotPostDataVOS.add(HotPostDataVO.builder().title(title).url(musicDetailUrl + songId).followerCount(rank).build());
+            hotPostDataVos.add(HotPostDataVO.builder().title(title).url(MUSIC_DETAIL_URL + songId).followerCount(rank).build());
         }
 
         return HotPost.builder()
@@ -63,8 +70,8 @@ public class QQMusicDataSource implements DataSource {
                 .category(CategoryTypeEnum.MUSIC_HOT.getValue())
                 .name("QQ音乐热歌榜")
                 .updateInterval(UpdateIntervalEnum.TWO_HOUR.getValue())
-                .iconUrl("https://api.oss.cqbo.com/moyu/user_avatar/1922893849325314049/ciGXlg1M-logo.png")
-                .hostJson(JSON.toJSONString(hotPostDataVOS.subList(0, Math.min(hotPostDataVOS.size(), 20))))
+                .iconUrl("https://s1.aigei.com/src/img/png/5d/5d7d335b9cab49e39236418edf31ed1f.png?imageMogr2/auto-orient/thumbnail/!282x282r/gravity/Center/crop/282x282/quality/85/%7CimageView2/2/w/282&e=2051020800&token=P7S2Xpzfz11vAkASLTkfHN7Fw-oOZBecqeJaxypL:lwKuad6Nw3hxdwVBE-_6NeCuqf0=")
+                .hostJson(JSON.toJSONString(hotPostDataVos.subList(0, Math.min(hotPostDataVos.size(), 20))))
                 .typeName("QQ音乐")
                 .build();
 

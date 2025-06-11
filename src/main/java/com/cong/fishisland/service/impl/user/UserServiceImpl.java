@@ -56,9 +56,9 @@ import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Date;
 import java.util.List;
-import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.locks.ReentrantLock;
 import java.util.stream.Collectors;
 
 import static com.cong.fishisland.constant.SystemConstants.SALT;
@@ -72,7 +72,7 @@ import static com.cong.fishisland.constant.SystemConstants.SALT;
 public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements UserService {
 
     @Resource
-    private UserMapper  userMapper;
+    private UserMapper userMapper;
 
     @Resource
     private GitHubConfig gitHubConfig;
@@ -105,6 +105,7 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements Us
     @Resource
     private UserThirdAuthMapper userThirdAuthMapper;
 
+    private static final ConcurrentHashMap<String, ReentrantLock> LOCK_MAP = new ConcurrentHashMap<>();
 
     @Override
     public long userRegister(String userAccount, String userPassword, String checkPassword) {
@@ -122,37 +123,35 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements Us
         if (!userPassword.equals(checkPassword)) {
             throw new BusinessException(ErrorCode.PARAMS_ERROR, "两次输入的密码不一致");
         }
-        Map<String, Object> lockMap = new ConcurrentHashMap<>();
 
-        Object lock = lockMap.computeIfAbsent(userAccount, key -> new Object());
+        ReentrantLock lock = LOCK_MAP.computeIfAbsent(userAccount, k -> new ReentrantLock());
+        lock.lock();
 
-        synchronized (lock) {
-            try {
-                // 账户不能重复
-                QueryWrapper<User> queryWrapper = new QueryWrapper<>();
-                queryWrapper.eq("userAccount", userAccount);
-                long count = this.baseMapper.selectCount(queryWrapper);
-                if (count > 0) {
-                    throw new BusinessException(ErrorCode.PARAMS_ERROR, "账号重复");
-                }
-                // 2. 加密
-                String encryptPassword = DigestUtils.md5DigestAsHex((SALT + userPassword).getBytes());
-                // 3. 插入数据
-                User user = new User();
-                user.setUserAccount(userAccount);
-                user.setUserPassword(encryptPassword);
-                boolean saveResult = this.save(user);
-                if (!saveResult) {
-                    throw new BusinessException(ErrorCode.SYSTEM_ERROR, "注册失败，数据库错误");
-                }
-                // 保存积分
-                savePoints(user);
-
-                return user.getId();
-            } finally {
-                // 防止内存泄漏
-                lockMap.remove(userAccount);
+        try {
+            // 账户不能重复
+            QueryWrapper<User> queryWrapper = new QueryWrapper<>();
+            queryWrapper.eq("userAccount", userAccount);
+            long count = this.baseMapper.selectCount(queryWrapper);
+            if (count > 0) {
+                throw new BusinessException(ErrorCode.PARAMS_ERROR, "账号重复");
             }
+            // 2. 加密
+            String encryptPassword = DigestUtils.md5DigestAsHex((SALT + userPassword).getBytes());
+            // 3. 插入数据
+            User user = new User();
+            user.setUserAccount(userAccount);
+            user.setUserPassword(encryptPassword);
+            boolean saveResult = this.save(user);
+            if (!saveResult) {
+                throw new BusinessException(ErrorCode.SYSTEM_ERROR, "注册失败，数据库错误");
+            }
+            // 保存积分
+            savePoints(user);
+
+            return user.getId();
+        } finally {
+            lock.unlock();
+            LOCK_MAP.remove(userAccount);
         }
     }
 
@@ -249,16 +248,16 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements Us
         // 校验邮箱格式
         validateEmailFormat(email);
         // 获取客户端 IP
-        String clientIP = ServletUtil.getClientIP(request);
+        String clientIp = ServletUtil.getClientIP(request);
         // IP 黑名单检查
         boolean ipBanned = emailBanService.lambdaQuery()
-                .eq(EmailBan::getBannedIp, clientIP)
+                .eq(EmailBan::getBannedIp, clientIp)
                 .exists();
         if (ipBanned) {
             throw new BusinessException(ErrorCode.PARAMS_ERROR, "您的 IP 已被封禁，暂时无法发送验证码");
         }
         // IP 限流 & 日志告警
-        String ipKey = IP_COUNT_PREFIX + clientIP;
+        String ipKey = IP_COUNT_PREFIX + clientIp;
         Long ipCount = stringRedisTemplate.opsForValue().increment(ipKey);
         if (ipCount != null) {
             if (ipCount == 1) {
@@ -268,7 +267,7 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements Us
             if (ipCount > IP_THRESHOLD) {
                 // 超出阈值，记录警告日志
                 log.warn("频繁请求警告：来自 IP [{}] 在 {} 分钟内已请求 {} 次",
-                        clientIP, IP_WINDOW.toMinutes(), ipCount);
+                        clientIp, IP_WINDOW.toMinutes(), ipCount);
             }
         }
 
@@ -706,10 +705,10 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements Us
         ThrowUtils.throwIf(userQueryRequest == null, ErrorCode.PARAMS_ERROR, "请求参数为空");
         //创建时间开始不能小于创建时间结束
         String[] createTimeRange = userQueryRequest.getCreateTimeRange();
-        ThrowUtils.throwIf(createTimeRange != null && createTimeRange.length == 2 && createTimeRange[0].compareTo(createTimeRange[1]) > 0, ErrorCode.PARAMS_ERROR,"创建时间开始不能小于创建时间结束");
+        ThrowUtils.throwIf(createTimeRange != null && createTimeRange.length == 2 && createTimeRange[0].compareTo(createTimeRange[1]) > 0, ErrorCode.PARAMS_ERROR, "创建时间开始不能小于创建时间结束");
         //更新时间开始不能小于更新时间结束
         String[] updateTimeRange = userQueryRequest.getUpdateTimeRange();
-        ThrowUtils.throwIf(updateTimeRange != null && updateTimeRange.length == 2 && updateTimeRange[0].compareTo(updateTimeRange[1]) > 0, ErrorCode.PARAMS_ERROR,"更新时间开始不能小于更新时间结束");
+        ThrowUtils.throwIf(updateTimeRange != null && updateTimeRange.length == 2 && updateTimeRange[0].compareTo(updateTimeRange[1]) > 0, ErrorCode.PARAMS_ERROR, "更新时间开始不能小于更新时间结束");
         Long id = userQueryRequest.getId();
         String userAccount = userQueryRequest.getUserAccount();
         String unionId = userQueryRequest.getUnionId();
@@ -728,10 +727,10 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements Us
         queryWrapper.like(StringUtils.isNotBlank(userProfile), "userProfile", userProfile);
         queryWrapper.like(StringUtils.isNotBlank(userName), "userName", userName);
         //范围查询
-        if (createTimeRange != null && createTimeRange.length == 2){
+        if (createTimeRange != null && createTimeRange.length == 2) {
             queryWrapper.apply("DATE(createTime) BETWEEN {0} AND {1}", createTimeRange[0], createTimeRange[1]);
         }
-        if (updateTimeRange != null && updateTimeRange.length == 2){
+        if (updateTimeRange != null && updateTimeRange.length == 2) {
             queryWrapper.apply("DATE(updateTime) BETWEEN {0} AND {1}", updateTimeRange[0], updateTimeRange[1]);
         }
         queryWrapper.orderBy(SqlUtils.validSortField(sortField), sortOrder.equals(CommonConstant.SORT_ORDER_ASC),
@@ -773,6 +772,7 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements Us
 
     /**
      * 新增用户走势图
+     *
      * @param request 新增用户数据请求
      * @return 用户新增数据
      */
@@ -783,40 +783,41 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements Us
         Date beginTime = request.getBeginTime();
         Date endTime = request.getEndTime();
         //每周新增
-        if (NewUserDataTypeWebConstant.EVERY_WEEK.equals(type)){
+        if (NewUserDataTypeWebConstant.EVERY_WEEK.equals(type)) {
             return userMapper.getNewUserDataWebVOEveryWeek();
         }
         //每月新增
-        if (NewUserDataTypeWebConstant.EVERY_MONTH.equals(type)){
+        if (NewUserDataTypeWebConstant.EVERY_MONTH.equals(type)) {
             return userMapper.getNewUserDataWebVOEveryMonth();
         }
         //每年新增
-        if (NewUserDataTypeWebConstant.EVERY_YEAR.equals(type)){
+        if (NewUserDataTypeWebConstant.EVERY_YEAR.equals(type)) {
             return userMapper.getNewUserDataWebVOEveryYear();
         }
         //时间范围
-        if (NewUserDataTypeWebConstant.TIME_RANGE.equals(type) && beginTime!=null && endTime!=null){
-            return userMapper.getNewUserDataWebVOByTime(beginTime,endTime);
+        if (NewUserDataTypeWebConstant.TIME_RANGE.equals(type) && beginTime != null && endTime != null) {
+            return userMapper.getNewUserDataWebVOByTime(beginTime, endTime);
         }
         return CollUtil.newArrayList();
     }
 
     /**
      * 新增用户数据校验
+     *
      * @param request 新增用户数据请求
      */
-    private void validNewUserDataWebRequest(NewUserDataWebRequest request){
-        ThrowUtils.throwIf(request==null,ErrorCode.PARAMS_ERROR,"数据为空");
+    private void validNewUserDataWebRequest(NewUserDataWebRequest request) {
+        ThrowUtils.throwIf(request == null, ErrorCode.PARAMS_ERROR, "数据为空");
         Date beginTime = request.getBeginTime();
         Date endTime = request.getEndTime();
         //开始时间、结束时间必须同时为空或者同时不为空
-        ThrowUtils.throwIf(beginTime == null & endTime != null, ErrorCode.PARAMS_ERROR,"开始时间不能为空");
-        ThrowUtils.throwIf(beginTime != null & endTime == null, ErrorCode.PARAMS_ERROR,"结束时间不能为空");
-        if (beginTime != null & endTime != null){
+        ThrowUtils.throwIf(beginTime == null & endTime != null, ErrorCode.PARAMS_ERROR, "开始时间不能为空");
+        ThrowUtils.throwIf(beginTime != null & endTime == null, ErrorCode.PARAMS_ERROR, "结束时间不能为空");
+        if (beginTime != null & endTime != null) {
             //开始时间和结束时间不为空，开始时间不能大于结束时间
-            ThrowUtils.throwIf( beginTime.after(endTime), ErrorCode.PARAMS_ERROR,"开始时间不能大于结束时间");
+            ThrowUtils.throwIf(beginTime.after(endTime), ErrorCode.PARAMS_ERROR, "开始时间不能大于结束时间");
             //开始时间和结束时间范围必须在31天内
-            ThrowUtils.throwIf( DateUtil.between(beginTime, endTime, DateUnit.DAY) > 31, ErrorCode.PARAMS_ERROR,"时间范围必须在31天内");
+            ThrowUtils.throwIf(DateUtil.between(beginTime, endTime, DateUnit.DAY) > 31, ErrorCode.PARAMS_ERROR, "时间范围必须在31天内");
         }
     }
 

@@ -3,7 +3,6 @@ package com.cong.fishisland.service.impl.user;
 import cn.dev33.satoken.stp.StpUtil;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import com.cong.fishisland.common.ErrorCode;
-import com.cong.fishisland.common.exception.BusinessException;
 import com.cong.fishisland.common.exception.ThrowUtils;
 import com.cong.fishisland.constant.PointConstant;
 import com.cong.fishisland.model.entity.user.UserPoints;
@@ -69,6 +68,14 @@ public class UserPointsServiceImpl extends ServiceImpl<UserPointsMapper, UserPoi
         this.updateById(userPoints);
     }
 
+    @Override
+    public void updateUsedPoints(Long userId, Integer points) {
+        UserPoints userPoints = this.getById(userId);
+        userPoints.setUsedPoints(userPoints.getPoints() == null ? points : userPoints.getUsedPoints() + points);
+
+        this.updateById(userPoints);
+    }
+
     public int calculateLevel(int points) {
         // 等级对应的积分范围 (起始积分)
         int[] thresholds = {0, 125, 300, 600, 1100, 2100, 4100};
@@ -112,7 +119,8 @@ public class UserPointsServiceImpl extends ServiceImpl<UserPointsMapper, UserPoi
 
     /**
      * 扣除积分
-     * @param userId 用户ID
+     *
+     * @param userId         用户ID
      * @param pointsToDeduct 要扣除的积分
      */
     @Override

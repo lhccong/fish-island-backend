@@ -2,7 +2,7 @@ package com.cong.fishisland.constant;
 
 /**
  * 系统常量
- * @author liuhuaicong
+ * @author cong
  * @date 2023/09/11
  */
 public interface SystemConstants {

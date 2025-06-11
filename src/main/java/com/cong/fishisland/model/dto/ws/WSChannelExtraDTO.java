@@ -9,7 +9,7 @@ import lombok.NoArgsConstructor;
 /**
  * WSSchannel 额外 DTO
  * Description: 记录和前端连接的一些映射信息
- * @author liuhuaicong
+ * @author cong
  * @date 2023/10/27
  */
 @Data

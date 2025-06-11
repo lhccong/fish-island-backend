@@ -14,6 +14,8 @@ public interface UserPointsService extends IService<UserPoints> {
 
     void updatePoints(Long userId, Integer points, boolean isSignIn);
 
+    void updateUsedPoints(Long userId, Integer points);
+
     void addSpeakPoint(Long userId);
 
     void deductPoints(Long userId, Integer pointsToDeduct);
