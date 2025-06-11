@@ -18,13 +18,6 @@ import java.util.List;
 @Slf4j
 public class QQMusicDataSource implements DataSource {
 
-    private static final String QQ_MUSIC_URL = "https://y.qq.com/n/ryqq/toplist/26";
-    private static final String USER_AGENT = "Mozilla/5.0(Windows NT 10.0;Win64;x64;rv:66.0)Gecko/20100101 Firefox/66.0";
-    String QQ_MUSIC_URL_ = "https://y.qq.com/n/ryqq/toplist/26";
-
-    String data = "{\"detail\":{\"module\":\"musicToplist.ToplistInfoServer\",\"method\":\"GetDetail\",\"param\":{\"topId\":26,\"offset\":0,\"num\":20,\"period\":\"20250606\"}}}";
-
-
     private static final String musicDetailUrl = "https://y.qq.com/n/ryqq/songDetail/";
 
 
@@ -47,11 +40,11 @@ public class QQMusicDataSource implements DataSource {
                 "    }";
         //发送请求
         String response = HttpUtil.get("https://u.y.qq.com/cgi-bin/musicu.fcg?data=" + jsonData);
-        log.info("获取数据成功：{}", response);
+//        log.info("获取数据成功：{}", response);
 
         JSONObject jsonObject = JSON.parseObject(response);
 
-        System.out.println(jsonObject);
+//        System.out.println(jsonObject);
 
         JSONArray jsonArray = jsonObject.getJSONObject("detail").getJSONObject("data").getJSONObject("data").getJSONArray("song");
 
