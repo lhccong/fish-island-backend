@@ -19,9 +19,7 @@ import java.util.List;
 public class QQMusicDataSource implements DataSource {
 
 
-    private static final String musicDetailUrl = "https://y.qq.com/n/ryqq/songDetail/";
-
-
+    private static final String MUSIC_DETAIL_URL = "https://y.qq.com/n/ryqq/songDetail/";
 
     //提交
     @Override
@@ -47,12 +45,6 @@ public class QQMusicDataSource implements DataSource {
         JSONObject jsonObject = JSON.parseObject(response);
 
 //        System.out.println(jsonObject);
-
-
-        JSONObject jsonObject = JSON.parseObject(response);
-
-
-
         JSONArray jsonArray = jsonObject.getJSONObject("detail").getJSONObject("data").getJSONObject("data").getJSONArray("song");
 
         List<HotPostDataVO> hotPostDataVos = new ArrayList<>();
