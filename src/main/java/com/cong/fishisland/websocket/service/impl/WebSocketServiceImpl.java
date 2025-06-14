@@ -92,6 +92,11 @@ public class WebSocketServiceImpl implements WebSocketService {
      * 所有单人在线的棋局和对应的socket
      */
     private static final ConcurrentHashMap<String, CopyOnWriteArrayList<Channel>> CHESS_ROOM_MAP = new ConcurrentHashMap<>();
+    
+    /**
+     * 棋局房间的游戏类型（normal或hidden）
+     */
+    private static final ConcurrentHashMap<String, String> CHESS_ROOM_TYPE_MAP = new ConcurrentHashMap<>();
 
     private static final ConcurrentHashMap<String, CopyOnWriteArrayList<Channel>> DRAW_ROOM_MAP = new ConcurrentHashMap<>();
     private static final ConcurrentHashMap<String, CopyOnWriteArrayList<DrawPlayer>> DRAW_ROOM_PLAYER_MAP = new ConcurrentHashMap<>();
@@ -219,7 +224,21 @@ public class WebSocketServiceImpl implements WebSocketService {
     }
 
     private void sendByType(ChatMessageVo chatMessageVo, String token, Long uid, Channel channel) {
-        long loginUserId = Long.parseLong(StpUtil.getLoginIdByToken(token).toString());
+        // 先检查token是否有效
+        Object loginIdObj = StpUtil.getLoginIdByToken(token);
+        if (loginIdObj == null) {
+            // token无效，返回错误
+            if (channel != null) {
+                WSBaseResp<Object> errorResp = WSBaseResp.builder()
+                    .type(MessageTypeEnum.ERROR.getType())
+                    .data("登录已过期，请重新登录")
+                    .build();
+                sendMsg(channel, errorResp);
+            }
+            return;
+        }
+        
+        long loginUserId = Long.parseLong(loginIdObj.toString());
         User loginUser = userService.getLoginUser(token);
         MessageTypeEnum messageTypeEnum = MessageTypeEnum.of(chatMessageVo.getType());
         //发送消息
@@ -276,7 +295,27 @@ public class WebSocketServiceImpl implements WebSocketService {
                 break;
             case CREATE_CHESS_ROOM:
                 //创建棋局房间
-                createRoom(channel);
+                try {
+                    // 尝试解析内容
+                    String gameType = "normal"; // 默认为普通模式
+                    String content = chatMessageVo.getContent();
+                    
+                    if (content != null && !content.isEmpty()) {
+                        JSONObject chessRoomMessage = JSON.parseObject(content);
+                        if (chessRoomMessage != null && chessRoomMessage.containsKey("gameType")) {
+                            String typeValue = chessRoomMessage.getString("gameType");
+                            if (typeValue != null && !typeValue.isEmpty()) {
+                                gameType = typeValue;
+                            }
+                        }
+                    }
+                    
+                    createRoom(channel, gameType);
+                } catch (Exception e) {
+                    log.error("创建棋局房间失败", e);
+                    // 出错时使用默认模式创建
+                    createRoom(channel);
+                }
                 break;
             case JOIN_ROOM:
                 //加入棋局房间
@@ -332,12 +371,28 @@ public class WebSocketServiceImpl implements WebSocketService {
     }
 
     private void createRoom(Channel channel) {
+        createRoom(channel, "normal"); // 默认为普通模式
+    }
+
+    private void createRoom(Channel channel, String gameType) {
         //自动生成房间号
         String roomId = String.valueOf(System.currentTimeMillis());
         CHESS_ROOM_MAP.putIfAbsent(roomId, new CopyOnWriteArrayList<>());
         CHESS_ROOM_MAP.get(roomId).add(channel);
-        //返回房间号
-        WSBaseResp<Object> createResp = WSBaseResp.builder().type(MessageTypeEnum.CREATE_CHESS_ROOM.getType()).data(roomId).build();
+        
+        // 保存房间的游戏类型
+        CHESS_ROOM_TYPE_MAP.put(roomId, gameType);
+        
+        // 创建包含房间号和游戏类型的响应数据
+        Map<String, Object> responseData = new HashMap<>();
+        responseData.put("roomId", roomId);
+        responseData.put("gameType", gameType);
+        
+        //返回房间号和游戏类型
+        WSBaseResp<Object> createResp = WSBaseResp.builder()
+            .type(MessageTypeEnum.CREATE_CHESS_ROOM.getType())
+            .data(responseData)
+            .build();
         sendMsg(channel, createResp);
     }
 
@@ -353,12 +408,17 @@ public class WebSocketServiceImpl implements WebSocketService {
 
         //房主
         Channel roomOwner = channels.get(0);
+        
+        // 获取房间的游戏类型
+        String gameType = CHESS_ROOM_TYPE_MAP.getOrDefault(joinRoomId, "normal");
+
         //把当前登录用户传给对方
         Map<String, Object> data = new HashMap<>();
         data.put(ROOM_ID, joinRoomId);
         data.put("playerId", String.valueOf(loginUserId));
         data.put("yourColor", "black");
         data.put("opponentColor", "white");
+        data.put("gameType", gameType); // 添加游戏类型
         sendMsg(roomOwner, WSBaseResp.builder().type(MessageTypeEnum.JOIN_SUCCESS.getType()).data(data).build());
 
         //把获取房主传给当前登录用户
@@ -368,8 +428,12 @@ public class WebSocketServiceImpl implements WebSocketService {
         data2.put("playerId", String.valueOf(wsChannelExtraDTO.getUid()));
         data2.put("yourColor", "white");
         data2.put("opponentColor", "black");
+        data2.put("gameType", gameType); // 添加游戏类型
 
         sendMsg(channel, WSBaseResp.builder().type(MessageTypeEnum.JOIN_SUCCESS.getType()).data(data2).build());
+        
+        // 清除房间类型记录
+        CHESS_ROOM_TYPE_MAP.remove(joinRoomId);
     }
 
 
