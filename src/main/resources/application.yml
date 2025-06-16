@@ -117,7 +117,7 @@ aj:
     # verify接口一分钟内请求数限制
     req-verify-minute-limit: 60
 minio:
-  endpoint: http://10.0.0.165:9000 #minio地址
+  endpoint: http://127.0.0.1:9000 #minio地址
   accessKey: minioadmin #账号
   secretKey: tanghui1990 #密码
   bucketName: fish #桶名称
