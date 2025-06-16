@@ -1,5 +1,5 @@
 FROM openjdk:8
-ENV workdir=/cong/fish
+ENV workdir=/var/lib/jenkins/workspace/fish-island-backend/target
 COPY . ${workdir}
 WORKDIR ${workdir}
 EXPOSE 8123
