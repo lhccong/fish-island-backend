@@ -3,14 +3,14 @@ spring:
   # todo 需替换配置
   datasource:
     driver-class-name: com.mysql.cj.jdbc.Driver
-    url: jdbc:mysql://10.0.0.165:3306/fish
+    url: jdbc:mysql://127.0.0.1:3306/fish
     username: fish
     password: tanghui1990
   # Redis 配置
   # todo 需替换配置，然后取消注释
   redis:
     database: 1
-    host: 10.0.0.165
+    host: 127.0.0.1
     port: 6379
     timeout: 5000
   # 邮箱
