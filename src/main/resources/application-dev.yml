@@ -18,8 +18,8 @@ spring:
     host: smtp.qq.com  # 平台地址（这里是QQ邮箱）
     username: xiaomingo@qq.com # 发送者邮箱
     properties:
-      mail: xiaomingo@qq.com
-        smtp: smtp.qq.com
+      mail: 
+        smtp: 
           ssl:
             enable: true  # 启用 SSL
     default-encoding: UTF-8  # 编码格式
