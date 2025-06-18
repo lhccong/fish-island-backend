@@ -1,6 +1,15 @@
 name: Maven Package and Docker Build
 
-on: workflow_dispatch
+on:
+  push:
+    branches:
+      - docker  
+    paths-ignore:
+      - 'docs/**'
+      - '*.md'
+  pull_request:
+    branches:
+      - docker  
 
 jobs:
   build-and-dockerize:
