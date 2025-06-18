@@ -28,11 +28,8 @@ jobs:
     - name: Build with Maven
       run: mvn clean package -DskipTests --file pom.xml
        
-    - name: 提交 jar 到仓库
-      run: |
-        git config --global user.name "github-actions[bot]"
-        git config --global user.email "github-actions[bot]@users.noreply.github.com"
-        git checkout ${{ github.ref_name }}
-        git add -f target/
-        git commit -m "CI: add build target"
-        git push
+    - name: 上传构建产物
+      uses: actions/upload-artifact@v4
+      with:
+        name: fish-island-backend
+        path: target/fish-island-backend-0.0.1-SNAPSHOT.jar
