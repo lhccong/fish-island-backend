@@ -23,7 +23,7 @@ jobs:
 
       # 3. Maven 构建
       - name: Build with Maven
-        run: mvn clean package -DskipTests
+        run: mvn clean package -DskipTests -U
 
       # 4. 上传构建产物（可选）
       - name: 上传构建产物
@@ -34,7 +34,7 @@ jobs:
 
       # 5. 构建 Docker 镜像
       - name: Build Docker image
-        run: docker build -t fish-island:latest .
+        run: docker build -t fish-island-backend:latest .
 
       # 6. 推送 Docker 镜像到 GitHub Packages
       - name: Log in to GitHub Container Registry
@@ -46,5 +46,5 @@ jobs:
 
       - name: Push Docker image
         run: |
-          docker tag fish-island-backend:latest ghcr.io/${{ github.repository_owner }}/fish-island:latest
-          docker push ghcr.io/${{ github.repository_owner }}/fish-island:latest
+          docker tag fish-island-backend:latest ghcr.io/${{ github.repository_owner }}/fish-island-backend:latest
+          docker push ghcr.io/${{ github.repository_owner }}/fish-island-backend:latest
