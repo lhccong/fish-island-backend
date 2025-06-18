@@ -10,10 +10,7 @@ jobs:
 
     runs-on: ubuntu-latest
     services:
-      redis:
-        image: redis
-        ports:
-          - 6379:6379
+ 
     permissions:
       contents: read
       packages: write
@@ -36,8 +33,6 @@ jobs:
         git config --global user.name "github-actions[bot]"
         git config --global user.email "github-actions[bot]@users.noreply.github.com"
         git checkout ${{ github.ref_name }}  # 或指定分支
-        mkdir -p artifacts
-        cp target/*.jar target/
         git add target/
         git commit -m "CI: add build target"
         git push
