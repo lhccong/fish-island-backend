@@ -14,6 +14,20 @@ jobs:
         image: redis
         ports:
           - 6379:6379
+      mysql:
+        image: mysql:8.0
+        env:
+        MYSQL_ROOT_PASSWORD: 123456
+        MYSQL_USER: fish
+        MYSQL_PASSWORD: 123456 
+        MYSQL_DATABASE: fish
+    ports:
+      - 3306:3306
+    options: >-
+      --health-cmd="mysqladmin ping --silent"
+      --health-interval=10s
+      --health-timeout=5s
+      --health-retries=3
     permissions:
       contents: read
       packages: write
@@ -30,8 +44,14 @@ jobs:
 
     - name: Build with Maven
       run: mvn clean package -DskipTests --file pom.xml
-
-    - name: Publish to GitHub Packages Apache Maven
-      run: mvn deploy -s $GITHUB_WORKSPACE/settings.xml
-      env:
-        GITHUB_TOKEN: ${{ github.token }}
+       
+    - name: 提交 jar 到仓库
+      run: |
+        git config --global user.name "github-actions[bot]"
+        git config --global user.email "github-actions[bot]@users.noreply.github.com"
+        git checkout ${{ github.ref_name }}  # 或指定分支
+        mkdir -p artifacts
+        cp target/*.jar target/
+        git add target/
+        git commit -m "CI: add build target"
+        git push
