@@ -159,7 +159,7 @@ public class UndercoverGameController {
      * @param userId 用户ID
      * @return 玩家信息
      */
-    @GetMapping("/room/player")
+    @GetMapping("/admin/room/player")
     @ApiOperation(value = "获取指定玩家信息（仅管理员）")
     @SaCheckRole(UserConstant.ADMIN_ROLE)
     public BaseResponse<UndercoverPlayerVO> getPlayerInfo(@RequestParam String roomId, @RequestParam Long userId) {
