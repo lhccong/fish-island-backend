@@ -6,6 +6,15 @@ spring:
     url: jdbc:mysql://localhost:3306/my_db
     username: root
     password: root
+
+  flyway:
+    enabled: true  # 启用flyway
+    baseline-on-migrate: true  # 当数据库非空且无flyway元数据表时，自动初始化
+    locations: classpath:db/migration  # 脚本位置
+    validate-on-migrate: true  # 迁移时校验脚本
+    out-of-order: false  # 是否允许无序迁移(生产环境建议false)
+    clean-disabled: true  # 禁用clean命令(生产环境必须为true)
+
   # Redis 配置
   # todo 需替换配置，然后取消注释
   redis:

@@ -196,6 +196,17 @@
             <artifactId>okhttp</artifactId>
             <version>4.9.3</version>
         </dependency>
+
+        <dependency>
+            <groupId>org.flywaydb</groupId>
+            <artifactId>flyway-core</artifactId>
+        </dependency>
+
+        <dependency>
+            <groupId>org.flywaydb</groupId>
+            <artifactId>flyway-mysql</artifactId>
+            <version>8.5.13</version>
+        </dependency>
     </dependencies>
 
     <build>
