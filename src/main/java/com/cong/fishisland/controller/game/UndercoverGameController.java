@@ -108,11 +108,7 @@ public class UndercoverGameController {
     @ApiOperation(value = "开始游戏（仅管理员）")
     @SaCheckRole(UserConstant.ADMIN_ROLE)
     public BaseResponse<Boolean> startGame(@RequestParam String roomId) {
-        // 手动验证参数
-        if (StringUtils.isBlank(roomId)) {
-            throw new BusinessException(ErrorCode.PARAMS_ERROR, "房间ID不能为空");
-        }
-        
+
         boolean result = undercoverGameService.startGame(roomId);
         return ResultUtils.success(result);
     }
@@ -127,10 +123,6 @@ public class UndercoverGameController {
     @ApiOperation(value = "结束游戏（仅管理员）")
     @SaCheckRole(UserConstant.ADMIN_ROLE)
     public BaseResponse<Boolean> endGame(@RequestParam String roomId) {
-        // 手动验证参数
-        if (StringUtils.isBlank(roomId)) {
-            throw new BusinessException(ErrorCode.PARAMS_ERROR, "房间ID不能为空");
-        }
         
         boolean result = undercoverGameService.endGame(roomId);
         return ResultUtils.success(result);
@@ -145,10 +137,7 @@ public class UndercoverGameController {
     @GetMapping("/room/player")
     @ApiOperation(value = "获取当前玩家信息")
     public BaseResponse<UndercoverPlayerVO> getCurrentPlayerInfo(@RequestParam String roomId) {
-        // 手动验证参数
-        if (StringUtils.isBlank(roomId)) {
-            throw new BusinessException(ErrorCode.PARAMS_ERROR, "房间ID不能为空");
-        }
+        
         
         User loginUser = userService.getLoginUser();
         UndercoverPlayerVO playerVO = undercoverGameService.getPlayerInfo(roomId, loginUser.getId());
@@ -166,10 +155,7 @@ public class UndercoverGameController {
     @ApiOperation(value = "获取指定玩家信息（仅管理员）")
     @SaCheckRole(UserConstant.ADMIN_ROLE)
     public BaseResponse<UndercoverPlayerVO> getPlayerInfo(@RequestParam String roomId, @RequestParam Long userId) {
-        // 手动验证参数
-        if (StringUtils.isBlank(roomId)) {
-            throw new BusinessException(ErrorCode.PARAMS_ERROR, "房间ID不能为空");
-        }
+        
         if (userId == null || userId <= 0) {
             throw new BusinessException(ErrorCode.PARAMS_ERROR, "用户ID不合法");
         }
@@ -188,10 +174,7 @@ public class UndercoverGameController {
     @PostMapping("/room/eliminate")
     @ApiOperation(value = "淘汰玩家")
     public BaseResponse<Boolean> eliminatePlayer(@RequestParam String roomId, @RequestParam Long userId) {
-        // 手动验证参数
-        if (StringUtils.isBlank(roomId)) {
-            throw new BusinessException(ErrorCode.PARAMS_ERROR, "房间ID不能为空");
-        }
+        
         if (userId == null || userId <= 0) {
             throw new BusinessException(ErrorCode.PARAMS_ERROR, "用户ID不合法");
         }
@@ -217,10 +200,7 @@ public class UndercoverGameController {
     @GetMapping("/room/check-game-over")
     @ApiOperation(value = "检查游戏是否结束")
     public BaseResponse<Boolean> checkGameOver(@RequestParam String roomId) {
-        // 手动验证参数
-        if (StringUtils.isBlank(roomId)) {
-            throw new BusinessException(ErrorCode.PARAMS_ERROR, "房间ID不能为空");
-        }
+        
         
         boolean isGameOver = undercoverGameService.checkGameOver(roomId);
         return ResultUtils.success(isGameOver);
@@ -235,10 +215,7 @@ public class UndercoverGameController {
     @GetMapping("/room/player-detail")
     @ApiOperation(value = "获取玩家详细信息")
     public BaseResponse<UndercoverPlayerDetailVO> getPlayerDetailInfo(@RequestParam String roomId) {
-        // 手动验证参数
-        if (StringUtils.isBlank(roomId)) {
-            throw new BusinessException(ErrorCode.PARAMS_ERROR, "房间ID不能为空");
-        }
+        
         
         User loginUser = userService.getLoginUser();
         UndercoverPlayerDetailVO playerDetailVO = undercoverGameService.getPlayerDetailInfo(roomId, loginUser.getId());
@@ -254,11 +231,7 @@ public class UndercoverGameController {
     @GetMapping("/room/votes")
     @ApiOperation(value = "获取投票结果")
     public BaseResponse<List<UndercoverVoteVO>> getRoomVotes(@RequestParam String roomId) {
-        // 手动验证参数
-        if (StringUtils.isBlank(roomId)) {
-            throw new BusinessException(ErrorCode.PARAMS_ERROR, "房间ID不能为空");
-        }
-        
+
         List<UndercoverVoteVO> votes = undercoverGameService.getRoomVotes(roomId);
         return ResultUtils.success(votes);
     }
@@ -275,9 +248,6 @@ public class UndercoverGameController {
         // 手动验证参数
         if (request == null) {
             throw new BusinessException(ErrorCode.PARAMS_ERROR, "请求参数不能为空");
-        }
-        if (StringUtils.isBlank(request.getRoomId())) {
-            throw new BusinessException(ErrorCode.PARAMS_ERROR, "房间ID不能为空");
         }
         if (request.getTargetId() == null || request.getTargetId() <= 0) {
             throw new BusinessException(ErrorCode.PARAMS_ERROR, "被投票的用户ID不合法");
@@ -296,11 +266,7 @@ public class UndercoverGameController {
     @GetMapping("/room/players-detail")
     @ApiOperation(value = "获取房间内所有玩家详细信息")
     public BaseResponse<List<UndercoverPlayerDetailVO>> getRoomPlayersDetail(@RequestParam String roomId) {
-        // 手动验证参数
-        if (StringUtils.isBlank(roomId)) {
-            throw new BusinessException(ErrorCode.PARAMS_ERROR, "房间ID不能为空");
-        }
-        
+
         List<UndercoverPlayerDetailVO> playersDetail = undercoverGameService.getRoomPlayersDetail(roomId);
         return ResultUtils.success(playersDetail);
     }

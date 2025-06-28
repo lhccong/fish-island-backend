@@ -1,5 +1,6 @@
 package com.cong.fishisland.service.impl;
 
+import cn.dev33.satoken.stp.StpUtil;
 import com.cong.fishisland.common.ErrorCode;
 import com.cong.fishisland.common.exception.BusinessException;
 import com.cong.fishisland.constant.UndercoverGameRedisKey;
@@ -142,7 +143,6 @@ public class UndercoverGameServiceImpl implements UndercoverGameService {
             return null;
         }
 
-        User currentUser = userService.getLoginUser();
         // 获取房间信息
         String roomJson = stringRedisTemplate.opsForValue().get(
                 UndercoverGameRedisKey.getKey(UndercoverGameRedisKey.ROOM_INFO, roomId));
@@ -151,7 +151,6 @@ public class UndercoverGameServiceImpl implements UndercoverGameService {
             stringRedisTemplate.delete(UndercoverGameRedisKey.ACTIVE_ROOM);
             return null;
         }
-
 
 
         try {
@@ -181,17 +180,22 @@ public class UndercoverGameServiceImpl implements UndercoverGameService {
             List<UndercoverVoteVO> votes = getRoomVotes(roomId);
             roomVO.setVotes(votes);
 
-            // 获取玩家角色
-            String role = stringRedisTemplate.opsForValue().get(
-                    UndercoverGameRedisKey.getKey(UndercoverGameRedisKey.PLAYER_ROLE, currentUser.getId()));
-            roomVO.setRole(role);
+            if (StpUtil.isLogin()) {
+                User currentUser = userService.getLoginUser();
+                // 获取玩家角色
+                String role = stringRedisTemplate.opsForValue().get(
+                        UndercoverGameRedisKey.getKey(UndercoverGameRedisKey.PLAYER_ROLE, currentUser.getId()));
+                roomVO.setRole(role);
 
-            // 设置词语
-            if ("undercover".equals(role)) {
-                roomVO.setWord(room.getUndercoverWord());
-            } else if ("civilian".equals(role)) {
-                roomVO.setWord(room.getCivilianWord());
+                // 设置词语
+                if ("undercover".equals(role)) {
+                    roomVO.setWord(room.getUndercoverWord());
+                } else if ("civilian".equals(role)) {
+                    roomVO.setWord(room.getCivilianWord());
+                }
+
             }
+
 
             return roomVO;
         } catch (JsonProcessingException e) {
@@ -275,6 +279,8 @@ public class UndercoverGameServiceImpl implements UndercoverGameService {
 
     @Override
     public boolean startGame(String roomId) {
+        //暂时无需 ID 自动获取
+        roomId = stringRedisTemplate.opsForValue().get(UndercoverGameRedisKey.ACTIVE_ROOM);
         // 验证参数
         if (StringUtils.isBlank(roomId)) {
             throw new BusinessException(ErrorCode.PARAMS_ERROR, "房间ID不能为空");
@@ -388,6 +394,8 @@ public class UndercoverGameServiceImpl implements UndercoverGameService {
 
     @Override
     public boolean endGame(String roomId) {
+        //暂时无需 ID 自动获取
+        roomId = stringRedisTemplate.opsForValue().get(UndercoverGameRedisKey.ACTIVE_ROOM);
         // 验证参数
         if (StringUtils.isBlank(roomId)) {
             throw new BusinessException(ErrorCode.PARAMS_ERROR, "房间ID不能为空");
@@ -452,6 +460,8 @@ public class UndercoverGameServiceImpl implements UndercoverGameService {
 
     @Override
     public UndercoverPlayerVO getPlayerInfo(String roomId, Long userId) {
+        //暂时无需 ID 自动获取
+        roomId = stringRedisTemplate.opsForValue().get(UndercoverGameRedisKey.ACTIVE_ROOM);
         // 验证参数
         if (StringUtils.isBlank(roomId)) {
             throw new BusinessException(ErrorCode.PARAMS_ERROR, "房间ID不能为空");
@@ -492,7 +502,9 @@ public class UndercoverGameServiceImpl implements UndercoverGameService {
             playerVO.setRole(role);
 
             // 设置词语
-            if ("undercover".equals(role)) {
+            if (StringUtils.isBlank(role)) {
+                playerVO.setWord("");
+            } else if ("undercover".equals(role)) {
                 playerVO.setWord(room.getUndercoverWord());
             } else {
                 playerVO.setWord(room.getCivilianWord());
@@ -510,6 +522,8 @@ public class UndercoverGameServiceImpl implements UndercoverGameService {
 
     @Override
     public boolean eliminatePlayer(String roomId, Long userId) {
+        //暂时无需 ID 自动获取
+        roomId = stringRedisTemplate.opsForValue().get(UndercoverGameRedisKey.ACTIVE_ROOM);
         // 验证参数
         if (StringUtils.isBlank(roomId)) {
             throw new BusinessException(ErrorCode.PARAMS_ERROR, "房间ID不能为空");
@@ -593,6 +607,8 @@ public class UndercoverGameServiceImpl implements UndercoverGameService {
 
     @Override
     public boolean checkGameOver(String roomId) {
+        //暂时无需 ID 自动获取
+        roomId = stringRedisTemplate.opsForValue().get(UndercoverGameRedisKey.ACTIVE_ROOM);
         // 验证参数
         if (StringUtils.isBlank(roomId)) {
             throw new BusinessException(ErrorCode.PARAMS_ERROR, "房间ID不能为空");
@@ -639,6 +655,8 @@ public class UndercoverGameServiceImpl implements UndercoverGameService {
 
     @Override
     public List<UndercoverVoteVO> getRoomVotes(String roomId) {
+        //暂时无需 ID 自动获取
+        roomId = stringRedisTemplate.opsForValue().get(UndercoverGameRedisKey.ACTIVE_ROOM);
         // 验证参数
         if (StringUtils.isBlank(roomId)) {
             throw new BusinessException(ErrorCode.PARAMS_ERROR, "房间ID不能为空");
@@ -666,7 +684,9 @@ public class UndercoverGameServiceImpl implements UndercoverGameService {
         if (request == null) {
             throw new BusinessException(ErrorCode.PARAMS_ERROR, "投票请求不能为空");
         }
-        String roomId = request.getRoomId();
+        String roomId;
+        //暂时无需 ID 自动获取
+        roomId = stringRedisTemplate.opsForValue().get(UndercoverGameRedisKey.ACTIVE_ROOM);
         if (StringUtils.isBlank(roomId)) {
             throw new BusinessException(ErrorCode.PARAMS_ERROR, "房间ID不能为空");
         }
@@ -797,6 +817,8 @@ public class UndercoverGameServiceImpl implements UndercoverGameService {
 
     @Override
     public UndercoverPlayerDetailVO getPlayerDetailInfo(String roomId, Long userId) {
+        //暂时无需 ID 自动获取
+        roomId = stringRedisTemplate.opsForValue().get(UndercoverGameRedisKey.ACTIVE_ROOM);
         // 验证参数
         if (StringUtils.isBlank(roomId)) {
             throw new BusinessException(ErrorCode.PARAMS_ERROR, "房间ID不能为空");
@@ -853,6 +875,8 @@ public class UndercoverGameServiceImpl implements UndercoverGameService {
 
     @Override
     public List<UndercoverPlayerDetailVO> getRoomPlayersDetail(String roomId) {
+        //暂时无需 ID 自动获取
+        roomId = stringRedisTemplate.opsForValue().get(UndercoverGameRedisKey.ACTIVE_ROOM);
         // 验证参数
         if (StringUtils.isBlank(roomId)) {
             throw new BusinessException(ErrorCode.PARAMS_ERROR, "房间ID不能为空");
