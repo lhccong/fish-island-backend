@@ -518,9 +518,6 @@ public class UndercoverGameServiceImpl implements UndercoverGameService {
             throw new BusinessException(ErrorCode.PARAMS_ERROR, "用户ID不合法");
         }
 
-        // 验证用户登录状态
-        User loginUser = userService.getLoginUser();
-
         // 使用分布式锁确保并发安全
         RLock lock = redissonClient.getLock("undercover_room_eliminate_lock:" + roomId);
         try {

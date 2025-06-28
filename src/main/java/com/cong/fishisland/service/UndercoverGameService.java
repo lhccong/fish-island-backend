@@ -2,7 +2,6 @@ package com.cong.fishisland.service;
 
 import com.cong.fishisland.model.dto.game.UndercoverRoomCreateRequest;
 import com.cong.fishisland.model.dto.game.UndercoverVoteRequest;
-import com.cong.fishisland.model.entity.game.UndercoverRoom;
 import com.cong.fishisland.model.vo.game.UndercoverPlayerDetailVO;
 import com.cong.fishisland.model.vo.game.UndercoverPlayerVO;
 import com.cong.fishisland.model.vo.game.UndercoverRoomVO;

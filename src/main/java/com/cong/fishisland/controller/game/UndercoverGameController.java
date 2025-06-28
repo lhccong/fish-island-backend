@@ -16,7 +16,6 @@ import com.cong.fishisland.model.vo.game.UndercoverRoomVO;
 import com.cong.fishisland.model.vo.game.UndercoverVoteVO;
 import com.cong.fishisland.service.UndercoverGameService;
 import com.cong.fishisland.service.UserService;
-import io.swagger.annotations.Api;
 import io.swagger.annotations.ApiOperation;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.StringUtils;
