@@ -53,9 +53,7 @@ import org.springframework.util.DigestUtils;
 import javax.annotation.Resource;
 import javax.servlet.http.HttpServletRequest;
 import java.time.Duration;
-import java.util.ArrayList;
-import java.util.Date;
-import java.util.List;
+import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.locks.ReentrantLock;
@@ -841,12 +839,30 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements Us
      * @param email 邮箱地址
      */
     private void validateEmailFormat(String email) {
+        List<String> emailList = Arrays.asList(
+                "qq.com",
+                "163.com",
+                "gmail.com",
+                "126.com",
+                "outlook.com",
+                "foxmail.com",
+                "sina.com",
+                "vip.qq.com",
+                "139.com",
+                "88.com"
+        );
+
         // 基本格式校验
         if (StringUtils.isBlank(email)) {
             throw new BusinessException(ErrorCode.PARAMS_ERROR, "邮箱不能为空");
         }
         if (!EMAIL_VALIDATOR.isValid(email)) {
             throw new BusinessException(ErrorCode.PARAMS_ERROR, "邮箱格式不正确");
+        }
+        String domain = email.substring(email.indexOf('@') + 1).toLowerCase();
+
+        if (!emailList.contains(domain)) {
+            throw new BusinessException(ErrorCode.PARAMS_ERROR, "该邮箱禁止注册");
         }
 
         // 后缀校验

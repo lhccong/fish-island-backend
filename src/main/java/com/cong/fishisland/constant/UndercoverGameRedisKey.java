@@ -33,6 +33,21 @@ public interface UndercoverGameRedisKey {
     String PLAYER_ROOM = BASE_KEY + "player:%d:room";
     
     /**
+     * 房间投票记录键
+     */
+    String ROOM_VOTES = BASE_KEY + "room:%s:votes";
+    
+    /**
+     * 房间投票计数键（记录每个玩家收到的票数）
+     */
+    String ROOM_VOTE_COUNT = BASE_KEY + "room:%s:vote_count";
+    
+    /**
+     * 玩家投票状态键（记录玩家是否已投票）
+     */
+    String PLAYER_VOTED = BASE_KEY + "room:%s:player:%d:voted";
+    
+    /**
      * 获取完整的 Redis 键
      *
      * @param key      键模板

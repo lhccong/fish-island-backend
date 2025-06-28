@@ -1,9 +1,10 @@
 package com.cong.fishisland.model.vo.game;
 
-import com.cong.fishisland.model.entity.game.UndercoverRoom;
+import com.cong.fishisland.model.enums.RoomStatusEnum;
 import lombok.Data;
 
 import java.util.Date;
+import java.util.List;
 import java.util.Set;
 
 /**
@@ -22,12 +23,27 @@ public class UndercoverRoomVO {
     /**
      * 房间状态
      */
-    private UndercoverRoom.RoomStatus status;
+    private RoomStatusEnum status;
+
+    /**
+     * 玩家角色
+     */
+    private String role;
+
+    /**
+     * 玩家词语
+     */
+    private String word;
 
     /**
      * 参与者ID列表
      */
     private Set<Long> participantIds;
+
+    /**
+     * 参与者详细信息列表
+     */
+    private List<UndercoverPlayerDetailVO> participants;
 
     /**
      * 已被淘汰的玩家ID列表
@@ -53,4 +69,9 @@ public class UndercoverRoomVO {
      * 剩余时间（秒）
      */
     private Integer remainingTime;
+
+    /**
+     * 投票记录列表
+     */
+    private List<UndercoverVoteVO> votes;
 } 
