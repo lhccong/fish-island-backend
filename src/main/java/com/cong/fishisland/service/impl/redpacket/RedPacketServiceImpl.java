@@ -60,6 +60,10 @@ public class RedPacketServiceImpl implements RedPacketService {
     public String createRedPacket(CreateRedPacketRequest request) {
         // 获取当前登录用户ID
         User loginUser = userService.getLoginUser();
+        //红包金额是大于等于红包个数
+        if (request.getTotalAmount() / request.getCount() < 1) {
+            throw new BusinessException(ErrorCode.OPERATION_ERROR, "操作红包异常,红包个数不能小于红包金额");
+        }
 
         if (request.getTotalAmount() / request.getCount() > 10) {
             throw new BusinessException(ErrorCode.OPERATION_ERROR, "操作红包异常,不能发送大额红包");

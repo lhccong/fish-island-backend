@@ -113,19 +113,29 @@ public class WebSocketServiceImpl implements WebSocketService {
                 return;
             }
             //更新上线列表
-            online(channel, Long.valueOf((String) loginIdByToken));
+            Long userId = Long.valueOf((String) loginIdByToken);
+            online(channel, userId);
             User loginUser = userService.getLoginUser(token);
+            
             //发送用户上线事件
             boolean online = userCache.isOnline(loginUser.getId());
             if (!online) {
                 loginUser.setUpdateTime(new Date());
                 applicationEventPublisher.publishEvent(new UserOnlineEvent(this, loginUser));
             }
+            
+            // 向当前新连接发送在线用户列表信息
+            List<UserChatResponse> onlineUserList = getOnlineUserList();
+            if (!onlineUserList.isEmpty()) {
+                WSBaseResp<Object> resp = WSBaseResp.builder()
+                        .type(MessageTypeEnum.USER_ONLINE.getType())
+                        .data(onlineUserList).build();
+                sendMsg(channel, resp);
+            }
         } catch (Exception e) {
             log.error("websocket登录失败", e);
             channel.close();
         }
-
     }
 
     /**
@@ -145,12 +155,11 @@ public class WebSocketServiceImpl implements WebSocketService {
                 .map(WSChannelExtraDTO::getUid);
         boolean offlineAll = offline(channel, uidOptional);
         if (uidOptional.isPresent() && offlineAll) {
-            //已登录用户断连,并且全下线成功
+            // 只有当用户的所有连接都断开时才发送下线事件
             User user = new User();
             user.setId(uidOptional.get());
             applicationEventPublisher.publishEvent(new UserOfflineEvent(this, user));
-            //推送其他用户下线事件
-            //发送当前用户上线信息给所有人
+            // 发送当前用户下线信息给所有人
             sendToAllOnline(WSBaseResp.builder()
                     .type(MessageTypeEnum.USER_OFFLINE.getType())
                     .data(uidOptional.get().toString()).build(), uidOptional.get());
@@ -218,9 +227,15 @@ public class WebSocketServiceImpl implements WebSocketService {
 
     @Override
     public List<UserChatResponse> getOnlineUserList() {
-        return ONLINE_WS_MAP.values().stream()
-                .map(WSChannelExtraDTO::getUserChatResponse)
-                .collect(Collectors.toList());
+        // 使用Map确保每个用户只返回一次，以uid为key
+        Map<String, UserChatResponse> uniqueUsers = new HashMap<>();
+        
+        ONLINE_WS_MAP.values().forEach(ext -> {
+            UserChatResponse response = ext.getUserChatResponse();
+            uniqueUsers.putIfAbsent(response.getId(), response);
+        });
+        
+        return new ArrayList<>(uniqueUsers.values());
     }
 
     private void sendByType(ChatMessageVo chatMessageVo, String token, Long uid, Channel channel) {
@@ -363,11 +378,15 @@ public class WebSocketServiceImpl implements WebSocketService {
 
     private void moveChess(ChatMessageVo chatMessageVo, Long uid) {
         CopyOnWriteArrayList<Channel> channels = ONLINE_UID_MAP.get(uid);
-        JSONObject message = JSON.parseObject(chatMessageVo.getContent());
-        message.put(ROOM_ID, message.get(ROOM_ID));
-        WSBaseResp<Object> wsBaseResp = WSBaseResp.builder()
-                .type(MessageTypeEnum.MOVE_CHESS.getType()).data(message).build();
-        channels.forEach(item -> threadPoolTaskExecutor.execute(() -> sendMsg(item, wsBaseResp)));
+        if (CollUtil.isNotEmpty(channels)) {
+            JSONObject message = JSON.parseObject(chatMessageVo.getContent());
+            message.put(ROOM_ID, message.get(ROOM_ID));
+            WSBaseResp<Object> wsBaseResp = WSBaseResp.builder()
+                    .type(MessageTypeEnum.MOVE_CHESS.getType()).data(message).build();
+            channels.forEach(item -> threadPoolTaskExecutor.execute(() -> sendMsg(item, wsBaseResp)));
+        } else {
+            log.warn("用户 {} 没有可用的WebSocket连接", uid);
+        }
     }
 
     private void createRoom(Channel channel) {
@@ -418,7 +437,7 @@ public class WebSocketServiceImpl implements WebSocketService {
         data.put("playerId", String.valueOf(loginUserId));
         data.put("yourColor", "black");
         data.put("opponentColor", "white");
-        data.put("gameType", gameType); // 添加游戏类型
+        data.put("gameType", gameType);
         sendMsg(roomOwner, WSBaseResp.builder().type(MessageTypeEnum.JOIN_SUCCESS.getType()).data(data).build());
 
         //把获取房主传给当前登录用户
@@ -428,7 +447,7 @@ public class WebSocketServiceImpl implements WebSocketService {
         data2.put("playerId", String.valueOf(wsChannelExtraDTO.getUid()));
         data2.put("yourColor", "white");
         data2.put("opponentColor", "black");
-        data2.put("gameType", gameType); // 添加游戏类型
+        data2.put("gameType", gameType);
 
         sendMsg(channel, WSBaseResp.builder().type(MessageTypeEnum.JOIN_SUCCESS.getType()).data(data2).build());
         
@@ -441,10 +460,7 @@ public class WebSocketServiceImpl implements WebSocketService {
      * 用户上线
      */
     private void online(Channel channel, Long uid) {
-        if (ONLINE_WS_MAP.values().stream().anyMatch(item -> Objects.equals(item.getUid(), uid))) {
-            return;
-        }
-
+        // 删除原来的检查，允许一个用户有多个连接
         User currentUser = userService.getLoginUser(NettyUtil.getAttr(channel, NettyUtil.TOKEN));
         LoginUserVO loginUserVO = userService.getLoginUserVO(currentUser);
 
@@ -466,20 +482,34 @@ public class WebSocketServiceImpl implements WebSocketService {
         WSChannelExtraDTO channelExt = getOrInitChannelExt(channel);
         channelExt.setUid(uid);
         channelExt.setUserChatResponse(userChatResponse);
-        CopyOnWriteArrayList<Channel> arrayList = new CopyOnWriteArrayList<>();
-        arrayList.add(channel);
-        ONLINE_UID_MAP.putIfAbsent(uid, arrayList);
+        
+        // 获取用户现有的channel列表，如果不存在则创建一个新列表
+        CopyOnWriteArrayList<Channel> channels = ONLINE_UID_MAP.get(uid);
+        if (channels == null) {
+            channels = new CopyOnWriteArrayList<>();
+            CopyOnWriteArrayList<Channel> oldChannels = ONLINE_UID_MAP.putIfAbsent(uid, channels);
+            if (oldChannels != null) {
+                channels = oldChannels;
+            }
+        }
+        
+        // 将当前channel添加到用户的channel列表中
+        if (!channels.contains(channel)) {
+            channels.add(channel);
+        }
+
         WSChannelExtraDTO wsChannelExtraDTO = new WSChannelExtraDTO();
         wsChannelExtraDTO.setUid(uid);
         wsChannelExtraDTO.setUserChatResponse(userChatResponse);
-
-
         ONLINE_WS_MAP.put(channel, wsChannelExtraDTO);
 
-        //发送当前用户上线信息给所有人
-        sendToAllOnline(WSBaseResp.builder()
-                .type(MessageTypeEnum.USER_ONLINE.getType())
-                .data(Collections.singletonList(userChatResponse)).build(), uid);
+        // 用户首次登录时才广播上线消息（通过channels.size()判断）
+        if (channels.size() == 1) {
+            //发送当前用户上线信息给所有人
+            sendToAllOnline(WSBaseResp.builder()
+                    .type(MessageTypeEnum.USER_ONLINE.getType())
+                    .data(Collections.singletonList(userChatResponse)).build(), uid);
+        }
     }
 
     /**
@@ -507,19 +537,29 @@ public class WebSocketServiceImpl implements WebSocketService {
 
     /**
      * 用户下线
-     * return 是否全下线成功
+     * return 是否全下线成功（用户所有连接都已断开）
      */
     private boolean offline(Channel channel, Optional<Long> uidOptional) {
         ONLINE_WS_MAP.remove(channel);
         if (uidOptional.isPresent()) {
-            CopyOnWriteArrayList<Channel> channels = ONLINE_UID_MAP.get(uidOptional.get());
+            Long uid = uidOptional.get();
+            CopyOnWriteArrayList<Channel> channels = ONLINE_UID_MAP.get(uid);
             if (CollUtil.isNotEmpty(channels)) {
+                // 从用户的channel列表中移除当前channel
                 channels.removeIf(channel1 -> channel1.equals(channel));
+                
+                // 只有当用户没有任何连接时才从ONLINE_UID_MAP中移除
+                if (channels.isEmpty()) {
+                    ONLINE_UID_MAP.remove(uid);
+                    return true;
+                }
+            } else {
+                // 如果用户没有任何连接，从ONLINE_UID_MAP中移除
+                ONLINE_UID_MAP.remove(uid);
+                return true;
             }
-            ONLINE_UID_MAP.remove(uidOptional.get());
-            return CollUtil.isEmpty(ONLINE_UID_MAP.get(uidOptional.get()));
         }
-
-        return true;
+        
+        return false;
     }
 }
