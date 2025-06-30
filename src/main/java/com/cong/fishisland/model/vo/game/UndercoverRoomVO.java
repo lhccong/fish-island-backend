@@ -26,11 +26,6 @@ public class UndercoverRoomVO {
     private RoomStatusEnum status;
 
     /**
-     * 玩家角色
-     */
-    private String role;
-
-    /**
      * 玩家词语
      */
     private String word;

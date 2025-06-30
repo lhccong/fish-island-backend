@@ -112,7 +112,7 @@ public class UndercoverGameServiceImpl implements UndercoverGameService {
             room.setCreateTime(new Date());
             room.setDuration(request.getDuration());
             room.setCreatorId(loginUser.getId());
-            room.setMaxPlayers(request.getMaxPlayers()); // 设置最大人数
+            room.setMaxPlayers(request.getMaxPlayers());
 
             // 生成房间ID
             String roomId = UUID.randomUUID().toString().replace("-", "");
@@ -193,8 +193,6 @@ public class UndercoverGameServiceImpl implements UndercoverGameService {
                 // 获取玩家角色
                 String role = stringRedisTemplate.opsForValue().get(
                         UndercoverGameRedisKey.getKey(UndercoverGameRedisKey.PLAYER_ROLE, currentUser.getId()));
-                roomVO.setRole(role);
-
                 // 设置词语
                 if ("undercover".equals(role)) {
                     roomVO.setWord(room.getUndercoverWord());
