@@ -48,6 +48,11 @@ public interface UndercoverGameRedisKey {
     String PLAYER_VOTED = BASE_KEY + "room:%s:player:%d:voted";
     
     /**
+     * 游戏结果键
+     */
+    String ROOM_RESULT = BASE_KEY + "room:%s:result";
+    
+    /**
      * 获取完整的 Redis 键
      *
      * @param key      键模板

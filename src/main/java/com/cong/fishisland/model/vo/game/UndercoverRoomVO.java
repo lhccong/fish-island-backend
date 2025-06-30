@@ -74,4 +74,9 @@ public class UndercoverRoomVO {
      * 房间最大人数
      */
     private Integer maxPlayers;
+    
+    /**
+     * 游戏结果
+     */
+    private String gameResult;
 } 

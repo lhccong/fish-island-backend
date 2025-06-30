@@ -187,7 +187,8 @@ public class UndercoverGameServiceImpl implements UndercoverGameService {
             // 获取房间投票记录
             List<UndercoverVoteVO> votes = getRoomVotes(roomId);
             roomVO.setVotes(votes);
-
+            
+            // 获取当前用户信息
             if (StpUtil.isLogin()) {
                 User currentUser = userService.getLoginUser();
                 // 获取玩家角色
@@ -199,7 +200,18 @@ public class UndercoverGameServiceImpl implements UndercoverGameService {
                 } else if ("civilian".equals(role)) {
                     roomVO.setWord(room.getCivilianWord());
                 }
-
+            }
+            
+            // 获取游戏结果
+            String gameResult = stringRedisTemplate.opsForValue().get(
+                    UndercoverGameRedisKey.getKey(UndercoverGameRedisKey.ROOM_RESULT, roomId));
+            if (gameResult != null) {
+                roomVO.setGameResult(gameResult);
+            }
+            
+            // 如果游戏已结束，确保游戏结果不为空
+            if (room.getStatus() == RoomStatusEnum.ENDED && StringUtils.isBlank(roomVO.getGameResult())) {
+                roomVO.setGameResult("游戏已结束");
             }
 
 
@@ -438,8 +450,160 @@ public class UndercoverGameServiceImpl implements UndercoverGameService {
             try {
                 UndercoverRoom room = objectMapper.readValue(roomJson, UndercoverRoom.class);
 
-                // 更新房间状态
-                room.setStatus(RoomStatusEnum.ENDED);
+                // 如果游戏未开始，直接结束
+                if (room.getStatus() != RoomStatusEnum.PLAYING) {
+                    // 更新房间状态
+                    room.setStatus(RoomStatusEnum.ENDED);
+
+                    // 更新房间信息
+                    String updatedRoomJson = objectMapper.writeValueAsString(room);
+                    stringRedisTemplate.opsForValue().set(
+                            UndercoverGameRedisKey.getKey(UndercoverGameRedisKey.ROOM_INFO, roomId),
+                            updatedRoomJson,
+                            24,
+                            TimeUnit.MINUTES
+                    );
+
+                    // 清除活跃房间
+                    String activeRoomId = stringRedisTemplate.opsForValue().get(UndercoverGameRedisKey.ACTIVE_ROOM);
+                    if (roomId.equals(activeRoomId)) {
+                        stringRedisTemplate.delete(UndercoverGameRedisKey.ACTIVE_ROOM);
+                    }
+
+                    return true;
+                }
+
+                // 如果游戏已开始，进行投票统计和游戏结果判断
+                // 1. 统计投票数，找出票数最多的玩家
+                Map<Long, Integer> voteCountMap = new HashMap<>();
+                Long mostVotedPlayer = null;
+                int maxVotes = -1;
+                
+                // 获取所有未淘汰的玩家
+                Set<Long> activePlayers = new HashSet<>(room.getParticipantIds());
+                activePlayers.removeAll(room.getEliminatedIds());
+                
+                // 统计每个玩家的票数
+                for (Long playerId : activePlayers) {
+                    String voteCountStr = stringRedisTemplate.opsForValue().get(
+                            UndercoverGameRedisKey.getKey(UndercoverGameRedisKey.ROOM_VOTE_COUNT, roomId) + ":" + playerId);
+                    int voteCount = 0;
+                    if (voteCountStr != null) {
+                        voteCount = Integer.parseInt(voteCountStr);
+                    }
+                    voteCountMap.put(playerId, voteCount);
+                    
+                    // 更新最高票数玩家
+                    if (voteCount > maxVotes) {
+                        maxVotes = voteCount;
+                        mostVotedPlayer = playerId;
+                    }
+                }
+                
+                // 2. 如果有投票，处理投票结果
+                boolean shouldEndGame = false;
+                String gameResult = null;
+                
+                if (mostVotedPlayer != null && maxVotes > 0) {
+                    // 判断最高票数的玩家是否为卧底
+                    boolean isUndercover = room.getUndercoverIds().contains(mostVotedPlayer);
+                    
+                    // 获取被淘汰玩家信息
+                    User eliminatedUser = userService.getById(mostVotedPlayer);
+                    String eliminatedUserName = eliminatedUser != null ? eliminatedUser.getUserName() : "未知玩家";
+                    
+                    // 淘汰投票最多的玩家
+                    room.getEliminatedIds().add(mostVotedPlayer);
+                    
+                    // 计算剩余卧底和平民数量
+                    int remainingUndercovers = 0;
+                    int remainingCivilians = 0;
+                    
+                    for (Long userId : room.getUndercoverIds()) {
+                        if (!room.getEliminatedIds().contains(userId)) {
+                            remainingUndercovers++;
+                        }
+                    }
+                    
+                    for (Long userId : room.getCivilianIds()) {
+                        if (!room.getEliminatedIds().contains(userId)) {
+                            remainingCivilians++;
+                        }
+                    }
+                    
+                    // 判断游戏是否结束
+                    if (remainingUndercovers == 0) {
+                        // 所有卧底被淘汰，平民获胜
+                        shouldEndGame = true;
+                        gameResult = "平民获胜！所有卧底已被淘汰！";
+                    } else if (remainingUndercovers >= remainingCivilians) {
+                        // 卧底人数大于等于平民人数，卧底获胜
+                        shouldEndGame = true;
+                        gameResult = "卧底获胜！卧底人数已超过或等于平民人数！";
+                    } else {
+                        // 游戏继续，显示谁被淘汰了
+                        if (isUndercover) {
+                            gameResult = "玩家【" + eliminatedUserName + "】被淘汰，他是卧底！还有" + remainingUndercovers + "名卧底未被发现，游戏继续...";
+                        } else {
+                            gameResult = "玩家【" + eliminatedUserName + "】被淘汰，他是平民！剩余平民" + remainingCivilians + "人，卧底" + remainingUndercovers + "人，游戏继续...";
+                        }
+                        
+                        // 保存淘汰信息但不结束游戏
+                        stringRedisTemplate.opsForValue().set(
+                                UndercoverGameRedisKey.getKey(UndercoverGameRedisKey.ROOM_RESULT, roomId),
+                                gameResult,
+                                24,
+                                TimeUnit.HOURS
+                        );
+                    }
+                }
+                
+                // 3. 更新游戏状态
+                if (shouldEndGame) {
+                    room.setStatus(RoomStatusEnum.ENDED);
+                    
+                    // 保存游戏结果
+                    if (gameResult != null) {
+                        // 将游戏结果保存到 Redis，可以添加一个新的键
+                        stringRedisTemplate.opsForValue().set(
+                                UndercoverGameRedisKey.getKey(UndercoverGameRedisKey.ROOM_RESULT, roomId),
+                                gameResult,
+                                24,
+                                TimeUnit.HOURS
+                        );
+                    }
+                    
+                    // 清除活跃房间
+                    String activeRoomId = stringRedisTemplate.opsForValue().get(UndercoverGameRedisKey.ACTIVE_ROOM);
+                    if (roomId.equals(activeRoomId)) {
+                        stringRedisTemplate.delete(UndercoverGameRedisKey.ACTIVE_ROOM);
+                    }
+                } else {
+                    // 如果游戏继续，确保状态为 PLAYING
+                    room.setStatus(RoomStatusEnum.PLAYING);
+                    
+                    // 如果有投票记录，需要清除所有玩家的投票状态，以便下一轮投票
+                    if (mostVotedPlayer != null) {
+                        // 清除所有玩家的投票状态
+                        for (Long playerId : room.getParticipantIds()) {
+                            stringRedisTemplate.delete(
+                                    UndercoverGameRedisKey.getKey(UndercoverGameRedisKey.PLAYER_VOTED, roomId, playerId)
+                            );
+                        }
+                        
+                        // 清除投票计数
+                        for (Long playerId : room.getParticipantIds()) {
+                            stringRedisTemplate.delete(
+                                    UndercoverGameRedisKey.getKey(UndercoverGameRedisKey.ROOM_VOTE_COUNT, roomId) + ":" + playerId
+                            );
+                        }
+                        
+                        // 清除投票记录
+                        stringRedisTemplate.delete(
+                                UndercoverGameRedisKey.getKey(UndercoverGameRedisKey.ROOM_VOTES, roomId)
+                        );
+                    }
+                }
 
                 // 更新房间信息
                 String updatedRoomJson = objectMapper.writeValueAsString(room);
@@ -447,14 +611,8 @@ public class UndercoverGameServiceImpl implements UndercoverGameService {
                         UndercoverGameRedisKey.getKey(UndercoverGameRedisKey.ROOM_INFO, roomId),
                         updatedRoomJson,
                         24,
-                        TimeUnit.MINUTES
+                        TimeUnit.HOURS
                 );
-
-                // 清除活跃房间
-                String activeRoomId = stringRedisTemplate.opsForValue().get(UndercoverGameRedisKey.ACTIVE_ROOM);
-                if (roomId.equals(activeRoomId)) {
-                    stringRedisTemplate.delete(UndercoverGameRedisKey.ACTIVE_ROOM);
-                }
 
                 return true;
             } catch (JsonProcessingException e) {
