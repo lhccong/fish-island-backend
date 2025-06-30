@@ -1,9 +1,13 @@
 package com.cong.fishisland.service;
 
 import com.cong.fishisland.model.dto.game.UndercoverRoomCreateRequest;
-import com.cong.fishisland.model.entity.game.UndercoverRoom;
+import com.cong.fishisland.model.dto.game.UndercoverVoteRequest;
+import com.cong.fishisland.model.vo.game.UndercoverPlayerDetailVO;
 import com.cong.fishisland.model.vo.game.UndercoverPlayerVO;
 import com.cong.fishisland.model.vo.game.UndercoverRoomVO;
+import com.cong.fishisland.model.vo.game.UndercoverVoteVO;
+
+import java.util.List;
 
 /**
  * 谁是卧底游戏服务接口
@@ -76,4 +80,37 @@ public interface UndercoverGameService {
      * @return 游戏是否结束
      */
     boolean checkGameOver(String roomId);
+    
+    /**
+     * 玩家投票
+     *
+     * @param request 投票请求
+     * @return 是否投票成功
+     */
+    boolean vote(UndercoverVoteRequest request);
+    
+    /**
+     * 获取房间投票记录
+     *
+     * @param roomId 房间ID
+     * @return 投票记录列表
+     */
+    List<UndercoverVoteVO> getRoomVotes(String roomId);
+    
+    /**
+     * 获取玩家详细信息
+     *
+     * @param roomId 房间ID
+     * @param userId 用户ID
+     * @return 玩家详细信息
+     */
+    UndercoverPlayerDetailVO getPlayerDetailInfo(String roomId, Long userId);
+    
+    /**
+     * 获取房间内所有玩家详细信息
+     *
+     * @param roomId 房间ID
+     * @return 玩家详细信息列表
+     */
+    List<UndercoverPlayerDetailVO> getRoomPlayersDetail(String roomId);
 } 

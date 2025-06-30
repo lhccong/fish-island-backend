@@ -1,9 +1,9 @@
 package com.cong.fishisland.model.entity.game;
 
+import com.cong.fishisland.model.enums.RoomStatusEnum;
 import lombok.Data;
 
 import java.util.Date;
-import java.util.List;
 import java.util.Set;
 
 /**
@@ -14,28 +14,11 @@ import java.util.Set;
 @Data
 public class UndercoverRoom {
 
-    /**
-     * 房间状态枚举
-     */
-    public enum RoomStatus {
-        /**
-         * 等待中
-         */
-        WAITING,
-        /**
-         * 游戏中
-         */
-        PLAYING,
-        /**
-         * 已结束
-         */
-        ENDED
-    }
 
     /**
      * 房间状态
      */
-    private RoomStatus status;
+    private RoomStatusEnum status;
 
     /**
      * 参与者ID列表
