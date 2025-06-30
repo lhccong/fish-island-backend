@@ -3,20 +3,20 @@ spring:
   # todo 需替换配置
   datasource:
     driver-class-name: com.mysql.cj.jdbc.Driver
-    url: jdbc:mysql://localhost:3306/my_db
-    username: root
-    password: root
+    url: jdbc:mysql://127.0.0.1:3306/fish
+    username: fish
+    password: 123456
   # Redis 配置
   # todo 需替换配置，然后取消注释
   redis:
     database: 1
-    host: localhost
+    host: 127.0.0.1
     port: 6379
     timeout: 5000
   # 邮箱
   mail:
     host: smtp.qq.com  # 平台地址（这里是QQ邮箱）
-    username: 111@qq.com # 发送者邮箱
+    username: xiaomingo@qq.com # 发送者邮箱
     properties:
       mail:
         smtp:
@@ -24,7 +24,7 @@ spring:
             enable: true  # 启用 SSL
     default-encoding: UTF-8  # 编码格式
 
-  #    password: 123456
+    password: jtwdpsvnfsqqdihd
   # Elasticsearch 配置
   # todo 需替换配置，然后取消注释
 #  elasticsearch:
