@@ -60,6 +60,12 @@ public class UndercoverGameController {
         if (request.getDuration() == null || request.getDuration() < 60) {
             throw new BusinessException(ErrorCode.PARAMS_ERROR, "游戏持续时间不能少于60秒");
         }
+        if (request.getMaxPlayers() == null || request.getMaxPlayers() < 3) {
+            throw new BusinessException(ErrorCode.PARAMS_ERROR, "房间最大人数不能少于3人");
+        }
+        if (request.getMaxPlayers() > 20) {
+            throw new BusinessException(ErrorCode.PARAMS_ERROR, "房间最大人数不能超过20人");
+        }
         
         String roomId = undercoverGameService.createRoom(request);
         return ResultUtils.success(roomId);

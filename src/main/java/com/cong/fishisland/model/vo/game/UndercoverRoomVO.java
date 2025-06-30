@@ -74,4 +74,9 @@ public class UndercoverRoomVO {
      * 投票记录列表
      */
     private List<UndercoverVoteVO> votes;
+    
+    /**
+     * 房间最大人数
+     */
+    private Integer maxPlayers;
 } 

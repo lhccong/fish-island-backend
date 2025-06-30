@@ -28,4 +28,10 @@ public class UndercoverRoomCreateRequest {
      */
     @ApiModelProperty("持续时间秒")
     private Integer duration;
+    
+    /**
+     * 房间最大人数
+     */
+    @ApiModelProperty("房间最大人数")
+    private Integer maxPlayers;
 } 

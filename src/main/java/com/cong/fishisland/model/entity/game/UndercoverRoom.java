@@ -69,4 +69,9 @@ public class UndercoverRoom {
      * 创建者ID（管理员）
      */
     private Long creatorId;
+    
+    /**
+     * 房间最大人数
+     */
+    private Integer maxPlayers;
 } 

@@ -67,6 +67,13 @@ public class UndercoverGameServiceImpl implements UndercoverGameService {
         if (request.getDuration() == null || request.getDuration() < 60) {
             throw new BusinessException(ErrorCode.PARAMS_ERROR, "游戏持续时间不能少于60秒");
         }
+        // 验证最大人数
+        if (request.getMaxPlayers() == null || request.getMaxPlayers() < 3) {
+            throw new BusinessException(ErrorCode.PARAMS_ERROR, "房间最大人数不能少于3人");
+        }
+        if (request.getMaxPlayers() > 20) {
+            throw new BusinessException(ErrorCode.PARAMS_ERROR, "房间最大人数不能超过20人");
+        }
 
         // 验证是否为管理员
         User loginUser = userService.getLoginUser();
@@ -105,6 +112,7 @@ public class UndercoverGameServiceImpl implements UndercoverGameService {
             room.setCreateTime(new Date());
             room.setDuration(request.getDuration());
             room.setCreatorId(loginUser.getId());
+            room.setMaxPlayers(request.getMaxPlayers()); // 设置最大人数
 
             // 生成房间ID
             String roomId = UUID.randomUUID().toString().replace("-", "");
@@ -206,6 +214,8 @@ public class UndercoverGameServiceImpl implements UndercoverGameService {
 
     @Override
     public boolean joinRoom(String roomId) {
+        //暂时无需 ID 自动获取
+        roomId = stringRedisTemplate.opsForValue().get(UndercoverGameRedisKey.ACTIVE_ROOM);
         // 验证参数
         if (StringUtils.isBlank(roomId)) {
             throw new BusinessException(ErrorCode.PARAMS_ERROR, "房间ID不能为空");
@@ -240,6 +250,11 @@ public class UndercoverGameServiceImpl implements UndercoverGameService {
                 // 检查用户是否已在房间中
                 if (room.getParticipantIds().contains(loginUser.getId())) {
                     return true;
+                }
+                
+                // 检查房间是否已满
+                if (room.getMaxPlayers() != null && room.getParticipantIds().size() >= room.getMaxPlayers()) {
+                    throw new BusinessException(ErrorCode.OPERATION_ERROR, "房间已满，无法加入");
                 }
 
                 // 将用户添加到房间
