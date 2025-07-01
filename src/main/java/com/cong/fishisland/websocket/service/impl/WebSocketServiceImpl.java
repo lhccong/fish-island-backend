@@ -41,6 +41,7 @@ import io.netty.handler.codec.http.websocketx.TextWebSocketFrame;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.jetbrains.annotations.NotNull;
+import org.jetbrains.annotations.Nullable;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.scheduling.concurrent.ThreadPoolTaskExecutor;
@@ -257,47 +258,37 @@ public class WebSocketServiceImpl implements WebSocketService {
         MessageTypeEnum messageTypeEnum = MessageTypeEnum.of(chatMessageVo.getType());
         //发送消息
         switch (messageTypeEnum) {
+            case UNDERCOVER:
+                SendMessageDto messageDto = getSendMessageDto(chatMessageVo, channel, loginIdObj, loginUserId);
+                if (messageDto == null) {
+                    return;
+                }
+                sendToAllOnline(WSBaseResp.builder()
+                        .type(MessageTypeEnum.UNDERCOVER.getType())
+                        .data(messageDto.messageDto).build(), loginUserId);
+                break;
             case CHAT:
-                MessageWrapper messageDto = JSON.parseObject(chatMessageVo.getContent(), MessageWrapper.class);
-                Message message = messageDto.getMessage();
-                if (!message.getSender().getId().equals(loginIdObj)) {
-                    log.info("非法消息发送者：{}，消息内容：{}", message.getSender().getId(), message.getContent());
-                    //直接移除当前用户 ID
-                    userService.removeById(loginUserId);
+                SendMessageDto result = getSendMessageDto(chatMessageVo, channel, loginIdObj, loginUserId);
+                if (result == null) {
                     return;
                 }
-                String resultContent = fixMessage(message);
-                message.setContent(resultContent);
-                UserMuteVO userMuteInfo = userMuteService.getUserMuteInfo(loginUserId);
-                if (userMuteInfo.getIsMuted()) {
-                    //用户被禁言
-                    // 异常返回
-                    WSBaseResp<Object> errorResp = WSBaseResp.builder().type(MessageTypeEnum.ERROR.getType()).data(userMuteInfo.getRemainingTime()).build();
-                    sendMsg(channel, errorResp);
-                    return;
-                }
-                applicationEventPublisher.publishEvent(new AddSpeakPointEvent(this, message.getSender().getId()));
+                applicationEventPublisher.publishEvent(new AddSpeakPointEvent(this, result.message.getSender().getId()));
                 sendToAllOnline(WSBaseResp.builder()
                         .type(MessageTypeEnum.CHAT.getType())
-                        .data(messageDto).build(), loginUserId);
+                        .data(result.messageDto).build(), loginUserId);
                 //查看是否是给机器人发的
-                List<Sender> mentionedUsers = message.getMentionedUsers();
+                List<Sender> mentionedUsers = result.message.getMentionedUsers();
 
                 if (mentionedUsers != null && !mentionedUsers.isEmpty()) {
                     //校验里面是否有机器人
                     boolean isRobot = mentionedUsers.stream().anyMatch(item -> item.getId().equals(UserConstant.ROBOT_ID));
                     if (isRobot) {
-                        applicationEventPublisher.publishEvent(new AIAnswerEvent(this, messageDto));
+                        applicationEventPublisher.publishEvent(new AIAnswerEvent(this, result.messageDto));
                     }
                 }
 
-                //保存消息到数据库
-                RoomMessage roomMessage = new RoomMessage();
-                roomMessage.setUserId(loginUserId);
-                roomMessage.setRoomId(-1L);
-                roomMessage.setMessageJson(JSON.toJSONString(messageDto));
-                roomMessage.setMessageId(messageDto.getMessage().getId());
-                roomMessageService.save(roomMessage);
+                saveMessage(loginUserId, result);
+
                 break;
             case USER_MESSAGE_REVOKE:
                 //撤回消息
@@ -350,6 +341,50 @@ public class WebSocketServiceImpl implements WebSocketService {
                 break;
             default:
                 break;
+        }
+    }
+
+    private void saveMessage(long loginUserId, SendMessageDto result) {
+        //保存消息到数据库
+        RoomMessage roomMessage = new RoomMessage();
+        roomMessage.setUserId(loginUserId);
+        roomMessage.setRoomId(-1L);
+        roomMessage.setMessageJson(JSON.toJSONString(result.messageDto));
+        roomMessage.setMessageId(result.messageDto.getMessage().getId());
+        roomMessageService.save(roomMessage);
+    }
+
+    @Nullable
+    private SendMessageDto getSendMessageDto(ChatMessageVo chatMessageVo, Channel channel, Object loginIdObj, long loginUserId) {
+        MessageWrapper messageDto = JSON.parseObject(chatMessageVo.getContent(), MessageWrapper.class);
+        Message message = messageDto.getMessage();
+        if (!message.getSender().getId().equals(loginIdObj)) {
+            log.info("非法消息发送者：{}，消息内容：{}", message.getSender().getId(), message.getContent());
+            //直接移除当前用户 ID
+            userService.removeById(loginUserId);
+            return null;
+        }
+        String resultContent = fixMessage(message);
+        message.setContent(resultContent);
+        UserMuteVO userMuteInfo = userMuteService.getUserMuteInfo(loginUserId);
+        if (userMuteInfo.getIsMuted()) {
+            //用户被禁言
+            // 异常返回
+            WSBaseResp<Object> errorResp = WSBaseResp.builder().type(MessageTypeEnum.ERROR.getType()).data(userMuteInfo.getRemainingTime()).build();
+            sendMsg(channel, errorResp);
+            return null;
+        }
+        SendMessageDto result = new SendMessageDto(messageDto, message);
+        return result;
+    }
+
+    private static class SendMessageDto {
+        public final MessageWrapper messageDto;
+        public final Message message;
+
+        public SendMessageDto(MessageWrapper messageDto, Message message) {
+            this.messageDto = messageDto;
+            this.message = message;
         }
     }
 

@@ -9,13 +9,16 @@ import com.cong.fishisland.model.dto.game.UndercoverRoomCreateRequest;
 import com.cong.fishisland.model.dto.game.UndercoverVoteRequest;
 import com.cong.fishisland.model.entity.game.UndercoverRoom;
 import com.cong.fishisland.model.entity.user.User;
+import com.cong.fishisland.model.enums.MessageTypeEnum;
 import com.cong.fishisland.model.enums.RoomStatusEnum;
 import com.cong.fishisland.model.vo.game.UndercoverPlayerDetailVO;
 import com.cong.fishisland.model.vo.game.UndercoverPlayerVO;
 import com.cong.fishisland.model.vo.game.UndercoverRoomVO;
 import com.cong.fishisland.model.vo.game.UndercoverVoteVO;
+import com.cong.fishisland.model.ws.response.WSBaseResp;
 import com.cong.fishisland.service.UndercoverGameService;
 import com.cong.fishisland.service.UserService;
+import com.cong.fishisland.websocket.service.WebSocketService;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -51,6 +54,9 @@ public class UndercoverGameServiceImpl implements UndercoverGameService {
 
     @Resource
     private ObjectMapper objectMapper;
+
+    @Resource
+    private WebSocketService webSocketService;
 
     @Override
     public String createRoom(UndercoverRoomCreateRequest request) {
@@ -187,7 +193,7 @@ public class UndercoverGameServiceImpl implements UndercoverGameService {
             // 获取房间投票记录
             List<UndercoverVoteVO> votes = getRoomVotes(roomId);
             roomVO.setVotes(votes);
-            
+
             // 获取当前用户信息
             if (StpUtil.isLogin()) {
                 User currentUser = userService.getLoginUser();
@@ -201,14 +207,14 @@ public class UndercoverGameServiceImpl implements UndercoverGameService {
                     roomVO.setWord(room.getCivilianWord());
                 }
             }
-            
+
             // 获取游戏结果
             String gameResult = stringRedisTemplate.opsForValue().get(
                     UndercoverGameRedisKey.getKey(UndercoverGameRedisKey.ROOM_RESULT, roomId));
             if (gameResult != null) {
                 roomVO.setGameResult(gameResult);
             }
-            
+
             // 如果游戏已结束，确保游戏结果不为空
             if (room.getStatus() == RoomStatusEnum.ENDED && StringUtils.isBlank(roomVO.getGameResult())) {
                 roomVO.setGameResult("游戏已结束");
@@ -261,7 +267,7 @@ public class UndercoverGameServiceImpl implements UndercoverGameService {
                 if (room.getParticipantIds().contains(loginUser.getId())) {
                     return true;
                 }
-                
+
                 // 检查房间是否已满
                 if (room.getMaxPlayers() != null && room.getParticipantIds().size() >= room.getMaxPlayers()) {
                     throw new BusinessException(ErrorCode.OPERATION_ERROR, "房间已满，无法加入");
@@ -286,7 +292,11 @@ public class UndercoverGameServiceImpl implements UndercoverGameService {
                         24,
                         TimeUnit.HOURS
                 );
-
+                WSBaseResp<Object> infoResp = WSBaseResp.builder()
+                        .type(MessageTypeEnum.INFO.getType())
+                        .data("用户" + loginUser.getUserName() + "进入谁是卧底房间中")
+                        .build();
+                webSocketService.sendToAllOnline(infoResp);
                 return true;
             } catch (JsonProcessingException e) {
                 log.error("解析房间信息失败", e);
@@ -360,7 +370,11 @@ public class UndercoverGameServiceImpl implements UndercoverGameService {
                         24,
                         TimeUnit.HOURS
                 );
-
+                WSBaseResp<Object> infoResp = WSBaseResp.builder()
+                        .type(MessageTypeEnum.INFO.getType())
+                        .data("谁是卧底游戏开始啦，大家快来参加吧")
+                        .build();
+                webSocketService.sendToAllOnline(infoResp);
                 return true;
             } catch (JsonProcessingException e) {
                 log.error("解析房间信息失败", e);
@@ -404,6 +418,11 @@ public class UndercoverGameServiceImpl implements UndercoverGameService {
                         24,
                         TimeUnit.HOURS
                 );
+                WSBaseResp<Object> infoResp = WSBaseResp.builder()
+                        .type(MessageTypeEnum.INFO.getType())
+                        .data("你是卧底！隐藏好自己，你的提示词是：" + room.getUndercoverWord())
+                        .build();
+                webSocketService.sendToUid(infoResp, userId);
             } else {
                 room.getCivilianIds().add(userId);
                 // 存储玩家角色信息
@@ -413,6 +432,11 @@ public class UndercoverGameServiceImpl implements UndercoverGameService {
                         24,
                         TimeUnit.HOURS
                 );
+                WSBaseResp<Object> infoResp = WSBaseResp.builder()
+                        .type(MessageTypeEnum.INFO.getType())
+                        .data("你的提示词是：" + room.getCivilianWord())
+                        .build();
+                webSocketService.sendToUid(infoResp, userId);
             }
         }
     }
@@ -478,11 +502,11 @@ public class UndercoverGameServiceImpl implements UndercoverGameService {
                 Map<Long, Integer> voteCountMap = new HashMap<>();
                 Long mostVotedPlayer = null;
                 int maxVotes = -1;
-                
+
                 // 获取所有未淘汰的玩家
                 Set<Long> activePlayers = new HashSet<>(room.getParticipantIds());
                 activePlayers.removeAll(room.getEliminatedIds());
-                
+
                 // 统计每个玩家的票数
                 for (Long playerId : activePlayers) {
                     String voteCountStr = stringRedisTemplate.opsForValue().get(
@@ -492,62 +516,94 @@ public class UndercoverGameServiceImpl implements UndercoverGameService {
                         voteCount = Integer.parseInt(voteCountStr);
                     }
                     voteCountMap.put(playerId, voteCount);
-                    
+
                     // 更新最高票数玩家
                     if (voteCount > maxVotes) {
                         maxVotes = voteCount;
                         mostVotedPlayer = playerId;
                     }
                 }
-                
+
                 // 2. 如果有投票，处理投票结果
                 boolean shouldEndGame = false;
-                String gameResult = null;
-                
+                String gameResult = "";
+                if (maxVotes == 0) {
+                    shouldEndGame = true;
+                    gameResult = "暂无人投票，游戏结束参与积分已退回";
+                }
+
                 if (mostVotedPlayer != null && maxVotes > 0) {
                     // 判断最高票数的玩家是否为卧底
                     boolean isUndercover = room.getUndercoverIds().contains(mostVotedPlayer);
-                    
+
                     // 获取被淘汰玩家信息
                     User eliminatedUser = userService.getById(mostVotedPlayer);
                     String eliminatedUserName = eliminatedUser != null ? eliminatedUser.getUserName() : "未知玩家";
-                    
+
                     // 淘汰投票最多的玩家
                     room.getEliminatedIds().add(mostVotedPlayer);
-                    
+
                     // 计算剩余卧底和平民数量
                     int remainingUndercovers = 0;
                     int remainingCivilians = 0;
-                    
+
                     for (Long userId : room.getUndercoverIds()) {
                         if (!room.getEliminatedIds().contains(userId)) {
                             remainingUndercovers++;
                         }
                     }
-                    
+
                     for (Long userId : room.getCivilianIds()) {
                         if (!room.getEliminatedIds().contains(userId)) {
                             remainingCivilians++;
                         }
                     }
-                    
+
                     // 判断游戏是否结束
                     if (remainingUndercovers == 0) {
                         // 所有卧底被淘汰，平民获胜
                         shouldEndGame = true;
-                        gameResult = "平民获胜！所有卧底已被淘汰！";
+
+                        // 获取所有卧底的名字
+                        StringBuilder undercoverNames = new StringBuilder();
+                        for (Long undercoverId : room.getUndercoverIds()) {
+                            User undercoverUser = userService.getById(undercoverId);
+                            if (undercoverUser != null) {
+                                if (undercoverNames.length() > 0) {
+                                    undercoverNames.append("、");
+                                }
+                                undercoverNames.append(undercoverUser.getUserName());
+                            }
+                        }
+
+                        gameResult = "平民获胜！所有卧底已被淘汰！卧底是：" + undercoverNames.toString()
+                                + "。平民词语是【" + room.getCivilianWord() + "】，卧底词语是【" + room.getUndercoverWord() + "】";
                     } else if (remainingUndercovers >= remainingCivilians) {
                         // 卧底人数大于等于平民人数，卧底获胜
                         shouldEndGame = true;
-                        gameResult = "卧底获胜！卧底人数已超过或等于平民人数！";
+
+                        // 获取所有卧底的名字
+                        StringBuilder undercoverNames = new StringBuilder();
+                        for (Long undercoverId : room.getUndercoverIds()) {
+                            User undercoverUser = userService.getById(undercoverId);
+                            if (undercoverUser != null) {
+                                if (undercoverNames.length() > 0) {
+                                    undercoverNames.append("、");
+                                }
+                                undercoverNames.append(undercoverUser.getUserName());
+                            }
+                        }
+
+                        gameResult = "卧底获胜！卧底人数已超过或等于平民人数！卧底是：" + undercoverNames.toString()
+                                + "。平民词语是【" + room.getCivilianWord() + "】，卧底词语是【" + room.getUndercoverWord() + "】";
                     } else {
                         // 游戏继续，显示谁被淘汰了
                         if (isUndercover) {
-                            gameResult = "玩家【" + eliminatedUserName + "】被淘汰，他是卧底！还有" + remainingUndercovers + "名卧底未被发现，游戏继续...";
+                            gameResult = "玩家【" + eliminatedUserName + "】被淘汰，他是卧底！卧底词语是【" + room.getUndercoverWord() + "】。还有" + remainingUndercovers + "名卧底未被发现，游戏继续...";
                         } else {
                             gameResult = "玩家【" + eliminatedUserName + "】被淘汰，他是平民！剩余平民" + remainingCivilians + "人，卧底" + remainingUndercovers + "人，游戏继续...";
                         }
-                        
+
                         // 保存淘汰信息但不结束游戏
                         stringRedisTemplate.opsForValue().set(
                                 UndercoverGameRedisKey.getKey(UndercoverGameRedisKey.ROOM_RESULT, roomId),
@@ -557,31 +613,53 @@ public class UndercoverGameServiceImpl implements UndercoverGameService {
                         );
                     }
                 }
-                
+
                 // 3. 更新游戏状态
                 if (shouldEndGame) {
                     room.setStatus(RoomStatusEnum.ENDED);
-                    
-                    // 保存游戏结果
-                    if (gameResult != null) {
-                        // 将游戏结果保存到 Redis，可以添加一个新的键
-                        stringRedisTemplate.opsForValue().set(
-                                UndercoverGameRedisKey.getKey(UndercoverGameRedisKey.ROOM_RESULT, roomId),
-                                gameResult,
-                                24,
-                                TimeUnit.HOURS
-                        );
-                    }
-                    
+
+                    // 将游戏结果保存到 Redis，可以添加一个新的键
+                    stringRedisTemplate.opsForValue().set(
+                            UndercoverGameRedisKey.getKey(UndercoverGameRedisKey.ROOM_RESULT, roomId),
+                            gameResult,
+                            24,
+                            TimeUnit.HOURS
+                    );
+
                     // 清除活跃房间
                     String activeRoomId = stringRedisTemplate.opsForValue().get(UndercoverGameRedisKey.ACTIVE_ROOM);
                     if (roomId.equals(activeRoomId)) {
                         stringRedisTemplate.delete(UndercoverGameRedisKey.ACTIVE_ROOM);
                     }
+
+                    // 清除所有玩家的角色信息
+                    for (Long playerId : room.getParticipantIds()) {
+                        // 删除玩家角色信息
+                        stringRedisTemplate.delete(
+                                UndercoverGameRedisKey.getKey(UndercoverGameRedisKey.PLAYER_ROLE, playerId)
+                        );
+                        // 删除玩家所在房间信息
+                        stringRedisTemplate.delete(
+                                UndercoverGameRedisKey.getKey(UndercoverGameRedisKey.PLAYER_ROOM, playerId)
+                        );
+                        // 删除玩家的投票状态
+                        stringRedisTemplate.delete(
+                                UndercoverGameRedisKey.getKey(UndercoverGameRedisKey.PLAYER_VOTED, roomId, playerId)
+                        );
+                        // 删除玩家收到的投票计数
+                        stringRedisTemplate.delete(
+                                UndercoverGameRedisKey.getKey(UndercoverGameRedisKey.ROOM_VOTE_COUNT, roomId) + ":" + playerId
+                        );
+                    }
+
+                    // 删除房间的投票记录
+                    stringRedisTemplate.delete(
+                            UndercoverGameRedisKey.getKey(UndercoverGameRedisKey.ROOM_VOTES, roomId)
+                    );
                 } else {
                     // 如果游戏继续，确保状态为 PLAYING
                     room.setStatus(RoomStatusEnum.PLAYING);
-                    
+
                     // 如果有投票记录，需要清除所有玩家的投票状态，以便下一轮投票
                     if (mostVotedPlayer != null) {
                         // 清除所有玩家的投票状态
@@ -590,14 +668,14 @@ public class UndercoverGameServiceImpl implements UndercoverGameService {
                                     UndercoverGameRedisKey.getKey(UndercoverGameRedisKey.PLAYER_VOTED, roomId, playerId)
                             );
                         }
-                        
+
                         // 清除投票计数
                         for (Long playerId : room.getParticipantIds()) {
                             stringRedisTemplate.delete(
                                     UndercoverGameRedisKey.getKey(UndercoverGameRedisKey.ROOM_VOTE_COUNT, roomId) + ":" + playerId
                             );
                         }
-                        
+
                         // 清除投票记录
                         stringRedisTemplate.delete(
                                 UndercoverGameRedisKey.getKey(UndercoverGameRedisKey.ROOM_VOTES, roomId)
@@ -613,7 +691,12 @@ public class UndercoverGameServiceImpl implements UndercoverGameService {
                         24,
                         TimeUnit.HOURS
                 );
-
+                //发送消息给每个人
+                WSBaseResp<Object> infoResp = WSBaseResp.builder()
+                        .type(MessageTypeEnum.INFO.getType())
+                        .data(gameResult)
+                        .build();
+                webSocketService.sendToAllOnline(infoResp);
                 return true;
             } catch (JsonProcessingException e) {
                 log.error("解析房间信息失败", e);

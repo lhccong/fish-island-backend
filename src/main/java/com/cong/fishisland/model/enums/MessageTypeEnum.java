@@ -18,11 +18,13 @@ import java.util.stream.Collectors;
 @Getter
 public enum MessageTypeEnum {
     ERROR("error", "错误提示"),
+    INFO("info", "系统消息"),
     CREATE_CHESS_ROOM("createChessRoom", "创建五子棋房间"),
     JOIN_ROOM("joinRoom", "加入房间"),
     MOVE_CHESS("moveChess", "对方落子"),
     JOIN_SUCCESS("joinSuccess", "成功加入房间"),
     CHAT("chat", "群聊天消息"),
+    UNDERCOVER("undercover", "谁是卧底消息"),
     USER_ONLINE("userOnline", "用户上线"),
     USER_OFFLINE("userOffline", "用户下单"),
     USER_MESSAGE_REVOKE("userMessageRevoke", "用户撤回消息"),
