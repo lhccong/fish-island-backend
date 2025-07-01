@@ -3,13 +3,13 @@ name: Maven Package and Docker Build
 on:
   push:
     branches:
-      - docker  
+      - main  
     paths-ignore:
       - 'docs/**'
       - '*.md'
   pull_request:
     branches:
-      - docker  
+      - main  
 
 jobs:
   build-and-dockerize:
