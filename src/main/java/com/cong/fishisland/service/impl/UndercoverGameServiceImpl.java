@@ -15,6 +15,9 @@ import com.cong.fishisland.model.vo.game.UndercoverPlayerDetailVO;
 import com.cong.fishisland.model.vo.game.UndercoverPlayerVO;
 import com.cong.fishisland.model.vo.game.UndercoverRoomVO;
 import com.cong.fishisland.model.vo.game.UndercoverVoteVO;
+import com.cong.fishisland.model.ws.request.Message;
+import com.cong.fishisland.model.ws.request.MessageWrapper;
+import com.cong.fishisland.model.ws.request.Sender;
 import com.cong.fishisland.model.ws.response.WSBaseResp;
 import com.cong.fishisland.service.UndercoverGameService;
 import com.cong.fishisland.service.UserService;
@@ -24,6 +27,7 @@ import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.StringUtils;
+import org.jetbrains.annotations.NotNull;
 import org.redisson.api.RLock;
 import org.redisson.api.RedissonClient;
 import org.springframework.beans.BeanUtils;
@@ -31,6 +35,7 @@ import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Service;
 
 import javax.annotation.Resource;
+import java.time.Instant;
 import java.util.*;
 import java.util.concurrent.TimeUnit;
 
@@ -129,11 +134,11 @@ public class UndercoverGameServiceImpl implements UndercoverGameService {
                 stringRedisTemplate.opsForValue().set(
                         UndercoverGameRedisKey.getKey(UndercoverGameRedisKey.ROOM_INFO, roomId),
                         roomJson,
-                        24,
+                        60,
                         TimeUnit.MINUTES
                 );
                 // 设置当前活跃房间
-                stringRedisTemplate.opsForValue().set(UndercoverGameRedisKey.ACTIVE_ROOM, roomId, 24, TimeUnit.HOURS);
+                stringRedisTemplate.opsForValue().set(UndercoverGameRedisKey.ACTIVE_ROOM, roomId, 60, TimeUnit.MINUTES);
                 return roomId;
             } catch (JsonProcessingException e) {
                 log.error("序列化房间信息失败", e);
@@ -281,22 +286,27 @@ public class UndercoverGameServiceImpl implements UndercoverGameService {
                 stringRedisTemplate.opsForValue().set(
                         UndercoverGameRedisKey.getKey(UndercoverGameRedisKey.ROOM_INFO, roomId),
                         updatedRoomJson,
-                        24,
-                        TimeUnit.HOURS
+                        60,
+                        TimeUnit.MINUTES
                 );
 
                 // 记录用户所在房间
                 stringRedisTemplate.opsForValue().set(
                         UndercoverGameRedisKey.getKey(UndercoverGameRedisKey.PLAYER_ROOM, loginUser.getId()),
                         roomId,
-                        24,
-                        TimeUnit.HOURS
+                        60,
+                        TimeUnit.MINUTES
                 );
                 WSBaseResp<Object> infoResp = WSBaseResp.builder()
                         .type(MessageTypeEnum.INFO.getType())
                         .data("用户" + loginUser.getUserName() + "进入谁是卧底房间中")
                         .build();
                 webSocketService.sendToAllOnline(infoResp);
+
+                webSocketService.sendToAllOnline(WSBaseResp.builder()
+                        .type(MessageTypeEnum.REFRESH_ROOM.getType())
+                        .data("").build());
+
                 return true;
             } catch (JsonProcessingException e) {
                 log.error("解析房间信息失败", e);
@@ -367,14 +377,16 @@ public class UndercoverGameServiceImpl implements UndercoverGameService {
                 stringRedisTemplate.opsForValue().set(
                         UndercoverGameRedisKey.getKey(UndercoverGameRedisKey.ROOM_INFO, roomId),
                         updatedRoomJson,
-                        24,
-                        TimeUnit.HOURS
+                        60,
+                        TimeUnit.MINUTES
                 );
-                WSBaseResp<Object> infoResp = WSBaseResp.builder()
-                        .type(MessageTypeEnum.INFO.getType())
-                        .data("谁是卧底游戏开始啦，大家快来参加吧")
-                        .build();
-                webSocketService.sendToAllOnline(infoResp);
+
+
+                MessageWrapper messageWrapper = getSystemMessageWrapper("谁是卧底游戏开始啦,请大家按顺序描述自己的词语");
+                webSocketService.sendToAllOnline(WSBaseResp.builder()
+                        .type(MessageTypeEnum.UNDERCOVER.getType())
+                        .data(messageWrapper).build());
+
                 return true;
             } catch (JsonProcessingException e) {
                 log.error("解析房间信息失败", e);
@@ -388,6 +400,32 @@ public class UndercoverGameServiceImpl implements UndercoverGameService {
                 lock.unlock();
             }
         }
+    }
+
+    @NotNull
+    private static MessageWrapper getSystemMessageWrapper(String content) {
+        Message message = new Message();
+        message.setId("-1");
+        message.setContent(content);
+        Sender sender = new Sender();
+        sender.setId("-1");
+        sender.setName("摸鱼小助手");
+        sender.setAvatar("https://img0.baidu.com/it/u=2800162563,662186408&fm=253&fmt=auto&app=138&f=JPEG?w=500&h=500");
+        sender.setPoints(0);
+        sender.setLevel(1);
+        sender.setUserProfile("");
+        sender.setAvatarFramerUrl("");
+        sender.setTitleId(null);
+        sender.setTitleIdList(null);
+        sender.setRegion("摸鱼岛");
+        sender.setCountry("摸鱼～");
+
+        message.setSender(sender);
+        message.setTimestamp(Instant.now().toString());
+
+        MessageWrapper messageWrapper = new MessageWrapper();
+        messageWrapper.setMessage(message);
+        return messageWrapper;
     }
 
     /**
@@ -415,8 +453,8 @@ public class UndercoverGameServiceImpl implements UndercoverGameService {
                 stringRedisTemplate.opsForValue().set(
                         UndercoverGameRedisKey.getKey(UndercoverGameRedisKey.PLAYER_ROLE, userId),
                         "undercover",
-                        24,
-                        TimeUnit.HOURS
+                        60,
+                        TimeUnit.MINUTES
                 );
                 WSBaseResp<Object> infoResp = WSBaseResp.builder()
                         .type(MessageTypeEnum.INFO.getType())
@@ -429,8 +467,8 @@ public class UndercoverGameServiceImpl implements UndercoverGameService {
                 stringRedisTemplate.opsForValue().set(
                         UndercoverGameRedisKey.getKey(UndercoverGameRedisKey.PLAYER_ROLE, userId),
                         "civilian",
-                        24,
-                        TimeUnit.HOURS
+                        60,
+                        TimeUnit.MINUTES
                 );
                 WSBaseResp<Object> infoResp = WSBaseResp.builder()
                         .type(MessageTypeEnum.INFO.getType())
@@ -484,7 +522,7 @@ public class UndercoverGameServiceImpl implements UndercoverGameService {
                     stringRedisTemplate.opsForValue().set(
                             UndercoverGameRedisKey.getKey(UndercoverGameRedisKey.ROOM_INFO, roomId),
                             updatedRoomJson,
-                            24,
+                            60,
                             TimeUnit.MINUTES
                     );
 
@@ -576,7 +614,7 @@ public class UndercoverGameServiceImpl implements UndercoverGameService {
                             }
                         }
 
-                        gameResult = "平民获胜！所有卧底已被淘汰！卧底是：" + undercoverNames.toString()
+                        gameResult = "平民获胜！所有卧底已被淘汰！卧底是：" + undercoverNames
                                 + "。平民词语是【" + room.getCivilianWord() + "】，卧底词语是【" + room.getUndercoverWord() + "】";
                     } else if (remainingUndercovers >= remainingCivilians) {
                         // 卧底人数大于等于平民人数，卧底获胜
@@ -599,7 +637,7 @@ public class UndercoverGameServiceImpl implements UndercoverGameService {
                     } else {
                         // 游戏继续，显示谁被淘汰了
                         if (isUndercover) {
-                            gameResult = "玩家【" + eliminatedUserName + "】被淘汰，他是卧底！卧底词语是【" + room.getUndercoverWord() + "】。还有" + remainingUndercovers + "名卧底未被发现，游戏继续...";
+                            gameResult = "玩家【" + eliminatedUserName + "】被淘汰，他是卧底！。还有" + remainingUndercovers + "名卧底未被发现，游戏继续...";
                         } else {
                             gameResult = "玩家【" + eliminatedUserName + "】被淘汰，他是平民！剩余平民" + remainingCivilians + "人，卧底" + remainingUndercovers + "人，游戏继续...";
                         }
@@ -608,8 +646,8 @@ public class UndercoverGameServiceImpl implements UndercoverGameService {
                         stringRedisTemplate.opsForValue().set(
                                 UndercoverGameRedisKey.getKey(UndercoverGameRedisKey.ROOM_RESULT, roomId),
                                 gameResult,
-                                24,
-                                TimeUnit.HOURS
+                                60,
+                                TimeUnit.MINUTES
                         );
                     }
                 }
@@ -622,8 +660,8 @@ public class UndercoverGameServiceImpl implements UndercoverGameService {
                     stringRedisTemplate.opsForValue().set(
                             UndercoverGameRedisKey.getKey(UndercoverGameRedisKey.ROOM_RESULT, roomId),
                             gameResult,
-                            24,
-                            TimeUnit.HOURS
+                            60,
+                            TimeUnit.MINUTES
                     );
 
                     // 清除活跃房间
@@ -688,15 +726,14 @@ public class UndercoverGameServiceImpl implements UndercoverGameService {
                 stringRedisTemplate.opsForValue().set(
                         UndercoverGameRedisKey.getKey(UndercoverGameRedisKey.ROOM_INFO, roomId),
                         updatedRoomJson,
-                        24,
-                        TimeUnit.HOURS
+                        60,
+                        TimeUnit.MINUTES
                 );
                 //发送消息给每个人
-                WSBaseResp<Object> infoResp = WSBaseResp.builder()
-                        .type(MessageTypeEnum.INFO.getType())
-                        .data(gameResult)
-                        .build();
-                webSocketService.sendToAllOnline(infoResp);
+                MessageWrapper messageWrapper = getSystemMessageWrapper(gameResult);
+                webSocketService.sendToAllOnline(WSBaseResp.builder()
+                        .type(MessageTypeEnum.UNDERCOVER.getType())
+                        .data(messageWrapper).build());
                 return true;
             } catch (JsonProcessingException e) {
                 log.error("解析房间信息失败", e);
@@ -827,8 +864,8 @@ public class UndercoverGameServiceImpl implements UndercoverGameService {
                 stringRedisTemplate.opsForValue().set(
                         UndercoverGameRedisKey.getKey(UndercoverGameRedisKey.ROOM_INFO, roomId),
                         updatedRoomJson,
-                        24,
-                        TimeUnit.HOURS
+                        60,
+                        TimeUnit.MINUTES
                 );
 
                 // 检查游戏是否结束
@@ -839,8 +876,8 @@ public class UndercoverGameServiceImpl implements UndercoverGameService {
                     stringRedisTemplate.opsForValue().set(
                             UndercoverGameRedisKey.getKey(UndercoverGameRedisKey.ROOM_INFO, roomId),
                             updatedRoomJson,
-                            24,
-                            TimeUnit.HOURS
+                            60,
+                            TimeUnit.MINUTES
                     );
                 }
 
@@ -1033,8 +1070,8 @@ public class UndercoverGameServiceImpl implements UndercoverGameService {
                 stringRedisTemplate.opsForValue().set(
                         UndercoverGameRedisKey.getKey(UndercoverGameRedisKey.ROOM_VOTES, roomId),
                         updatedVotesJson,
-                        24,
-                        TimeUnit.HOURS
+                        60,
+                        TimeUnit.MINUTES
                 );
 
                 // 更新投票计数
@@ -1044,16 +1081,24 @@ public class UndercoverGameServiceImpl implements UndercoverGameService {
                 if (voteCountStr != null) {
                     voteCount = Integer.parseInt(voteCountStr) + 1;
                 }
-                stringRedisTemplate.opsForValue().set(voteCountKey, String.valueOf(voteCount), 24, TimeUnit.HOURS);
+                stringRedisTemplate.opsForValue().set(voteCountKey, String.valueOf(voteCount), 60, TimeUnit.MINUTES);
 
                 // 标记用户已投票
                 stringRedisTemplate.opsForValue().set(
                         UndercoverGameRedisKey.getKey(UndercoverGameRedisKey.PLAYER_VOTED, roomId, loginUser.getId()),
                         "1",
-                        24,
-                        TimeUnit.HOURS
+                        60,
+                        TimeUnit.MINUTES
                 );
+                MessageWrapper messageWrapper = getSystemMessageWrapper(loginUser.getUserName() + "用户已完成投票");
 
+                webSocketService.sendToAllOnline(WSBaseResp.builder()
+                        .type(MessageTypeEnum.UNDERCOVER.getType())
+                        .data(messageWrapper).build());
+
+                webSocketService.sendToAllOnline(WSBaseResp.builder()
+                        .type(MessageTypeEnum.REFRESH_ROOM.getType())
+                        .data("").build());
                 return true;
             } catch (JsonProcessingException e) {
                 log.error("处理投票失败", e);
