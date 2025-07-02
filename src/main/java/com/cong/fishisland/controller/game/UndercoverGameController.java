@@ -6,6 +6,7 @@ import com.cong.fishisland.common.ErrorCode;
 import com.cong.fishisland.common.ResultUtils;
 import com.cong.fishisland.common.exception.BusinessException;
 import com.cong.fishisland.constant.UserConstant;
+import com.cong.fishisland.model.dto.game.UndercoverGuessRequest;
 import com.cong.fishisland.model.dto.game.UndercoverRoomCreateRequest;
 import com.cong.fishisland.model.dto.game.UndercoverRoomJoinRequest;
 import com.cong.fishisland.model.dto.game.UndercoverVoteRequest;
@@ -42,21 +43,15 @@ public class UndercoverGameController {
     private UserService userService;
 
     /**
-     * 创建游戏房间（仅管理员）
+     * 创建游戏房间
      *
      * @param request 创建房间请求
      * @return 房间ID
      */
     @PostMapping("/room/create")
-    @ApiOperation(value = "创建游戏房间（仅管理员）")
-    @SaCheckRole(UserConstant.ADMIN_ROLE)
+    @ApiOperation(value = "创建游戏房间")
     public BaseResponse<String> createRoom(@RequestBody UndercoverRoomCreateRequest request) {
-        if (StringUtils.isBlank(request.getCivilianWord())) {
-            throw new BusinessException(ErrorCode.PARAMS_ERROR, "平民词语不能为空");
-        }
-        if (StringUtils.isBlank(request.getUndercoverWord())) {
-            throw new BusinessException(ErrorCode.PARAMS_ERROR, "卧底词语不能为空");
-        }
+        // 验证基本参数
         if (request.getDuration() == null || request.getDuration() < 60) {
             throw new BusinessException(ErrorCode.PARAMS_ERROR, "游戏持续时间不能少于60秒");
         }
@@ -84,6 +79,19 @@ public class UndercoverGameController {
     }
 
     /**
+     * 移除当前活跃房间（仅管理员）
+     *
+     * @return 是否成功
+     */
+    @PostMapping("/room/remove")
+    @ApiOperation(value = "移除当前活跃房间（仅管理员）")
+    @SaCheckRole(UserConstant.ADMIN_ROLE)
+    public BaseResponse<Boolean> removeActiveRoom() {
+        boolean result = undercoverGameService.removeActiveRoom();
+        return ResultUtils.success(result);
+    }
+
+    /**
      * 加入游戏房间
      *
      * @param request 加入房间请求
@@ -105,14 +113,13 @@ public class UndercoverGameController {
     }
 
     /**
-     * 开始游戏（仅管理员）
+     * 开始游戏
      *
      * @param roomId 房间ID
      * @return 是否成功
      */
     @PostMapping("/room/start")
-    @ApiOperation(value = "开始游戏（仅管理员）")
-    @SaCheckRole(UserConstant.ADMIN_ROLE)
+    @ApiOperation(value = "开始游戏")
     public BaseResponse<Boolean> startGame(@RequestParam String roomId) {
 
         boolean result = undercoverGameService.startGame(roomId);
@@ -120,16 +127,15 @@ public class UndercoverGameController {
     }
 
     /**
-     * 结束游戏（仅管理员）
      *
      * @param roomId 房间ID
      * @return 是否成功
      */
     @PostMapping("/room/end")
-    @ApiOperation(value = "结束游戏（仅管理员）")
-    @SaCheckRole(UserConstant.ADMIN_ROLE)
+    @ApiOperation(value = "结束游戏")
     public BaseResponse<Boolean> endGame(@RequestParam String roomId) {
-        
+
+        userService.getLoginUser();
         boolean result = undercoverGameService.endGame(roomId);
         return ResultUtils.success(result);
     }
@@ -275,5 +281,26 @@ public class UndercoverGameController {
 
         List<UndercoverPlayerDetailVO> playersDetail = undercoverGameService.getRoomPlayersDetail(roomId);
         return ResultUtils.success(playersDetail);
+    }
+
+    /**
+     * 卧底猜平民词
+     *
+     * @param request 猜词请求
+     * @return 是否猜对
+     */
+    @PostMapping("/room/guess")
+    @ApiOperation(value = "卧底猜平民词")
+    public BaseResponse<Boolean> guessWord(@RequestBody UndercoverGuessRequest request) {
+        // 手动验证参数
+        if (request == null) {
+            throw new BusinessException(ErrorCode.PARAMS_ERROR, "请求参数不能为空");
+        }
+        if (StringUtils.isBlank(request.getGuessWord())) {
+            throw new BusinessException(ErrorCode.PARAMS_ERROR, "猜测词语不能为空");
+        }
+        
+        boolean result = undercoverGameService.guessWord(request);
+        return ResultUtils.success(result);
     }
 } 

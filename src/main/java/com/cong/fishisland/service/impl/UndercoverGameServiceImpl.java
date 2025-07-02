@@ -5,6 +5,7 @@ import com.cong.fishisland.common.ErrorCode;
 import com.cong.fishisland.common.exception.BusinessException;
 import com.cong.fishisland.constant.UndercoverGameRedisKey;
 import com.cong.fishisland.constant.UserConstant;
+import com.cong.fishisland.model.dto.game.UndercoverGuessRequest;
 import com.cong.fishisland.model.dto.game.UndercoverRoomCreateRequest;
 import com.cong.fishisland.model.dto.game.UndercoverVoteRequest;
 import com.cong.fishisland.model.entity.game.UndercoverRoom;
@@ -31,10 +32,15 @@ import org.jetbrains.annotations.NotNull;
 import org.redisson.api.RLock;
 import org.redisson.api.RedissonClient;
 import org.springframework.beans.BeanUtils;
+import org.springframework.core.io.ClassPathResource;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Service;
 
 import javax.annotation.Resource;
+import java.io.BufferedReader;
+import java.io.IOException;
+import java.io.InputStreamReader;
+import java.nio.charset.StandardCharsets;
 import java.time.Instant;
 import java.util.*;
 import java.util.concurrent.TimeUnit;
@@ -69,12 +75,59 @@ public class UndercoverGameServiceImpl implements UndercoverGameService {
         if (request == null) {
             throw new BusinessException(ErrorCode.PARAMS_ERROR, "请求参数不能为空");
         }
+        
+        // 如果平民词语或卧底词语为空，从文件中随机读取一对词语
+        if (StringUtils.isBlank(request.getCivilianWord()) || StringUtils.isBlank(request.getUndercoverWord())) {
+            try {
+                // 从文件中读取词语对
+                String[] wordPair = getRandomWordPair();
+                if (wordPair != null && wordPair.length == 2) {
+                    request.setCivilianWord(wordPair[0]);
+                    request.setUndercoverWord(wordPair[1]);
+                } else {
+                    throw new BusinessException(ErrorCode.SYSTEM_ERROR, "获取词语对失败");
+                }
+            } catch (IOException e) {
+                log.error("读取词语文件失败", e);
+                throw new BusinessException(ErrorCode.SYSTEM_ERROR, "读取词语文件失败");
+            }
+        } else {
+            // 用户提供了自定义词语，检查是否已经被使用过
+            String customWordPair = request.getCivilianWord() + "," + request.getUndercoverWord();
+            String usedWordPairsJson = stringRedisTemplate.opsForValue().get(UndercoverGameRedisKey.USED_WORD_PAIRS);
+            if (usedWordPairsJson != null) {
+                try {
+                    Set<String> usedWordPairs = objectMapper.readValue(usedWordPairsJson, new TypeReference<HashSet<String>>() {});
+                    if (usedWordPairs.contains(customWordPair)) {
+                        try {
+                            // 如果已使用过，从文件中读取新的词语对
+                            String[] wordPair = getRandomWordPair();
+                            if (wordPair != null && wordPair.length == 2) {
+                                request.setCivilianWord(wordPair[0]);
+                                request.setUndercoverWord(wordPair[1]);
+                                log.info("用户提供的词语对[{}]今天已被使用过，已自动选择新的词语对", customWordPair);
+                            }
+                        } catch (IOException e) {
+                            log.error("读取词语文件失败", e);
+                            // 如果读取失败，继续使用用户提供的词语对
+                            log.warn("读取新词语对失败，继续使用用户提供的词语对[{}]", customWordPair);
+                        }
+                    }
+                } catch (JsonProcessingException e) {
+                    log.error("解析已使用词语对失败", e);
+                    // 解析失败，继续使用用户提供的词语对
+                }
+            }
+        }
+        
+        // 再次验证词语是否为空
         if (StringUtils.isBlank(request.getCivilianWord())) {
             throw new BusinessException(ErrorCode.PARAMS_ERROR, "平民词语不能为空");
         }
         if (StringUtils.isBlank(request.getUndercoverWord())) {
             throw new BusinessException(ErrorCode.PARAMS_ERROR, "卧底词语不能为空");
         }
+        
         if (request.getDuration() == null || request.getDuration() < 60) {
             throw new BusinessException(ErrorCode.PARAMS_ERROR, "游戏持续时间不能少于60秒");
         }
@@ -88,9 +141,6 @@ public class UndercoverGameServiceImpl implements UndercoverGameService {
 
         // 验证是否为管理员
         User loginUser = userService.getLoginUser();
-        if (!UserConstant.ADMIN_ROLE.equals(loginUser.getUserRole())) {
-            throw new BusinessException(ErrorCode.NO_AUTH_ERROR, "只有管理员可以创建房间");
-        }
 
         // 使用分布式锁确保同一时间只能有一个房间
         RLock lock = redissonClient.getLock("undercover_room_create_lock");
@@ -139,6 +189,16 @@ public class UndercoverGameServiceImpl implements UndercoverGameService {
                 );
                 // 设置当前活跃房间
                 stringRedisTemplate.opsForValue().set(UndercoverGameRedisKey.ACTIVE_ROOM, roomId, 60, TimeUnit.MINUTES);
+
+                MessageWrapper messageWrapper = getSystemMessageWrapper(loginUser.getUserName()+"创建了一个紧张刺激的谁是卧底房间，大家快来参加吧～");
+                webSocketService.sendToAllOnline(WSBaseResp.builder()
+                        .type(MessageTypeEnum.CHAT.getType())
+                        .data(messageWrapper).build());
+
+                webSocketService.sendToAllOnline(WSBaseResp.builder()
+                        .type(MessageTypeEnum.REFRESH_ROOM.getType())
+                        .data("").build());
+
                 return roomId;
             } catch (JsonProcessingException e) {
                 log.error("序列化房间信息失败", e);
@@ -152,6 +212,81 @@ public class UndercoverGameServiceImpl implements UndercoverGameService {
                 lock.unlock();
             }
         }
+    }
+    
+    /**
+     * 从文件中随机获取一对词语
+     * 确保每组词语一天内最多只能使用一次
+     *
+     * @return 词语对数组，第一个元素为平民词，第二个元素为卧底词
+     * @throws IOException 如果读取文件失败
+     */
+    private String[] getRandomWordPair() throws IOException {
+        ClassPathResource resource = new ClassPathResource("undercover-words.txt");
+        List<String> wordPairs = new ArrayList<>();
+        List<String> availableWordPairs = new ArrayList<>();
+        
+        // 获取当天已使用的词语对
+        Set<String> usedWordPairs = new HashSet<>();
+        String usedWordPairsJson = stringRedisTemplate.opsForValue().get(UndercoverGameRedisKey.USED_WORD_PAIRS);
+        if (usedWordPairsJson != null) {
+            try {
+                usedWordPairs = objectMapper.readValue(usedWordPairsJson, new TypeReference<HashSet<String>>() {});
+            } catch (JsonProcessingException e) {
+                log.error("解析已使用词语对失败", e);
+                // 解析失败则创建新的集合
+                usedWordPairs = new HashSet<>();
+            }
+        }
+        
+        try (BufferedReader reader = new BufferedReader(
+                new InputStreamReader(resource.getInputStream(), StandardCharsets.UTF_8))) {
+            String line;
+            while ((line = reader.readLine()) != null) {
+                if (StringUtils.isNotBlank(line) && line.contains(",")) {
+                    String trimmedLine = line.trim();
+                    wordPairs.add(trimmedLine);
+                    
+                    // 如果该词语对今天未使用过，则添加到可用词语对列表中
+                    if (!usedWordPairs.contains(trimmedLine)) {
+                        availableWordPairs.add(trimmedLine);
+                    }
+                }
+            }
+        }
+        
+        // 如果没有可用的词语对（所有词语对都已使用过），则使用所有词语对
+        if (availableWordPairs.isEmpty()) {
+            if (wordPairs.isEmpty()) {
+                return null;
+            }
+            log.info("所有词语对已在今天使用过，重新使用所有词语对");
+            availableWordPairs = new ArrayList<>(wordPairs);
+            
+            // 清空已使用的词语对记录
+            usedWordPairs.clear();
+            try {
+                String newUsedWordPairsJson = objectMapper.writeValueAsString(usedWordPairs);
+                stringRedisTemplate.opsForValue().set(UndercoverGameRedisKey.USED_WORD_PAIRS, newUsedWordPairsJson, 24, TimeUnit.HOURS);
+            } catch (JsonProcessingException e) {
+                log.error("序列化已使用词语对失败", e);
+            }
+        }
+        
+        // 随机选择一对可用词语
+        String randomPair = availableWordPairs.get(new Random().nextInt(availableWordPairs.size()));
+        
+        // 将选择的词语对添加到已使用列表中
+        usedWordPairs.add(randomPair);
+        try {
+            String newUsedWordPairsJson = objectMapper.writeValueAsString(usedWordPairs);
+            // 设置24小时过期时间，确保第二天可以重新使用
+            stringRedisTemplate.opsForValue().set(UndercoverGameRedisKey.USED_WORD_PAIRS, newUsedWordPairsJson, 24, TimeUnit.HOURS);
+        } catch (JsonProcessingException e) {
+            log.error("序列化已使用词语对失败", e);
+        }
+        
+        return randomPair.split(",");
     }
 
     @Override
@@ -177,6 +312,7 @@ public class UndercoverGameServiceImpl implements UndercoverGameService {
             UndercoverRoomVO roomVO = new UndercoverRoomVO();
             BeanUtils.copyProperties(room, roomVO);
             roomVO.setRoomId(roomId);
+            roomVO.setCreatorId(room.getCreatorId());
 
             // 计算剩余时间
             if (room.getStartTime() != null && room.getDuration() != null) {
@@ -331,10 +467,29 @@ public class UndercoverGameServiceImpl implements UndercoverGameService {
             throw new BusinessException(ErrorCode.PARAMS_ERROR, "房间ID不能为空");
         }
 
-        // 验证是否为管理员
+        // 验证是否为房间创建者或管理员
         User loginUser = userService.getLoginUser();
-        if (!UserConstant.ADMIN_ROLE.equals(loginUser.getUserRole())) {
-            throw new BusinessException(ErrorCode.NO_AUTH_ERROR, "只有管理员可以开始游戏");
+        
+        // 获取房间信息
+        String roomJson = stringRedisTemplate.opsForValue().get(
+                UndercoverGameRedisKey.getKey(UndercoverGameRedisKey.ROOM_INFO, roomId));
+        if (roomJson == null) {
+            throw new BusinessException(ErrorCode.NOT_FOUND_ERROR, "房间不存在");
+        }
+        
+        UndercoverRoom room;
+        try {
+            room = objectMapper.readValue(roomJson, UndercoverRoom.class);
+        } catch (JsonProcessingException e) {
+            throw new BusinessException(ErrorCode.SYSTEM_ERROR, "解析房间信息失败");
+        }
+        
+        // 检查是否为房间创建者或管理员
+        boolean isCreator = loginUser.getId().equals(room.getCreatorId());
+        boolean isAdmin = UserConstant.ADMIN_ROLE.equals(loginUser.getUserRole());
+        
+        if (!isCreator && !isAdmin) {
+            throw new BusinessException(ErrorCode.NO_AUTH_ERROR, "只有房间创建者或管理员可以开始游戏");
         }
 
         // 使用分布式锁确保并发安全
@@ -345,15 +500,7 @@ public class UndercoverGameServiceImpl implements UndercoverGameService {
                 throw new BusinessException(ErrorCode.OPERATION_ERROR, "操作频繁，请稍后再试");
             }
 
-            // 获取房间信息
-            String roomJson = stringRedisTemplate.opsForValue().get(
-                    UndercoverGameRedisKey.getKey(UndercoverGameRedisKey.ROOM_INFO, roomId));
-            if (roomJson == null) {
-                throw new BusinessException(ErrorCode.NOT_FOUND_ERROR, "房间不存在");
-            }
-
             try {
-                UndercoverRoom room = objectMapper.readValue(roomJson, UndercoverRoom.class);
 
                 // 检查房间状态
                 if (room.getStatus() != RoomStatusEnum.WAITING) {
@@ -386,6 +533,10 @@ public class UndercoverGameServiceImpl implements UndercoverGameService {
                 webSocketService.sendToAllOnline(WSBaseResp.builder()
                         .type(MessageTypeEnum.UNDERCOVER.getType())
                         .data(messageWrapper).build());
+
+                webSocketService.sendToAllOnline(WSBaseResp.builder()
+                        .type(MessageTypeEnum.GAME_STAR.getType())
+                        .data("").build());
 
                 return true;
             } catch (JsonProcessingException e) {
@@ -488,11 +639,6 @@ public class UndercoverGameServiceImpl implements UndercoverGameService {
             throw new BusinessException(ErrorCode.PARAMS_ERROR, "房间ID不能为空");
         }
 
-        // 验证是否为管理员
-        User loginUser = userService.getLoginUser();
-        if (!UserConstant.ADMIN_ROLE.equals(loginUser.getUserRole())) {
-            throw new BusinessException(ErrorCode.NO_AUTH_ERROR, "只有管理员可以结束游戏");
-        }
 
         // 使用分布式锁确保并发安全
         RLock lock = redissonClient.getLock("undercover_room_end_lock:" + roomId);
@@ -663,6 +809,12 @@ public class UndercoverGameServiceImpl implements UndercoverGameService {
                             60,
                             TimeUnit.MINUTES
                     );
+                    
+                    // 将使用的词语对添加到已使用列表中
+                    if (StringUtils.isNotBlank(room.getCivilianWord()) && StringUtils.isNotBlank(room.getUndercoverWord())) {
+                        String wordPair = room.getCivilianWord() + "," + room.getUndercoverWord();
+                        addWordPairToUsedList(wordPair);
+                    }
 
                     // 清除活跃房间
                     String activeRoomId = stringRedisTemplate.opsForValue().get(UndercoverGameRedisKey.ACTIVE_ROOM);
@@ -1096,6 +1248,33 @@ public class UndercoverGameServiceImpl implements UndercoverGameService {
                         .type(MessageTypeEnum.UNDERCOVER.getType())
                         .data(messageWrapper).build());
 
+                // 检查是否所有未淘汰的玩家都已投票
+                boolean allVoted = true;
+                // 获取所有未淘汰的玩家
+                Set<Long> activePlayers = new HashSet<>(room.getParticipantIds());
+                activePlayers.removeAll(room.getEliminatedIds());
+                
+                // 检查每个未淘汰玩家是否都已投票
+                for (Long playerId : activePlayers) {
+                    String playerVoted = stringRedisTemplate.opsForValue().get(
+                            UndercoverGameRedisKey.getKey(UndercoverGameRedisKey.PLAYER_VOTED, roomId, playerId));
+                    if (playerVoted == null) {
+                        allVoted = false;
+                        break;
+                    }
+                }
+                
+                // 如果所有未淘汰玩家都已投票，自动触发投票结算
+                if (allVoted) {
+                    MessageWrapper allVotedMessage = getSystemMessageWrapper("所有玩家已完成投票，即将进行投票结算");
+                    webSocketService.sendToAllOnline(WSBaseResp.builder()
+                            .type(MessageTypeEnum.UNDERCOVER.getType())
+                            .data(allVotedMessage).build());
+                    
+                    // 触发投票结算方法
+                    endGame(roomId);
+                }
+
                 webSocketService.sendToAllOnline(WSBaseResp.builder()
                         .type(MessageTypeEnum.REFRESH_ROOM.getType())
                         .data("").build());
@@ -1223,6 +1402,242 @@ public class UndercoverGameServiceImpl implements UndercoverGameService {
         } catch (JsonProcessingException e) {
             log.error("解析房间信息失败", e);
             throw new BusinessException(ErrorCode.SYSTEM_ERROR, "获取房间玩家信息失败");
+        }
+    }
+
+    @Override
+    public boolean removeActiveRoom() {
+        // 验证是否为管理员
+        User loginUser = userService.getLoginUser();
+        if (!UserConstant.ADMIN_ROLE.equals(loginUser.getUserRole())) {
+            throw new BusinessException(ErrorCode.NO_AUTH_ERROR, "只有管理员可以移除房间");
+        }
+        
+        // 使用分布式锁确保操作的原子性
+        RLock lock = redissonClient.getLock("undercover_room_remove_lock");
+        try {
+            boolean isLocked = lock.tryLock(5, 10, TimeUnit.SECONDS);
+            if (!isLocked) {
+                throw new BusinessException(ErrorCode.OPERATION_ERROR, "操作频繁，请稍后再试");
+            }
+            
+            // 获取当前活跃房间ID
+            String roomId = stringRedisTemplate.opsForValue().get(UndercoverGameRedisKey.ACTIVE_ROOM);
+            if (roomId == null) {
+                return false;
+            }
+            
+            // 获取房间信息
+            String roomJson = stringRedisTemplate.opsForValue().get(
+                    UndercoverGameRedisKey.getKey(UndercoverGameRedisKey.ROOM_INFO, roomId));
+            if (roomJson == null) {
+                // 房间不存在，清除活跃房间记录
+                stringRedisTemplate.delete(UndercoverGameRedisKey.ACTIVE_ROOM);
+                return true;
+            }
+            
+            try {
+                UndercoverRoom room = objectMapper.readValue(roomJson, UndercoverRoom.class);
+                
+                // 如果房间还在游戏中，先通知玩家游戏被管理员强制结束
+                if (room.getStatus() == RoomStatusEnum.PLAYING) {
+                    // 创建系统消息，通知所有玩家房间被移除
+                    WSBaseResp<Object> infoResp = WSBaseResp.builder()
+                            .type(MessageTypeEnum.INFO.getType())
+                            .data("游戏房间已被管理员移除")
+                            .build();
+                    webSocketService.sendToAllOnline(infoResp);
+                }
+                
+                // 删除房间相关的所有信息
+                // 1. 删除房间信息
+                stringRedisTemplate.delete(UndercoverGameRedisKey.getKey(UndercoverGameRedisKey.ROOM_INFO, roomId));
+                
+                // 2. 删除房间投票记录
+                stringRedisTemplate.delete(UndercoverGameRedisKey.getKey(UndercoverGameRedisKey.ROOM_VOTES, roomId));
+                
+                // 3. 删除房间结果
+                stringRedisTemplate.delete(UndercoverGameRedisKey.getKey(UndercoverGameRedisKey.ROOM_RESULT, roomId));
+                
+                // 4. 清除所有玩家在该房间中的信息
+                for (Long playerId : room.getParticipantIds()) {
+                    // 删除玩家角色信息
+                    stringRedisTemplate.delete(UndercoverGameRedisKey.getKey(UndercoverGameRedisKey.PLAYER_ROLE, playerId));
+                    
+                    // 删除玩家所在房间信息
+                    stringRedisTemplate.delete(UndercoverGameRedisKey.getKey(UndercoverGameRedisKey.PLAYER_ROOM, playerId));
+                    
+                    // 删除玩家的投票状态
+                    stringRedisTemplate.delete(UndercoverGameRedisKey.getKey(UndercoverGameRedisKey.PLAYER_VOTED, roomId, playerId));
+                    
+                    // 删除玩家收到的投票计数
+                    String voteCountKey = UndercoverGameRedisKey.getKey(UndercoverGameRedisKey.ROOM_VOTE_COUNT, roomId) + ":" + playerId;
+                    stringRedisTemplate.delete(voteCountKey);
+                }
+                
+                // 5. 删除活跃房间记录
+                stringRedisTemplate.delete(UndercoverGameRedisKey.ACTIVE_ROOM);
+                
+                // 6. 通知客户端刷新房间状态
+                webSocketService.sendToAllOnline(WSBaseResp.builder()
+                        .type(MessageTypeEnum.REFRESH_ROOM.getType())
+                        .data("").build());
+                
+                return true;
+            } catch (JsonProcessingException e) {
+                log.error("解析房间信息失败", e);
+                throw new BusinessException(ErrorCode.SYSTEM_ERROR, "移除房间失败");
+            }
+        } catch (InterruptedException e) {
+            log.error("获取锁失败", e);
+            throw new BusinessException(ErrorCode.SYSTEM_ERROR, "系统繁忙，请稍后再试");
+        } finally {
+            if (lock.isHeldByCurrentThread()) {
+                lock.unlock();
+            }
+        }
+    }
+
+    @Override
+    public boolean guessWord(UndercoverGuessRequest request) {
+        // 验证参数
+        if (request == null) {
+            throw new BusinessException(ErrorCode.PARAMS_ERROR, "猜词请求不能为空");
+        }
+        String roomId = request.getRoomId();
+        //暂时无需 ID 自动获取
+        if (StringUtils.isBlank(roomId)) {
+            roomId = stringRedisTemplate.opsForValue().get(UndercoverGameRedisKey.ACTIVE_ROOM);
+            if (StringUtils.isBlank(roomId)) {
+                throw new BusinessException(ErrorCode.PARAMS_ERROR, "房间ID不能为空");
+            }
+        }
+        String guessWord = request.getGuessWord();
+        if (StringUtils.isBlank(guessWord)) {
+            throw new BusinessException(ErrorCode.PARAMS_ERROR, "猜测词语不能为空");
+        }
+
+        // 验证用户登录状态
+        User loginUser = userService.getLoginUser();
+
+        // 使用分布式锁确保并发安全
+        RLock lock = redissonClient.getLock("undercover_room_guess_lock:" + roomId);
+        try {
+            boolean isLocked = lock.tryLock(5, 10, TimeUnit.SECONDS);
+            if (!isLocked) {
+                throw new BusinessException(ErrorCode.OPERATION_ERROR, "操作频繁，请稍后再试");
+            }
+
+            // 获取房间信息
+            String roomJson = stringRedisTemplate.opsForValue().get(
+                    UndercoverGameRedisKey.getKey(UndercoverGameRedisKey.ROOM_INFO, roomId));
+            if (roomJson == null) {
+                throw new BusinessException(ErrorCode.NOT_FOUND_ERROR, "房间不存在");
+            }
+
+            try {
+                UndercoverRoom room = objectMapper.readValue(roomJson, UndercoverRoom.class);
+
+                // 检查房间状态
+                if (room.getStatus() != RoomStatusEnum.PLAYING) {
+                    throw new BusinessException(ErrorCode.OPERATION_ERROR, "房间未开始游戏或已结束");
+                }
+
+                // 检查用户是否在房间中
+                if (!room.getParticipantIds().contains(loginUser.getId())) {
+                    throw new BusinessException(ErrorCode.OPERATION_ERROR, "用户不在房间中");
+                }
+
+                // 检查用户是否已被淘汰
+                if (room.getEliminatedIds().contains(loginUser.getId())) {
+                    throw new BusinessException(ErrorCode.OPERATION_ERROR, "用户已被淘汰，无法猜词");
+                }
+                
+                // 检查用户是否是卧底
+                if (!room.getUndercoverIds().contains(loginUser.getId())) {
+                    throw new BusinessException(ErrorCode.OPERATION_ERROR, "只有卧底才能猜词");
+                }
+                
+                // 检查猜测是否正确
+                boolean isCorrect = guessWord.trim().equals(room.getCivilianWord().trim());
+                
+                // 如果猜对了，结束游戏并宣布卧底胜利
+                if (isCorrect) {
+                    // 更新房间状态
+                    room.setStatus(RoomStatusEnum.ENDED);
+
+                    // 保存更新后的房间信息
+                    String updatedRoomJson = objectMapper.writeValueAsString(room);
+                    stringRedisTemplate.opsForValue().set(
+                            UndercoverGameRedisKey.getKey(UndercoverGameRedisKey.ROOM_INFO, roomId),
+                            updatedRoomJson,
+                            60,
+                            TimeUnit.MINUTES
+                    );
+                    
+                    // 发送游戏结束消息
+                    String userName = loginUser.getUserName();
+                    MessageWrapper messageWrapper = getSystemMessageWrapper(
+                            "卧底" + userName + "成功猜出平民词「" + room.getCivilianWord() + "」！卧底获胜！"
+                    );
+                    
+                    webSocketService.sendToAllOnline(WSBaseResp.builder()
+                            .type(MessageTypeEnum.UNDERCOVER.getType())
+                            .data(messageWrapper).build());
+                    
+                    webSocketService.sendToAllOnline(WSBaseResp.builder()
+                            .type(MessageTypeEnum.REFRESH_ROOM.getType())
+                            .data("").build());
+                }
+
+                return isCorrect;
+                
+            } catch (JsonProcessingException e) {
+                log.error("解析房间信息失败", e);
+                throw new BusinessException(ErrorCode.SYSTEM_ERROR, "处理猜词请求失败");
+            }
+        } catch (InterruptedException e) {
+            log.error("获取锁失败", e);
+            throw new BusinessException(ErrorCode.SYSTEM_ERROR, "系统繁忙，请稍后再试");
+        } finally {
+            if (lock.isHeldByCurrentThread()) {
+                lock.unlock();
+            }
+        }
+    }
+
+    /**
+     * 将词语对添加到已使用列表中
+     *
+     * @param wordPair 词语对，格式为"平民词,卧底词"
+     */
+    private void addWordPairToUsedList(String wordPair) {
+        if (StringUtils.isBlank(wordPair) || !wordPair.contains(",")) {
+            return;
+        }
+        
+        // 获取当天已使用的词语对
+        Set<String> usedWordPairs = new HashSet<>();
+        String usedWordPairsJson = stringRedisTemplate.opsForValue().get(UndercoverGameRedisKey.USED_WORD_PAIRS);
+        if (usedWordPairsJson != null) {
+            try {
+                usedWordPairs = objectMapper.readValue(usedWordPairsJson, new TypeReference<HashSet<String>>() {});
+            } catch (JsonProcessingException e) {
+                log.error("解析已使用词语对失败", e);
+                // 解析失败则创建新的集合
+                usedWordPairs = new HashSet<>();
+            }
+        }
+        
+        // 将词语对添加到已使用列表中
+        usedWordPairs.add(wordPair);
+        try {
+            String newUsedWordPairsJson = objectMapper.writeValueAsString(usedWordPairs);
+            // 设置24小时过期时间，确保第二天可以重新使用
+            stringRedisTemplate.opsForValue().set(UndercoverGameRedisKey.USED_WORD_PAIRS, newUsedWordPairsJson, 24, TimeUnit.HOURS);
+            log.info("词语对[{}]已添加到已使用列表中", wordPair);
+        } catch (JsonProcessingException e) {
+            log.error("序列化已使用词语对失败", e);
         }
     }
 } 

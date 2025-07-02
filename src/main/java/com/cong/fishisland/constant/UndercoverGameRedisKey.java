@@ -53,6 +53,11 @@ public interface UndercoverGameRedisKey {
     String ROOM_RESULT = BASE_KEY + "room:%s:result";
     
     /**
+     * 已使用词语对键（记录当天已使用的词语对）
+     */
+    String USED_WORD_PAIRS = BASE_KEY + "used_word_pairs";
+    
+    /**
      * 获取完整的 Redis 键
      *
      * @param key      键模板

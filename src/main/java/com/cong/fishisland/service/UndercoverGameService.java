@@ -1,5 +1,6 @@
 package com.cong.fishisland.service;
 
+import com.cong.fishisland.model.dto.game.UndercoverGuessRequest;
 import com.cong.fishisland.model.dto.game.UndercoverRoomCreateRequest;
 import com.cong.fishisland.model.dto.game.UndercoverVoteRequest;
 import com.cong.fishisland.model.vo.game.UndercoverPlayerDetailVO;
@@ -54,6 +55,13 @@ public interface UndercoverGameService {
      * @return 是否成功结束
      */
     boolean endGame(String roomId);
+
+    /**
+     * 移除当前活跃房间（仅管理员）
+     *
+     * @return 是否成功移除
+     */
+    boolean removeActiveRoom();
 
     /**
      * 获取玩家信息
@@ -113,4 +121,12 @@ public interface UndercoverGameService {
      * @return 玩家详细信息列表
      */
     List<UndercoverPlayerDetailVO> getRoomPlayersDetail(String roomId);
+    
+    /**
+     * 卧底猜平民词
+     *
+     * @param request 猜词请求
+     * @return 是否猜对
+     */
+    boolean guessWord(UndercoverGuessRequest request);
 } 

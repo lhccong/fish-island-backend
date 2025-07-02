@@ -46,6 +46,11 @@ public class UndercoverRoomVO {
     private Set<Long> eliminatedIds;
 
     /**
+     * 房间创建者ID
+     */
+    private Long creatorId;
+
+    /**
      * 房间创建时间
      */
     private Date createTime;
