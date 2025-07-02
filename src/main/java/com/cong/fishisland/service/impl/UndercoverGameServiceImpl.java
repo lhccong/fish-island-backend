@@ -91,33 +91,6 @@ public class UndercoverGameServiceImpl implements UndercoverGameService {
                 log.error("读取词语文件失败", e);
                 throw new BusinessException(ErrorCode.SYSTEM_ERROR, "读取词语文件失败");
             }
-        } else {
-            // 用户提供了自定义词语，检查是否已经被使用过
-            String customWordPair = request.getCivilianWord() + "," + request.getUndercoverWord();
-            String usedWordPairsJson = stringRedisTemplate.opsForValue().get(UndercoverGameRedisKey.USED_WORD_PAIRS);
-            if (usedWordPairsJson != null) {
-                try {
-                    Set<String> usedWordPairs = objectMapper.readValue(usedWordPairsJson, new TypeReference<HashSet<String>>() {});
-                    if (usedWordPairs.contains(customWordPair)) {
-                        try {
-                            // 如果已使用过，从文件中读取新的词语对
-                            String[] wordPair = getRandomWordPair();
-                            if (wordPair != null && wordPair.length == 2) {
-                                request.setCivilianWord(wordPair[0]);
-                                request.setUndercoverWord(wordPair[1]);
-                                log.info("用户提供的词语对[{}]今天已被使用过，已自动选择新的词语对", customWordPair);
-                            }
-                        } catch (IOException e) {
-                            log.error("读取词语文件失败", e);
-                            // 如果读取失败，继续使用用户提供的词语对
-                            log.warn("读取新词语对失败，继续使用用户提供的词语对[{}]", customWordPair);
-                        }
-                    }
-                } catch (JsonProcessingException e) {
-                    log.error("解析已使用词语对失败", e);
-                    // 解析失败，继续使用用户提供的词语对
-                }
-            }
         }
         
         // 再次验证词语是否为空
@@ -809,12 +782,6 @@ public class UndercoverGameServiceImpl implements UndercoverGameService {
                             60,
                             TimeUnit.MINUTES
                     );
-                    
-                    // 将使用的词语对添加到已使用列表中
-                    if (StringUtils.isNotBlank(room.getCivilianWord()) && StringUtils.isNotBlank(room.getUndercoverWord())) {
-                        String wordPair = room.getCivilianWord() + "," + room.getUndercoverWord();
-                        addWordPairToUsedList(wordPair);
-                    }
 
                     // 清除活跃房间
                     String activeRoomId = stringRedisTemplate.opsForValue().get(UndercoverGameRedisKey.ACTIVE_ROOM);
