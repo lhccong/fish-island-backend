@@ -149,3 +149,7 @@ INSERT INTO `hero` VALUES (1918248699129966602, '584', '元流之子(射手)', '
 SET FOREIGN_KEY_CHECKS = 1;
 
 UPDATE `fish`.`hero` SET `ename` = '519', `cname` = '敖隐', `title` = '凌霄真龙', `releaseDate` = '2024-02-06', `newType` = 0, `primaryType` = 5, `secondaryType` = NULL, `skins` = '凌霄真龙', `officialLink` = 'https://pvp.qq.com/ingame/all/tobe/newheros/0206aoyin.html', `mossId` = 6367, `race` = '龙', `faction` = '暂无阵营', `identity` = '龙族后裔', `region` = '大河流域', `ability` = '魔道', `height` = '176cm', `quote` = '潜龙腾渊凌霄上，尘世无名誓不休！', `createTime` = '2025-05-02 18:18:23', `updateTime` = '2025-05-02 18:18:46' WHERE `id` = 1918248699129966594;
+
+-- 2025-07-03
+UPDATE `fish`.`hero` SET `ename` = '584', `cname` = '元流之子(射手)', `title` = '沉舟之志', `releaseDate` = '2025-04-23', `newType` = 0, `primaryType` = 5, `secondaryType` = NULL, `skins` = '沉舟之志', `officialLink` = '//pvp.qq.com/ingame/all/tobe/newheros/0627yuanliuzhizi.html', `mossId` = 8744, `race` = '人类', `faction` = '稷下学院', `identity` = '稷下学生', `region` = '逐鹿', `ability` = '武道，魔道', `height` = '176/163cm', `quote` = '稷下，我回来了。', `createTime` = '2025-05-02 18:18:23', `updateTime` = '2025-07-03 14:23:27' WHERE `id` = 1918248699129966602;
+INSERT INTO `hero` VALUES (1918248699129966603, '151', '孙权', '定旌之谋', '2025-07-03', 1, 5, NULL, '定旌之谋', '//pvp.qq.com/ingame/all/tobe/newheros/0703sunquan.html', 7004, '人类', '吴', '江郡新主', '三分之地', '武道', '172cm', '为帅者，当先计其败，后计其成。', '2025-07-03 14:18:23', '2025-07-03 14:18:23');
