@@ -6,6 +6,7 @@ import cn.hutool.core.collection.CollUtil;
 import cn.hutool.core.date.DateUnit;
 import cn.hutool.core.date.DateUtil;
 import cn.hutool.core.text.CharSequenceUtil;
+import cn.hutool.extra.servlet.ServletUtil;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
 import com.baomidou.mybatisplus.core.toolkit.Wrappers;
@@ -39,6 +40,7 @@ import me.zhyd.oauth.model.AuthResponse;
 import me.zhyd.oauth.model.AuthUser;
 import me.zhyd.oauth.request.AuthRequest;
 import org.apache.commons.lang3.StringUtils;
+import org.apache.commons.validator.routines.EmailValidator;
 import org.redisson.api.RRateLimiter;
 import org.redisson.api.RateIntervalUnit;
 import org.redisson.api.RateType;
@@ -49,12 +51,12 @@ import org.springframework.stereotype.Service;
 import org.springframework.util.DigestUtils;
 
 import javax.annotation.Resource;
-import java.util.ArrayList;
-import java.util.Date;
-import java.util.List;
-import java.util.Map;
+import javax.servlet.http.HttpServletRequest;
+import java.time.Duration;
+import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.locks.ReentrantLock;
 import java.util.stream.Collectors;
 
 import static com.cong.fishisland.constant.SystemConstants.SALT;
@@ -68,7 +70,7 @@ import static com.cong.fishisland.constant.SystemConstants.SALT;
 public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements UserService {
 
     @Resource
-    private UserMapper  userMapper;
+    private UserMapper userMapper;
 
     @Resource
     private GitHubConfig gitHubConfig;
@@ -82,10 +84,18 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements Us
     @Resource
     private EmailBanService emailBanService;
 
+    private static final EmailValidator EMAIL_VALIDATOR = EmailValidator.getInstance(true);
+
     @Resource
     StringRedisTemplate stringRedisTemplate;
 
     private static final String EMAIL_CODE_PREFIX = "email:code:";
+
+    private static final String IP_COUNT_PREFIX = "email:ip:";
+
+    // 限流阈值：同一 IP 10 分钟内最多 5 次
+    private static final int IP_THRESHOLD = 5;
+    private static final Duration IP_WINDOW = Duration.ofMinutes(10);
 
     @Resource
     private RedissonClient redissonClient;
@@ -93,6 +103,7 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements Us
     @Resource
     private UserThirdAuthMapper userThirdAuthMapper;
 
+    private static final ConcurrentHashMap<String, ReentrantLock> LOCK_MAP = new ConcurrentHashMap<>();
 
     @Override
     public long userRegister(String userAccount, String userPassword, String checkPassword) {
@@ -110,37 +121,35 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements Us
         if (!userPassword.equals(checkPassword)) {
             throw new BusinessException(ErrorCode.PARAMS_ERROR, "两次输入的密码不一致");
         }
-        Map<String, Object> lockMap = new ConcurrentHashMap<>();
 
-        Object lock = lockMap.computeIfAbsent(userAccount, key -> new Object());
+        ReentrantLock lock = LOCK_MAP.computeIfAbsent(userAccount, k -> new ReentrantLock());
+        lock.lock();
 
-        synchronized (lock) {
-            try {
-                // 账户不能重复
-                QueryWrapper<User> queryWrapper = new QueryWrapper<>();
-                queryWrapper.eq("userAccount", userAccount);
-                long count = this.baseMapper.selectCount(queryWrapper);
-                if (count > 0) {
-                    throw new BusinessException(ErrorCode.PARAMS_ERROR, "账号重复");
-                }
-                // 2. 加密
-                String encryptPassword = DigestUtils.md5DigestAsHex((SALT + userPassword).getBytes());
-                // 3. 插入数据
-                User user = new User();
-                user.setUserAccount(userAccount);
-                user.setUserPassword(encryptPassword);
-                boolean saveResult = this.save(user);
-                if (!saveResult) {
-                    throw new BusinessException(ErrorCode.SYSTEM_ERROR, "注册失败，数据库错误");
-                }
-                // 保存积分
-                savePoints(user);
-
-                return user.getId();
-            } finally {
-                // 防止内存泄漏
-                lockMap.remove(userAccount);
+        try {
+            // 账户不能重复
+            QueryWrapper<User> queryWrapper = new QueryWrapper<>();
+            queryWrapper.eq("userAccount", userAccount);
+            long count = this.baseMapper.selectCount(queryWrapper);
+            if (count > 0) {
+                throw new BusinessException(ErrorCode.PARAMS_ERROR, "账号重复");
             }
+            // 2. 加密
+            String encryptPassword = DigestUtils.md5DigestAsHex((SALT + userPassword).getBytes());
+            // 3. 插入数据
+            User user = new User();
+            user.setUserAccount(userAccount);
+            user.setUserPassword(encryptPassword);
+            boolean saveResult = this.save(user);
+            if (!saveResult) {
+                throw new BusinessException(ErrorCode.SYSTEM_ERROR, "注册失败，数据库错误");
+            }
+            // 保存积分
+            savePoints(user);
+
+            return user.getId();
+        } finally {
+            lock.unlock();
+            LOCK_MAP.remove(userAccount);
         }
     }
 
@@ -233,13 +242,39 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements Us
     }
 
     @Override
-    public boolean userEmailSend(String email) {
+    public boolean userEmailSend(String email, HttpServletRequest request) {
         // 校验邮箱格式
         validateEmailFormat(email);
+        // 获取客户端 IP
+        String clientIp = ServletUtil.getClientIP(request);
+        // IP 黑名单检查
+        boolean ipBanned = emailBanService.lambdaQuery()
+                .eq(EmailBan::getBannedIp, clientIp)
+                .exists();
+        if (ipBanned) {
+            throw new BusinessException(ErrorCode.PARAMS_ERROR, "您的 IP 已被封禁，暂时无法发送验证码");
+        }
+        // IP 限流 & 日志告警
+        String ipKey = IP_COUNT_PREFIX + clientIp;
+        Long ipCount = stringRedisTemplate.opsForValue().increment(ipKey);
+        if (ipCount != null) {
+            if (ipCount == 1) {
+                // 第一次请求，设置过期时间
+                stringRedisTemplate.expire(ipKey, IP_WINDOW);
+            }
+            if (ipCount > IP_THRESHOLD) {
+                // 超出阈值，记录警告日志
+                log.warn("频繁请求警告：来自 IP [{}] 在 {} 分钟内已请求 {} 次",
+                        clientIp, IP_WINDOW.toMinutes(), ipCount);
+            }
+        }
 
         // 检查 Redis 是否已有验证码，防止频繁发送
-        String existingCode = stringRedisTemplate.opsForValue().get(EMAIL_CODE_PREFIX + email);
-        if (StringUtils.isNotBlank(existingCode)) {
+        String redisKey = EMAIL_CODE_PREFIX + email;
+        Boolean occupied = stringRedisTemplate.opsForValue()
+                .setIfAbsent(redisKey, "SENT", Duration.ofMinutes(5));
+        if (Boolean.FALSE.equals(occupied)) {
+            // 如果已存在占位（意味着该邮箱已被处理过），直接拒绝
             throw new BusinessException(ErrorCode.PARAMS_ERROR, "验证码已发送，请稍后再试");
         }
         try {
@@ -399,8 +434,8 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements Us
 
             // 更新数据
             loginUser.setUserPassword(encryptPassword);
-            boolean updateResult  = this.updateById(loginUser);
-            if (!updateResult ) {
+            boolean updateResult = this.updateById(loginUser);
+            if (!updateResult) {
                 throw new BusinessException(ErrorCode.SYSTEM_ERROR, "重置密码，数据库错误");
             }
         } finally {
@@ -481,8 +516,8 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements Us
 
             // 插入数据
             loginUser.setEmail(email);
-            boolean updateResult  = this.updateById(loginUser);
-            if (!updateResult ) {
+            boolean updateResult = this.updateById(loginUser);
+            if (!updateResult) {
                 throw new BusinessException(ErrorCode.SYSTEM_ERROR, "绑定失败，数据库错误");
             }
         } finally {
@@ -631,7 +666,7 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements Us
                 Wrappers.lambdaQuery(UserThirdAuth.class)
                         .eq(UserThirdAuth::getUserId, user.getId())
         );
-        List<PlatformBindVO> bindPlatforms  = userThirdAuths.stream().map(
+        List<PlatformBindVO> bindPlatforms = userThirdAuths.stream().map(
                 userThirdAuth -> {
                     PlatformBindVO platformBindVO = new PlatformBindVO();
                     platformBindVO.setPlatform(userThirdAuth.getPlatform());
@@ -668,10 +703,10 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements Us
         ThrowUtils.throwIf(userQueryRequest == null, ErrorCode.PARAMS_ERROR, "请求参数为空");
         //创建时间开始不能小于创建时间结束
         String[] createTimeRange = userQueryRequest.getCreateTimeRange();
-        ThrowUtils.throwIf(createTimeRange != null && createTimeRange.length == 2 && createTimeRange[0].compareTo(createTimeRange[1]) > 0, ErrorCode.PARAMS_ERROR,"创建时间开始不能小于创建时间结束");
+        ThrowUtils.throwIf(createTimeRange != null && createTimeRange.length == 2 && createTimeRange[0].compareTo(createTimeRange[1]) > 0, ErrorCode.PARAMS_ERROR, "创建时间开始不能小于创建时间结束");
         //更新时间开始不能小于更新时间结束
         String[] updateTimeRange = userQueryRequest.getUpdateTimeRange();
-        ThrowUtils.throwIf(updateTimeRange != null && updateTimeRange.length == 2 && updateTimeRange[0].compareTo(updateTimeRange[1]) > 0, ErrorCode.PARAMS_ERROR,"更新时间开始不能小于更新时间结束");
+        ThrowUtils.throwIf(updateTimeRange != null && updateTimeRange.length == 2 && updateTimeRange[0].compareTo(updateTimeRange[1]) > 0, ErrorCode.PARAMS_ERROR, "更新时间开始不能小于更新时间结束");
         Long id = userQueryRequest.getId();
         String userAccount = userQueryRequest.getUserAccount();
         String unionId = userQueryRequest.getUnionId();
@@ -690,10 +725,10 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements Us
         queryWrapper.like(StringUtils.isNotBlank(userProfile), "userProfile", userProfile);
         queryWrapper.like(StringUtils.isNotBlank(userName), "userName", userName);
         //范围查询
-        if (createTimeRange != null && createTimeRange.length == 2){
+        if (createTimeRange != null && createTimeRange.length == 2) {
             queryWrapper.apply("DATE(createTime) BETWEEN {0} AND {1}", createTimeRange[0], createTimeRange[1]);
         }
-        if (updateTimeRange != null && updateTimeRange.length == 2){
+        if (updateTimeRange != null && updateTimeRange.length == 2) {
             queryWrapper.apply("DATE(updateTime) BETWEEN {0} AND {1}", updateTimeRange[0], updateTimeRange[1]);
         }
         queryWrapper.orderBy(SqlUtils.validSortField(sortField), sortOrder.equals(CommonConstant.SORT_ORDER_ASC),
@@ -735,6 +770,7 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements Us
 
     /**
      * 新增用户走势图
+     *
      * @param request 新增用户数据请求
      * @return 用户新增数据
      */
@@ -745,40 +781,41 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements Us
         Date beginTime = request.getBeginTime();
         Date endTime = request.getEndTime();
         //每周新增
-        if (NewUserDataTypeWebConstant.EVERY_WEEK.equals(type)){
+        if (NewUserDataTypeWebConstant.EVERY_WEEK.equals(type)) {
             return userMapper.getNewUserDataWebVOEveryWeek();
         }
         //每月新增
-        if (NewUserDataTypeWebConstant.EVERY_MONTH.equals(type)){
+        if (NewUserDataTypeWebConstant.EVERY_MONTH.equals(type)) {
             return userMapper.getNewUserDataWebVOEveryMonth();
         }
         //每年新增
-        if (NewUserDataTypeWebConstant.EVERY_YEAR.equals(type)){
+        if (NewUserDataTypeWebConstant.EVERY_YEAR.equals(type)) {
             return userMapper.getNewUserDataWebVOEveryYear();
         }
         //时间范围
-        if (NewUserDataTypeWebConstant.TIME_RANGE.equals(type) && beginTime!=null && endTime!=null){
-            return userMapper.getNewUserDataWebVOByTime(beginTime,endTime);
+        if (NewUserDataTypeWebConstant.TIME_RANGE.equals(type) && beginTime != null && endTime != null) {
+            return userMapper.getNewUserDataWebVOByTime(beginTime, endTime);
         }
         return CollUtil.newArrayList();
     }
 
     /**
      * 新增用户数据校验
+     *
      * @param request 新增用户数据请求
      */
-    private void validNewUserDataWebRequest(NewUserDataWebRequest request){
-        ThrowUtils.throwIf(request==null,ErrorCode.PARAMS_ERROR,"数据为空");
+    private void validNewUserDataWebRequest(NewUserDataWebRequest request) {
+        ThrowUtils.throwIf(request == null, ErrorCode.PARAMS_ERROR, "数据为空");
         Date beginTime = request.getBeginTime();
         Date endTime = request.getEndTime();
         //开始时间、结束时间必须同时为空或者同时不为空
-        ThrowUtils.throwIf(beginTime == null & endTime != null, ErrorCode.PARAMS_ERROR,"开始时间不能为空");
-        ThrowUtils.throwIf(beginTime != null & endTime == null, ErrorCode.PARAMS_ERROR,"结束时间不能为空");
-        if (beginTime != null & endTime != null){
+        ThrowUtils.throwIf(beginTime == null & endTime != null, ErrorCode.PARAMS_ERROR, "开始时间不能为空");
+        ThrowUtils.throwIf(beginTime != null & endTime == null, ErrorCode.PARAMS_ERROR, "结束时间不能为空");
+        if (beginTime != null & endTime != null) {
             //开始时间和结束时间不为空，开始时间不能大于结束时间
-            ThrowUtils.throwIf( beginTime.after(endTime), ErrorCode.PARAMS_ERROR,"开始时间不能大于结束时间");
+            ThrowUtils.throwIf(beginTime.after(endTime), ErrorCode.PARAMS_ERROR, "开始时间不能大于结束时间");
             //开始时间和结束时间范围必须在31天内
-            ThrowUtils.throwIf( DateUtil.between(beginTime, endTime, DateUnit.DAY) > 31, ErrorCode.PARAMS_ERROR,"时间范围必须在31天内");
+            ThrowUtils.throwIf(DateUtil.between(beginTime, endTime, DateUnit.DAY) > 31, ErrorCode.PARAMS_ERROR, "时间范围必须在31天内");
         }
     }
 
@@ -802,12 +839,30 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements Us
      * @param email 邮箱地址
      */
     private void validateEmailFormat(String email) {
+        List<String> emailList = Arrays.asList(
+                "qq.com",
+                "163.com",
+                "gmail.com",
+                "126.com",
+                "outlook.com",
+                "foxmail.com",
+                "sina.com",
+                "vip.qq.com",
+                "139.com",
+                "88.com"
+        );
+
         // 基本格式校验
         if (StringUtils.isBlank(email)) {
             throw new BusinessException(ErrorCode.PARAMS_ERROR, "邮箱不能为空");
         }
-        if (StringUtils.isBlank(email) || !email.matches("^[A-Za-z0-9+_.-]+@[A-Za-z0-9.-]+\\.[A-Za-z]{2,}$")) {
+        if (!EMAIL_VALIDATOR.isValid(email)) {
             throw new BusinessException(ErrorCode.PARAMS_ERROR, "邮箱格式不正确");
+        }
+        String domain = email.substring(email.indexOf('@') + 1).toLowerCase();
+
+        if (!emailList.contains(domain)) {
+            throw new BusinessException(ErrorCode.PARAMS_ERROR, "该邮箱禁止注册");
         }
 
         // 后缀校验

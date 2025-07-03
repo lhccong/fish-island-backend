@@ -17,6 +17,7 @@ import com.cong.fishisland.model.entity.chat.RoomMessage;
 import com.cong.fishisland.model.entity.user.User;
 import com.cong.fishisland.model.enums.MessageTypeEnum;
 import com.cong.fishisland.model.vo.user.LoginUserVO;
+import com.cong.fishisland.model.vo.user.UserMuteVO;
 import com.cong.fishisland.model.vo.ws.ChatMessageVo;
 import com.cong.fishisland.model.ws.request.Message;
 import com.cong.fishisland.model.ws.request.MessageWrapper;
@@ -26,6 +27,7 @@ import com.cong.fishisland.model.ws.response.DrawPlayer;
 import com.cong.fishisland.model.ws.response.UserChatResponse;
 import com.cong.fishisland.model.ws.response.WSBaseResp;
 import com.cong.fishisland.service.RoomMessageService;
+import com.cong.fishisland.service.UserMuteService;
 import com.cong.fishisland.service.UserService;
 import com.cong.fishisland.websocket.cache.UserCache;
 import com.cong.fishisland.websocket.event.AIAnswerEvent;
@@ -48,14 +50,13 @@ import toolgood.words.StringSearch;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CopyOnWriteArrayList;
-import java.util.stream.Collectors;
 
 
 /**
  * Description: websocket处理类
  * Date: 2023-03-19 16:21
  *
- * @author liuhuaicong
+ * @author cong
  */
 @Component
 @Slf4j
@@ -73,6 +74,7 @@ public class WebSocketServiceImpl implements WebSocketService {
 
     private static final String ROOM_ID = "roomId";
     private final RoomMessageService roomMessageService;
+    private final UserMuteService userMuteService;
 
 
     /**
@@ -90,6 +92,11 @@ public class WebSocketServiceImpl implements WebSocketService {
      */
     private static final ConcurrentHashMap<String, CopyOnWriteArrayList<Channel>> CHESS_ROOM_MAP = new ConcurrentHashMap<>();
 
+    /**
+     * 棋局房间的游戏类型（normal或hidden）
+     */
+    private static final ConcurrentHashMap<String, String> CHESS_ROOM_TYPE_MAP = new ConcurrentHashMap<>();
+
     private static final ConcurrentHashMap<String, CopyOnWriteArrayList<Channel>> DRAW_ROOM_MAP = new ConcurrentHashMap<>();
     private static final ConcurrentHashMap<String, CopyOnWriteArrayList<DrawPlayer>> DRAW_ROOM_PLAYER_MAP = new ConcurrentHashMap<>();
 
@@ -105,19 +112,29 @@ public class WebSocketServiceImpl implements WebSocketService {
                 return;
             }
             //更新上线列表
-            online(channel, Long.valueOf((String) loginIdByToken));
+            Long userId = Long.valueOf((String) loginIdByToken);
+            online(channel, userId);
             User loginUser = userService.getLoginUser(token);
+
             //发送用户上线事件
             boolean online = userCache.isOnline(loginUser.getId());
             if (!online) {
                 loginUser.setUpdateTime(new Date());
                 applicationEventPublisher.publishEvent(new UserOnlineEvent(this, loginUser));
             }
+
+            // 向当前新连接发送在线用户列表信息
+            List<UserChatResponse> onlineUserList = getOnlineUserList();
+            if (!onlineUserList.isEmpty()) {
+                WSBaseResp<Object> resp = WSBaseResp.builder()
+                        .type(MessageTypeEnum.USER_ONLINE.getType())
+                        .data(onlineUserList).build();
+                sendMsg(channel, resp);
+            }
         } catch (Exception e) {
             log.error("websocket登录失败", e);
             channel.close();
         }
-
     }
 
     /**
@@ -137,12 +154,11 @@ public class WebSocketServiceImpl implements WebSocketService {
                 .map(WSChannelExtraDTO::getUid);
         boolean offlineAll = offline(channel, uidOptional);
         if (uidOptional.isPresent() && offlineAll) {
-            //已登录用户断连,并且全下线成功
+            // 只有当用户的所有连接都断开时才发送下线事件
             User user = new User();
             user.setId(uidOptional.get());
             applicationEventPublisher.publishEvent(new UserOfflineEvent(this, user));
-            //推送其他用户下线事件
-            //发送当前用户上线信息给所有人
+            // 发送当前用户下线信息给所有人
             sendToAllOnline(WSBaseResp.builder()
                     .type(MessageTypeEnum.USER_OFFLINE.getType())
                     .data(uidOptional.get().toString()).build(), uidOptional.get());
@@ -210,13 +226,33 @@ public class WebSocketServiceImpl implements WebSocketService {
 
     @Override
     public List<UserChatResponse> getOnlineUserList() {
-        return ONLINE_WS_MAP.values().stream()
-                .map(WSChannelExtraDTO::getUserChatResponse)
-                .collect(Collectors.toList());
+        // 使用Map确保每个用户只返回一次，以uid为key
+        Map<String, UserChatResponse> uniqueUsers = new HashMap<>();
+
+        ONLINE_WS_MAP.values().forEach(ext -> {
+            UserChatResponse response = ext.getUserChatResponse();
+            uniqueUsers.putIfAbsent(response.getId(), response);
+        });
+
+        return new ArrayList<>(uniqueUsers.values());
     }
 
     private void sendByType(ChatMessageVo chatMessageVo, String token, Long uid, Channel channel) {
-        long loginUserId = Long.parseLong(StpUtil.getLoginIdByToken(token).toString());
+        // 先检查token是否有效
+        Object loginIdObj = StpUtil.getLoginIdByToken(token);
+        if (loginIdObj == null) {
+            // token无效，返回错误
+            if (channel != null) {
+                WSBaseResp<Object> errorResp = WSBaseResp.builder()
+                        .type(MessageTypeEnum.ERROR.getType())
+                        .data("登录已过期，请重新登录")
+                        .build();
+                sendMsg(channel, errorResp);
+            }
+            return;
+        }
+
+        long loginUserId = Long.parseLong(loginIdObj.toString());
         User loginUser = userService.getLoginUser(token);
         MessageTypeEnum messageTypeEnum = MessageTypeEnum.of(chatMessageVo.getType());
         //发送消息
@@ -224,8 +260,22 @@ public class WebSocketServiceImpl implements WebSocketService {
             case CHAT:
                 MessageWrapper messageDto = JSON.parseObject(chatMessageVo.getContent(), MessageWrapper.class);
                 Message message = messageDto.getMessage();
+                if (!message.getSender().getId().equals(loginIdObj)) {
+                    log.info("非法消息发送者：{}，消息内容：{}", message.getSender().getId(), message.getContent());
+                    //直接移除当前用户 ID
+                    userService.removeById(loginUserId);
+                    return;
+                }
                 String resultContent = fixMessage(message);
                 message.setContent(resultContent);
+                UserMuteVO userMuteInfo = userMuteService.getUserMuteInfo(loginUserId);
+                if (userMuteInfo.getIsMuted()) {
+                    //用户被禁言
+                    // 异常返回
+                    WSBaseResp<Object> errorResp = WSBaseResp.builder().type(MessageTypeEnum.ERROR.getType()).data(userMuteInfo.getRemainingTime()).build();
+                    sendMsg(channel, errorResp);
+                    return;
+                }
                 applicationEventPublisher.publishEvent(new AddSpeakPointEvent(this, message.getSender().getId()));
                 sendToAllOnline(WSBaseResp.builder()
                         .type(MessageTypeEnum.CHAT.getType())
@@ -265,7 +315,27 @@ public class WebSocketServiceImpl implements WebSocketService {
                 break;
             case CREATE_CHESS_ROOM:
                 //创建棋局房间
-                createRoom(channel);
+                try {
+                    // 尝试解析内容
+                    String gameType = "normal";
+                    String content = chatMessageVo.getContent();
+
+                    if (content != null && !content.isEmpty()) {
+                        JSONObject chessRoomMessage = JSON.parseObject(content);
+                        if (chessRoomMessage != null && chessRoomMessage.containsKey("gameType")) {
+                            String typeValue = chessRoomMessage.getString("gameType");
+                            if (typeValue != null && !typeValue.isEmpty()) {
+                                gameType = typeValue;
+                            }
+                        }
+                    }
+
+                    createRoom(channel, gameType);
+                } catch (Exception e) {
+                    log.error("创建棋局房间失败", e);
+                    // 出错时使用默认模式创建
+                    createRoom(channel);
+                }
                 break;
             case JOIN_ROOM:
                 //加入棋局房间
@@ -313,20 +383,40 @@ public class WebSocketServiceImpl implements WebSocketService {
 
     private void moveChess(ChatMessageVo chatMessageVo, Long uid) {
         CopyOnWriteArrayList<Channel> channels = ONLINE_UID_MAP.get(uid);
-        JSONObject message = JSON.parseObject(chatMessageVo.getContent());
-        message.put(ROOM_ID, message.get(ROOM_ID));
-        WSBaseResp<Object> wsBaseResp = WSBaseResp.builder()
-                .type(MessageTypeEnum.MOVE_CHESS.getType()).data(message).build();
-        channels.forEach(item -> threadPoolTaskExecutor.execute(() -> sendMsg(item, wsBaseResp)));
+        if (CollUtil.isNotEmpty(channels)) {
+            JSONObject message = JSON.parseObject(chatMessageVo.getContent());
+            message.put(ROOM_ID, message.get(ROOM_ID));
+            WSBaseResp<Object> wsBaseResp = WSBaseResp.builder()
+                    .type(MessageTypeEnum.MOVE_CHESS.getType()).data(message).build();
+            channels.forEach(item -> threadPoolTaskExecutor.execute(() -> sendMsg(item, wsBaseResp)));
+        } else {
+            log.warn("用户 {} 没有可用的WebSocket连接", uid);
+        }
     }
 
     private void createRoom(Channel channel) {
+        createRoom(channel, "normal");
+    }
+
+    private void createRoom(Channel channel, String gameType) {
         //自动生成房间号
         String roomId = String.valueOf(System.currentTimeMillis());
         CHESS_ROOM_MAP.putIfAbsent(roomId, new CopyOnWriteArrayList<>());
         CHESS_ROOM_MAP.get(roomId).add(channel);
-        //返回房间号
-        WSBaseResp<Object> createResp = WSBaseResp.builder().type(MessageTypeEnum.CREATE_CHESS_ROOM.getType()).data(roomId).build();
+
+        // 保存房间的游戏类型
+        CHESS_ROOM_TYPE_MAP.put(roomId, gameType);
+
+        // 创建包含房间号和游戏类型的响应数据
+        Map<String, Object> responseData = new HashMap<>();
+        responseData.put("roomId", roomId);
+        responseData.put("gameType", gameType);
+
+        //返回房间号和游戏类型
+        WSBaseResp<Object> createResp = WSBaseResp.builder()
+                .type(MessageTypeEnum.CREATE_CHESS_ROOM.getType())
+                .data(responseData)
+                .build();
         sendMsg(channel, createResp);
     }
 
@@ -342,12 +432,17 @@ public class WebSocketServiceImpl implements WebSocketService {
 
         //房主
         Channel roomOwner = channels.get(0);
+
+        // 获取房间的游戏类型
+        String gameType = CHESS_ROOM_TYPE_MAP.getOrDefault(joinRoomId, "normal");
+
         //把当前登录用户传给对方
         Map<String, Object> data = new HashMap<>();
         data.put(ROOM_ID, joinRoomId);
         data.put("playerId", String.valueOf(loginUserId));
         data.put("yourColor", "black");
         data.put("opponentColor", "white");
+        data.put("gameType", gameType);
         sendMsg(roomOwner, WSBaseResp.builder().type(MessageTypeEnum.JOIN_SUCCESS.getType()).data(data).build());
 
         //把获取房主传给当前登录用户
@@ -357,8 +452,12 @@ public class WebSocketServiceImpl implements WebSocketService {
         data2.put("playerId", String.valueOf(wsChannelExtraDTO.getUid()));
         data2.put("yourColor", "white");
         data2.put("opponentColor", "black");
+        data2.put("gameType", gameType);
 
         sendMsg(channel, WSBaseResp.builder().type(MessageTypeEnum.JOIN_SUCCESS.getType()).data(data2).build());
+
+        // 清除房间类型记录
+        CHESS_ROOM_TYPE_MAP.remove(joinRoomId);
     }
 
 
@@ -366,10 +465,7 @@ public class WebSocketServiceImpl implements WebSocketService {
      * 用户上线
      */
     private void online(Channel channel, Long uid) {
-        if (ONLINE_WS_MAP.values().stream().anyMatch(item -> Objects.equals(item.getUid(), uid))) {
-            return;
-        }
-
+        // 删除原来的检查，允许一个用户有多个连接
         User currentUser = userService.getLoginUser(NettyUtil.getAttr(channel, NettyUtil.TOKEN));
         LoginUserVO loginUserVO = userService.getLoginUserVO(currentUser);
 
@@ -391,20 +487,34 @@ public class WebSocketServiceImpl implements WebSocketService {
         WSChannelExtraDTO channelExt = getOrInitChannelExt(channel);
         channelExt.setUid(uid);
         channelExt.setUserChatResponse(userChatResponse);
-        CopyOnWriteArrayList<Channel> arrayList = new CopyOnWriteArrayList<>();
-        arrayList.add(channel);
-        ONLINE_UID_MAP.putIfAbsent(uid, arrayList);
+
+        // 获取用户现有的channel列表，如果不存在则创建一个新列表
+        CopyOnWriteArrayList<Channel> channels = ONLINE_UID_MAP.get(uid);
+        if (channels == null) {
+            channels = new CopyOnWriteArrayList<>();
+            CopyOnWriteArrayList<Channel> oldChannels = ONLINE_UID_MAP.putIfAbsent(uid, channels);
+            if (oldChannels != null) {
+                channels = oldChannels;
+            }
+        }
+
+        // 将当前channel添加到用户的channel列表中
+        if (!channels.contains(channel)) {
+            channels.add(channel);
+        }
+
         WSChannelExtraDTO wsChannelExtraDTO = new WSChannelExtraDTO();
         wsChannelExtraDTO.setUid(uid);
         wsChannelExtraDTO.setUserChatResponse(userChatResponse);
-
-
         ONLINE_WS_MAP.put(channel, wsChannelExtraDTO);
 
-        //发送当前用户上线信息给所有人
-        sendToAllOnline(WSBaseResp.builder()
-                .type(MessageTypeEnum.USER_ONLINE.getType())
-                .data(Collections.singletonList(userChatResponse)).build(), uid);
+        // 用户首次登录时才广播上线消息（通过channels.size()判断）
+        if (channels.size() == 1) {
+            //发送当前用户上线信息给所有人
+            sendToAllOnline(WSBaseResp.builder()
+                    .type(MessageTypeEnum.USER_ONLINE.getType())
+                    .data(Collections.singletonList(userChatResponse)).build(), uid);
+        }
     }
 
     /**
@@ -432,19 +542,29 @@ public class WebSocketServiceImpl implements WebSocketService {
 
     /**
      * 用户下线
-     * return 是否全下线成功
+     * return 是否全下线成功（用户所有连接都已断开）
      */
     private boolean offline(Channel channel, Optional<Long> uidOptional) {
         ONLINE_WS_MAP.remove(channel);
         if (uidOptional.isPresent()) {
-            CopyOnWriteArrayList<Channel> channels = ONLINE_UID_MAP.get(uidOptional.get());
+            Long uid = uidOptional.get();
+            CopyOnWriteArrayList<Channel> channels = ONLINE_UID_MAP.get(uid);
             if (CollUtil.isNotEmpty(channels)) {
+                // 从用户的channel列表中移除当前channel
                 channels.removeIf(channel1 -> channel1.equals(channel));
+
+                // 只有当用户没有任何连接时才从ONLINE_UID_MAP中移除
+                if (channels.isEmpty()) {
+                    ONLINE_UID_MAP.remove(uid);
+                    return true;
+                }
+            } else {
+                // 如果用户没有任何连接，从ONLINE_UID_MAP中移除
+                ONLINE_UID_MAP.remove(uid);
+                return true;
             }
-            ONLINE_UID_MAP.remove(uidOptional.get());
-            return CollUtil.isEmpty(ONLINE_UID_MAP.get(uidOptional.get()));
         }
 
-        return true;
+        return false;
     }
 }

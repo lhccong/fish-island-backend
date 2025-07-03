@@ -46,6 +46,8 @@ public class EmailBan implements Serializable {
      */
     private Date updateTime;
 
+    private String bannedIp;
+
     @TableField(exist = false)
     private static final long serialVersionUID = 1L;
 }

@@ -3,7 +3,7 @@ package com.cong.fishisland.constant;
 /**
  * Redis 密钥
  *
- * @author liuhuaicong
+ * @author cong
  * @date 2023/10/31
  */
 public interface RedisKey {
@@ -47,6 +47,12 @@ public interface RedisKey {
     /**
      * 防止重复提交 key 前缀
      */
+    String USER_DEBOUNCE_PREFIX = "user:debounce:";
+
+    /**
+     * 用户禁言 user:mute:{userId}
+     */
+    String USER_MUTE = "user:mute:%d";
     String NO_REPEAT_SUBMIT_PREFIX = "noRepeatSubmit:%s:%s";
 
     static String getKey(String key, Object... objects) {

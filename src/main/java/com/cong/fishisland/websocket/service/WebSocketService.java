@@ -11,7 +11,7 @@ import java.util.List;
 /**
  * Web 套接字服务
  *
- * @author liuhuaicong
+ * @author cong
  * @date 2023/10/27
  */
 public interface WebSocketService {

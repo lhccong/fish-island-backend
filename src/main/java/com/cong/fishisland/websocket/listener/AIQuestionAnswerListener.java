@@ -78,7 +78,7 @@ public class AIQuestionAnswerListener {
         }});
 
         // 调用 AI
-        AiResponse aiResponse = siliconFlowDataSource.getAiResponse(requestMessages, "internlm/internlm2_5-20b-chat");
+        AiResponse aiResponse = siliconFlowDataSource.getAiResponse(requestMessages, "Qwen/Qwen2.5-14B-Instruct");
 
         // 添加 AI 响应消息
         SiliconFlowRequest.Message assistantMessage = new SiliconFlowRequest.Message() {{

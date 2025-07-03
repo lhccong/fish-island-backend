@@ -120,4 +120,4 @@ minio:
   endpoint: http://127.0.0.1:9000 #minio地址
   accessKey: minioadmin #账号
   secretKey: minioadmin #密码
-  bucketName: word-file #桶名称
+  bucketName: fish #桶名称

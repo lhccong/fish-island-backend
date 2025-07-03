@@ -17,7 +17,7 @@ import java.util.concurrent.TimeUnit;
 /**
  * Redis 实用程序
  *
- * @author liuhuaicong
+ * @author cong
  * @date 2023/10/28
  */
 @Slf4j
@@ -93,6 +93,16 @@ public class RedisUtils {
 
     public static String get(String key) {
         return stringRedisTemplate.opsForValue().get(key);
+    }
+    
+    /**
+     * 删除键
+     *
+     * @param key 要删除的键
+     * @return 是否成功删除
+     */
+    public static Boolean delete(String key) {
+        return stringRedisTemplate.delete(key);
     }
 
 }

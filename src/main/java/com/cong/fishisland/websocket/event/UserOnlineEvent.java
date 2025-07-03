@@ -7,7 +7,7 @@ import org.springframework.context.ApplicationEvent;
 /**
  * 用户在线活动
  *
- * @author liuhuaicong
+ * @author cong
  * @date 2023/10/31
  */
 @Getter

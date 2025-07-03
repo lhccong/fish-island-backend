@@ -5,7 +5,7 @@ import lombok.extern.slf4j.Slf4j;
 /**
  * 全局未捕获异常处理程序
  *
- * @author liuhuaicong
+ * @author cong
  * @date 2023/10/31
  */
 @Slf4j

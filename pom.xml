@@ -20,12 +20,6 @@
         <netty-all.version>4.1.76.Final</netty-all.version>
     </properties>
     <dependencies>
-        <!-- 开箱即用的整合第三方登录的开源组件 -->
-        <dependency>
-            <groupId>me.zhyd.oauth</groupId>
-            <artifactId>JustAuth</artifactId>
-            <version>1.16.7</version>
-        </dependency>
         <dependency>
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-webflux</artifactId>
@@ -145,6 +139,12 @@
         <dependency>
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-mail</artifactId>
+        </dependency>
+        <!-- https://mvnrepository.com/artifact/commons-validator/commons-validator -->
+        <dependency>
+            <groupId>commons-validator</groupId>
+            <artifactId>commons-validator</artifactId>
+            <version>1.9.0</version>
         </dependency>
         <!-- https://github.com/alibaba/easyexcel -->
         <dependency>
