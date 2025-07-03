@@ -3,7 +3,11 @@ package com.cong.fishisland.model.entity.game;
 import com.cong.fishisland.model.enums.RoomStatusEnum;
 import lombok.Data;
 
+import java.util.ArrayList;
 import java.util.Date;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
 import java.util.Set;
 
 /**
@@ -24,6 +28,11 @@ public class UndercoverRoom {
      * 参与者ID列表
      */
     private Set<Long> participantIds;
+    
+    /**
+     * 有序的参与者ID列表（保存打乱后的玩家顺序）
+     */
+    private List<Long> orderedParticipantIds = new ArrayList<>();
 
     /**
      * 卧底玩家ID列表
@@ -74,4 +83,14 @@ public class UndercoverRoom {
      * 房间最大人数
      */
     private Integer maxPlayers;
+    
+    /**
+     * 游戏模式：1-常规模式(默认)，2-卧底猜词模式
+     */
+    private Integer gameMode = 1;
+    
+    /**
+     * 卧底猜词次数记录，key为卧底用户ID，value为已猜词次数
+     */
+    private Map<Long, Integer> guessCountMap = new HashMap<>();
 } 

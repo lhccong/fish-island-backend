@@ -58,6 +58,16 @@ public interface UndercoverGameRedisKey {
     String USED_WORD_PAIRS = BASE_KEY + "used_word_pairs";
     
     /**
+     * 卧底猜词次数键（记录卧底已猜词次数）
+     */
+    String PLAYER_GUESS_COUNT = BASE_KEY + "room:%s:player:%d:guess_count";
+    
+    /**
+     * 卧底猜词最大次数
+     */
+    int MAX_GUESS_COUNT = 3;
+    
+    /**
      * 获取完整的 Redis 键
      *
      * @param key      键模板

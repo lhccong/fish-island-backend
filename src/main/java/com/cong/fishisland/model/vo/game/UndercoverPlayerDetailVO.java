@@ -35,4 +35,14 @@ public class UndercoverPlayerDetailVO {
      * 收到的票数
      */
     private Integer voteCount;
+    
+    /**
+     * 已猜词次数（仅卧底猜词模式下有效）
+     */
+    private Integer guessCount;
+    
+    /**
+     * 剩余猜词次数（仅卧底猜词模式下有效）
+     */
+    private Integer remainingGuessCount;
 } 

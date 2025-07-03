@@ -34,4 +34,10 @@ public class UndercoverRoomCreateRequest {
      */
     @ApiModelProperty("房间最大人数")
     private Integer maxPlayers;
+    
+    /**
+     * 游戏模式：1-常规模式(默认)，2-卧底猜词模式
+     */
+    @ApiModelProperty("游戏模式：1-常规模式(默认)，2-卧底猜词模式")
+    private Integer gameMode = 1;
 } 

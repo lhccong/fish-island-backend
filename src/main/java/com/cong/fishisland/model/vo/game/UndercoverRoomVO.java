@@ -34,6 +34,11 @@ public class UndercoverRoomVO {
      * 参与者ID列表
      */
     private Set<Long> participantIds;
+    
+    /**
+     * 有序的参与者ID列表（保存打乱后的玩家顺序）
+     */
+    private List<Long> orderedParticipantIds;
 
     /**
      * 参与者详细信息列表
@@ -89,4 +94,9 @@ public class UndercoverRoomVO {
      * 游戏结果
      */
     private String gameResult;
+    
+    /**
+     * 游戏模式：1-常规模式(默认)，2-卧底猜词模式
+     */
+    private Integer gameMode;
 } 

@@ -29,4 +29,14 @@ public class UndercoverPlayerVO {
      * 是否被淘汰
      */
     private Boolean isEliminated;
+
+    /**
+     * 已猜词次数（仅卧底猜词模式下有效）
+     */
+    private Integer guessCount;
+
+    /**
+     * 剩余猜词次数（仅卧底猜词模式下有效）
+     */
+    private Integer remainingGuessCount;
 } 
