@@ -66,6 +66,11 @@ public class UndercoverRoomVO {
     private Integer duration;
 
     /**
+     * 角色
+     */
+    private String role;
+
+    /**
      * 剩余时间（秒）
      */
     private Integer remainingTime;

@@ -41,6 +41,14 @@ public interface UndercoverGameService {
     boolean joinRoom(String roomId);
 
     /**
+     * 退出游戏房间
+     *
+     * @param roomId 房间ID
+     * @return 是否成功退出
+     */
+    boolean quitRoom(String roomId);
+
+    /**
      * 开始游戏（仅管理员）
      *
      * @param roomId 房间ID
