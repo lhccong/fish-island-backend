@@ -33,18 +33,18 @@ ALTER TABLE user
     ADD COLUMN avatarFramerUrl  VARCHAR(256) NULL COMMENT '用户头像框地址' after userAvatar,
     ADD COLUMN avatarFramerList VARCHAR(256) NULL COMMENT '用户头像框 ID Json 列表' after avatarFramerUrl;
 ALTER TABLE user
-    ADD COLUMN titleId  int NULL default 0 COMMENT '用户称号 ID 默认为 0 等级称号 -1 为管理员称号' after userAvatar;
+    ADD COLUMN titleId int NULL default 0 COMMENT '用户称号 ID 默认为 0 等级称号 -1 为管理员称号' after userAvatar;
 ALTER TABLE user
     ADD COLUMN titleIdList VARCHAR(256) NULL COMMENT '用户称号 ID Json 列表' after titleId;
 
 -- 用户称号表
 create table if not exists user_title
 (
-    titleId        BIGINT auto_increment comment '称号 ID' PRIMARY KEY,
-    name           VARCHAR(256) comment '称号名称',
-    createTime     datetime default CURRENT_TIMESTAMP not null comment '创建时间',
-    updateTime     datetime default CURRENT_TIMESTAMP not null on update CURRENT_TIMESTAMP comment '更新时间',
-    isDelete       tinyint  default 0                 not null comment '是否删除'
+    titleId    BIGINT auto_increment comment '称号 ID' PRIMARY KEY,
+    name       VARCHAR(256) comment '称号名称',
+    createTime datetime default CURRENT_TIMESTAMP not null comment '创建时间',
+    updateTime datetime default CURRENT_TIMESTAMP not null on update CURRENT_TIMESTAMP comment '更新时间',
+    isDelete   tinyint  default 0                 not null comment '是否删除'
 ) comment '用户称号' collate = utf8mb4_unicode_ci;
 
 -- 头像框表
@@ -72,45 +72,90 @@ create table if not exists user_points
     isDelete       tinyint  default 0                 not null comment '是否删除'
 ) comment '用户积分' collate = utf8mb4_unicode_ci;
 
--- 帖子表
-create table if not exists post
+-- 标签表
+create table if not exists tags
 (
-    id         bigint auto_increment comment 'id' primary key,
-    title      varchar(512)                       null comment '标题',
-    content    text                               null comment '内容',
-    tags       varchar(1024)                      null comment '标签列表（json 数组）',
-    thumbNum   int      default 0                 not null comment '点赞数',
-    favourNum  int      default 0                 not null comment '收藏数',
-    userId     bigint                             not null comment '创建用户 id',
+    id         bigint auto_increment comment '标签id' primary key,
+    tagsName   varchar(256)                       null comment '标签名',
+    type       tinyint  default 0                 null comment '类型（0 官方创建，1 用户自定义）',
     createTime datetime default CURRENT_TIMESTAMP not null comment '创建时间',
     updateTime datetime default CURRENT_TIMESTAMP not null on update CURRENT_TIMESTAMP comment '更新时间',
     isDelete   tinyint  default 0                 not null comment '是否删除',
+    index idx_tagsId (id)
+) comment '标签表' collate = utf8mb4_general_ci;
+
+-- 评论表
+create table if not exists comment
+(
+    id         bigint auto_increment comment '评论id' primary key,
+    postId     bigint                             not null comment '所属帖子id',
+    userId     bigint                             not null comment '评论者用户id',
+    parentId   bigint   default null comment '父评论id（为NULL则是顶级评论）',
+    content    text                               not null comment '评论内容',
+    thumbNum   int      default 0                 not null comment '点赞数',
+    createTime datetime default CURRENT_TIMESTAMP not null comment '创建时间',
+    updateTime datetime default CURRENT_TIMESTAMP not null on update CURRENT_TIMESTAMP comment '更新时间',
+    isDelete   tinyint  default 0                 not null comment '是否删除',
+    index idx_postId (postId),
+    index idx_userId (userId),
+    index idx_parentId (parentId)
+) COMMENT '评论表' COLLATE = utf8mb4_unicode_ci;
+
+-- 评论点赞表（硬删除）
+create table if not exists comment_thumb
+(
+    id         bigint auto_increment comment '评论点赞id' primary key,
+    commentId  bigint                             not null comment '评论id',
+    userId     bigint                             not null comment '创建用户id',
+    createTime datetime default CURRENT_TIMESTAMP not null comment '创建时间',
+    updateTime datetime default CURRENT_TIMESTAMP not null on update CURRENT_TIMESTAMP comment '更新时间',
+    index idx_postId (commentId),
     index idx_userId (userId)
-) comment '帖子' collate = utf8mb4_unicode_ci;
+) comment '评论点赞表';
+
+-- 帖子表
+create table if not exists post
+(
+    id         bigint auto_increment comment '帖子id' primary key,
+    title      varchar(512)                       null comment '标题',
+    content    text                               null comment '内容',
+    tags       varchar(1024)                      null comment '标签列表（json 数组）',
+    coverImage varchar(512)                       null comment '封面图片URL',
+    thumbNum   int      default 0                 not null comment '点赞数',
+    favourNum  int      default 0                 not null comment '收藏数',
+    viewNum    int      default 0                 not null comment '浏览量',
+    userId     bigint                             not null comment '创建用户id',
+    createTime datetime default CURRENT_TIMESTAMP not null comment '创建时间',
+    updateTime datetime default CURRENT_TIMESTAMP not null on update CURRENT_TIMESTAMP comment '更新时间',
+    isDelete   tinyint  default 0                 not null comment '是否删除',
+    isFeatured tinyint  default 0                 not null comment '是否加精（0-普通，1-加精）',
+    index idx_userId (userId),
+    index idx_featured (isFeatured)
+) comment '帖子表' collate = utf8mb4_unicode_ci;
 
 -- 帖子点赞表（硬删除）
 create table if not exists post_thumb
 (
-    id         bigint auto_increment comment 'id' primary key,
-    postId     bigint                             not null comment '帖子 id',
-    userId     bigint                             not null comment '创建用户 id',
+    id         bigint auto_increment comment '帖子点赞id' primary key,
+    postId     bigint                             not null comment '帖子id',
+    userId     bigint                             not null comment '创建用户id',
     createTime datetime default CURRENT_TIMESTAMP not null comment '创建时间',
     updateTime datetime default CURRENT_TIMESTAMP not null on update CURRENT_TIMESTAMP comment '更新时间',
     index idx_postId (postId),
     index idx_userId (userId)
-) comment '帖子点赞';
+) comment '帖子点赞表';
 
 -- 帖子收藏表（硬删除）
 create table if not exists post_favour
 (
-    id         bigint auto_increment comment 'id' primary key,
-    postId     bigint                             not null comment '帖子 id',
-    userId     bigint                             not null comment '创建用户 id',
+    id         bigint auto_increment comment '帖子收藏id' primary key,
+    postId     bigint                             not null comment '帖子id',
+    userId     bigint                             not null comment '创建用户id',
     createTime datetime default CURRENT_TIMESTAMP not null comment '创建时间',
     updateTime datetime default CURRENT_TIMESTAMP not null on update CURRENT_TIMESTAMP comment '更新时间',
     index idx_postId (postId),
     index idx_userId (userId)
-) comment '帖子收藏';
+) comment '帖子收藏表';
 
 -- 热点表
 create table if not exists hot_post

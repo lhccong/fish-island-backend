@@ -1,4 +1,4 @@
-package com.cong.fishisland.model.vo;
+package com.cong.fishisland.model.vo.post;
 
 import cn.hutool.json.JSONUtil;
 import com.cong.fishisland.model.entity.post.Post;
@@ -6,6 +6,7 @@ import java.io.Serializable;
 import java.util.Date;
 import java.util.List;
 
+import com.cong.fishisland.model.vo.comment.CommentVO;
 import com.cong.fishisland.model.vo.user.UserVO;
 import lombok.Data;
 import org.springframework.beans.BeanUtils;
@@ -33,6 +34,11 @@ public class PostVO implements Serializable {
     private String content;
 
     /**
+     * 封面图片
+     */
+    private String coverImage;
+
+    /**
      * 点赞数
      */
     private Integer thumbNum;
@@ -41,6 +47,11 @@ public class PostVO implements Serializable {
      * 收藏数
      */
     private Integer favourNum;
+
+    /**
+     * 浏览数
+     */
+    private Integer viewNum;
 
     /**
      * 创建用户 id
@@ -76,6 +87,21 @@ public class PostVO implements Serializable {
      * 是否已收藏
      */
     private Boolean hasFavour;
+
+    /**
+     * 是否加精（0-普通，1-加精）
+     */
+    private Integer isFeatured;
+
+    /**
+     * 评论数
+     */
+    private Integer commentNum;
+
+    /**
+     * 最新一条评论
+     */
+    private CommentVO latestComment;
 
     /**
      * 包装类转对象

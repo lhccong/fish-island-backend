@@ -1,4 +1,4 @@
-package com.cong.fishisland.model.entity.post;
+package com.cong.fishisland.model.entity.comment;
 
 import com.baomidou.mybatisplus.annotation.IdType;
 import com.baomidou.mybatisplus.annotation.TableField;
@@ -9,26 +9,25 @@ import java.util.Date;
 import lombok.Data;
 
 /**
- * 帖子点赞
- * # @author <a href="https://github.com/lhccong">程序员聪</a>
+ * 评论点赞表
+ * @TableName comment_thumb
  */
-@TableName(value = "post_thumb")
+@TableName(value ="comment_thumb")
 @Data
-public class PostThumb implements Serializable {
-
+public class CommentThumb implements Serializable {
     /**
-     * id
+     * 评论点赞id
      */
     @TableId(type = IdType.ASSIGN_ID)
     private Long id;
 
     /**
-     * 帖子 id
+     * 评论id
      */
-    private Long postId;
+    private Long commentId;
 
     /**
-     * 创建用户 id
+     * 创建用户id
      */
     private Long userId;
 
