@@ -75,7 +75,7 @@ public class UndercoverGameServiceImpl implements UndercoverGameService {
         if (request == null) {
             throw new BusinessException(ErrorCode.PARAMS_ERROR, "请求参数不能为空");
         }
-        
+
         // 如果平民词语或卧底词语为空，从文件中随机读取一对词语
         if (StringUtils.isBlank(request.getCivilianWord()) || StringUtils.isBlank(request.getUndercoverWord())) {
             try {
@@ -92,7 +92,7 @@ public class UndercoverGameServiceImpl implements UndercoverGameService {
                 throw new BusinessException(ErrorCode.SYSTEM_ERROR, "读取词语文件失败");
             }
         }
-        
+
         // 再次验证词语是否为空
         if (StringUtils.isBlank(request.getCivilianWord())) {
             throw new BusinessException(ErrorCode.PARAMS_ERROR, "平民词语不能为空");
@@ -100,7 +100,7 @@ public class UndercoverGameServiceImpl implements UndercoverGameService {
         if (StringUtils.isBlank(request.getUndercoverWord())) {
             throw new BusinessException(ErrorCode.PARAMS_ERROR, "卧底词语不能为空");
         }
-        
+
         if (request.getDuration() == null || request.getDuration() < 60) {
             throw new BusinessException(ErrorCode.PARAMS_ERROR, "游戏持续时间不能少于60秒");
         }
@@ -544,6 +544,26 @@ public class UndercoverGameServiceImpl implements UndercoverGameService {
                 webSocketService.sendToAllOnline(WSBaseResp.builder()
                         .type(MessageTypeEnum.UNDERCOVER.getType())
                         .data(messageWrapper).build());
+                
+                // 获取顺序第一个玩家并提醒他开始发言
+                if (room.getOrderedParticipantIds() != null && !room.getOrderedParticipantIds().isEmpty()) {
+                    Long firstPlayerId = room.getOrderedParticipantIds().get(0);
+                    User firstPlayer = userService.getById(firstPlayerId);
+                    if (firstPlayer != null) {
+                        String firstPlayerMessage = "请玩家【" + firstPlayer.getUserName() + "】开始发言，描述自己拿到的词语！";
+                        MessageWrapper firstPlayerNotice = getSystemMessageWrapper(firstPlayerMessage);
+                        webSocketService.sendToAllOnline(WSBaseResp.builder()
+                                .type(MessageTypeEnum.UNDERCOVER.getType())
+                                .data(firstPlayerNotice).build());
+                        
+                        // 单独给第一个玩家发送提醒
+                        WSBaseResp<Object> infoResp = WSBaseResp.builder()
+                                .type(MessageTypeEnum.INFO.getType())
+                                .data("轮到你发言了！请描述你拿到的词语，但不要直接说出来")
+                                .build();
+                        webSocketService.sendToUid(infoResp, firstPlayerId);
+                    }
+                }
 
                 webSocketService.sendToAllOnline(WSBaseResp.builder()
                         .type(MessageTypeEnum.GAME_STAR.getType())
@@ -572,7 +592,7 @@ public class UndercoverGameServiceImpl implements UndercoverGameService {
         Sender sender = new Sender();
         sender.setId("-1");
         sender.setName("摸鱼小助手");
-        sender.setAvatar("https://img0.baidu.com/it/u=2800162563,662186408&fm=253&fmt=auto&app=138&f=JPEG?w=500&h=500");
+        sender.setAvatar("https://s1.aigei.com/src/img/gif/41/411d8d587bfc41aeaadfb44ae246da0d.gif?imageMogr2/auto-orient/thumbnail/!282x282r/gravity/Center/crop/282x282/quality/85/%7CimageView2/2/w/282&e=2051020800&token=P7S2Xpzfz11vAkASLTkfHN7Fw-oOZBecqeJaxypL:OU5w-4wX8swq04CJ3p4N0tl_J7E=");
         sender.setPoints(0);
         sender.setLevel(1);
         sender.setUserProfile("");
@@ -613,9 +633,13 @@ public class UndercoverGameServiceImpl implements UndercoverGameService {
         room.getUndercoverIds().clear();
         room.getCivilianIds().clear();
 
-        // 分配角色
-        for (int i = 0; i < participants.size(); i++) {
-            Long userId = participants.get(i);
+        // 创建一个玩家ID列表的副本，并再次打乱，用于角色分配
+        List<Long> shuffledForRoles = new ArrayList<>(participants);
+        Collections.shuffle(shuffledForRoles);
+
+        // 分配角色 - 从打乱后的列表中选择卧底
+        for (int i = 0; i < shuffledForRoles.size(); i++) {
+            Long userId = shuffledForRoles.get(i);
             if (i < undercoverCount) {
                 room.getUndercoverIds().add(userId);
                 // 存储玩家角色信息
@@ -1731,7 +1755,7 @@ public class UndercoverGameServiceImpl implements UndercoverGameService {
                             endGame(roomId);
                         }
                     } else {
-                        message = "卧底" + loginUser.getUserName() + "猜词「" + guessWord + "」错误，还有" + (UndercoverGameRedisKey.MAX_GUESS_COUNT - guessCount) + "次猜词机会！";
+                        message = "卧底猜词「" + guessWord + "」错误，还有" + (UndercoverGameRedisKey.MAX_GUESS_COUNT - guessCount) + "次猜词机会！";
                     }
                     
                     MessageWrapper messageWrapper = getSystemMessageWrapper(message);
