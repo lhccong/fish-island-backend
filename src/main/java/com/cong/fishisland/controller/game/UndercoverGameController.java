@@ -74,8 +74,8 @@ public class UndercoverGameController {
      */
     @GetMapping("/room/active")
     @ApiOperation(value = "获取当前活跃房间")
-    public BaseResponse<UndercoverRoomVO> getActiveRoom() {
-        UndercoverRoomVO roomVO = undercoverGameService.getActiveRoom();
+    public BaseResponse<UndercoverRoomVO> getActiveRoom(String roomId) {
+        UndercoverRoomVO roomVO = undercoverGameService.getRoomById(roomId);
         return ResultUtils.success(roomVO);
     }
 

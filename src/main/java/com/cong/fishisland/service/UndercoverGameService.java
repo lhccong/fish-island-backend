@@ -31,6 +31,14 @@ public interface UndercoverGameService {
      * @return 房间信息，如果没有活跃房间则返回null
      */
     UndercoverRoomVO getActiveRoom();
+    
+    /**
+     * 根据房间ID获取房间信息
+     *
+     * @param roomId 房间ID
+     * @return 房间信息
+     */
+    UndercoverRoomVO getRoomById(String roomId);
 
     /**
      * 加入游戏房间
