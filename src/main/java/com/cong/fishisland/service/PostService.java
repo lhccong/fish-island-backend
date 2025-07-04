@@ -5,7 +5,7 @@ import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.baomidou.mybatisplus.extension.service.IService;
 import com.cong.fishisland.model.dto.post.PostQueryRequest;
 import com.cong.fishisland.model.entity.post.Post;
-import com.cong.fishisland.model.vo.PostVO;
+import com.cong.fishisland.model.vo.post.PostVO;
 
 /**
  * 帖子服务
@@ -53,4 +53,10 @@ public interface PostService extends IService<Post> {
      * @return {@link Page}<{@link PostVO}>
      */
     Page<PostVO> getPostVOPage(Page<Post> postPage);
+
+    /**
+     * 增加帖子浏览数
+     * @param postId 帖子id
+     */
+    void incrementViewCountAsync(Long postId);
 }

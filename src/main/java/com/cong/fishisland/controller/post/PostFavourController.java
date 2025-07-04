@@ -11,7 +11,7 @@ import com.cong.fishisland.model.dto.postfavour.PostFavourAddRequest;
 import com.cong.fishisland.model.dto.postfavour.PostFavourQueryRequest;
 import com.cong.fishisland.model.entity.post.Post;
 import com.cong.fishisland.model.entity.user.User;
-import com.cong.fishisland.model.vo.PostVO;
+import com.cong.fishisland.model.vo.post.PostVO;
 import com.cong.fishisland.service.PostFavourService;
 import com.cong.fishisland.service.PostService;
 import com.cong.fishisland.service.UserService;

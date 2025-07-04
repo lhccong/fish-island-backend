@@ -39,6 +39,11 @@ public class Post implements Serializable {
     private String tags;
 
     /**
+     * 封面图片
+     */
+    private String coverImage;
+
+    /**
      * 点赞数
      */
     private Integer thumbNum;
@@ -47,6 +52,11 @@ public class Post implements Serializable {
      * 收藏数
      */
     private Integer favourNum;
+
+    /**
+     * 浏览量
+     */
+    private Integer viewNum;
 
     /**
      * 创建用户 id
@@ -68,6 +78,11 @@ public class Post implements Serializable {
      */
     @TableLogic
     private Integer isDelete;
+
+    /**
+     * 是否加精（0-普通，1-加精）
+     */
+    private Integer isFeatured;
 
     @TableField(exist = false)
     private static final long serialVersionUID = 1L;

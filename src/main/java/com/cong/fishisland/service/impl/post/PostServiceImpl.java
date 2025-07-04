@@ -1,12 +1,14 @@
 package com.cong.fishisland.service.impl.post;
 
+import cn.hutool.core.collection.CollUtil;
 import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
+import com.baomidou.mybatisplus.core.conditions.update.UpdateWrapper;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import com.cong.fishisland.common.ErrorCode;
-import com.cong.fishisland.constant.CommonConstant;
 import com.cong.fishisland.common.exception.BusinessException;
 import com.cong.fishisland.common.exception.ThrowUtils;
+import com.cong.fishisland.constant.CommonConstant;
 import com.cong.fishisland.mapper.post.PostFavourMapper;
 import com.cong.fishisland.mapper.post.PostMapper;
 import com.cong.fishisland.mapper.post.PostThumbMapper;
@@ -15,25 +17,25 @@ import com.cong.fishisland.model.entity.post.Post;
 import com.cong.fishisland.model.entity.post.PostFavour;
 import com.cong.fishisland.model.entity.post.PostThumb;
 import com.cong.fishisland.model.entity.user.User;
-import com.cong.fishisland.model.vo.PostVO;
+import com.cong.fishisland.model.vo.post.PostVO;
 import com.cong.fishisland.model.vo.user.UserVO;
+import com.cong.fishisland.service.CommentService;
 import com.cong.fishisland.service.PostService;
 import com.cong.fishisland.service.UserService;
 import com.cong.fishisland.utils.SqlUtils;
+import lombok.extern.slf4j.Slf4j;
+import org.apache.commons.lang3.ObjectUtils;
+import org.apache.commons.lang3.StringUtils;
+import org.springframework.scheduling.annotation.Async;
+import org.springframework.stereotype.Service;
+import toolgood.words.StringSearch;
 
+import javax.annotation.Resource;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
-import javax.annotation.Resource;
-
-import lombok.extern.slf4j.Slf4j;
-import cn.hutool.core.collection.CollUtil;
-import org.apache.commons.lang3.ObjectUtils;
-import org.apache.commons.lang3.StringUtils;
-
-import org.springframework.stereotype.Service;
 
 import static com.cong.fishisland.constant.PostConstant.POST_ID;
 
@@ -54,6 +56,20 @@ public class PostServiceImpl extends ServiceImpl<PostMapper, Post> implements Po
     @Resource
     private PostFavourMapper postFavourMapper;
 
+    @Resource
+    private StringSearch wordsUtil;
+
+    @Resource
+    private CommentService commentService;
+
+    @Override
+    @Async
+    public void incrementViewCountAsync(Long postId) {
+        // 使用原子操作更新数据库
+        update(new UpdateWrapper<Post>()
+                .setSql("viewNum = viewNum + 1")
+                .eq("id", postId));
+    }
 
     @Override
     public void validPost(Post post, boolean add) {
@@ -63,9 +79,25 @@ public class PostServiceImpl extends ServiceImpl<PostMapper, Post> implements Po
         String title = post.getTitle();
         String content = post.getContent();
         String tags = post.getTags();
-        // 创建时，参数不能为空
-        if (add) {
-            ThrowUtils.throwIf(StringUtils.isAnyBlank(title, content, tags), ErrorCode.PARAMS_ERROR);
+
+        ThrowUtils.throwIf(StringUtils.isBlank(title), ErrorCode.PARAMS_ERROR, "标题不能为空");
+        ThrowUtils.throwIf(StringUtils.isBlank(content), ErrorCode.PARAMS_ERROR, "内容不能为空");
+        ThrowUtils.throwIf(StringUtils.isBlank(tags), ErrorCode.PARAMS_ERROR, "标签不能为空");
+        // 敏感词校验（标题和内容）
+        String titleSensitiveWord = wordsUtil.FindFirst(title);
+        String contentSensitiveWord = wordsUtil.FindFirst(content);
+        // 构建敏感词提示信息
+        StringBuilder sensitiveWords = new StringBuilder();
+        if (StringUtils.isNotBlank(titleSensitiveWord)) {
+            sensitiveWords.append("标题包含敏感词: ").append(titleSensitiveWord);
+        }
+        if (StringUtils.isNotBlank(contentSensitiveWord)) {
+            if (sensitiveWords.length() > 0) sensitiveWords.append("; ");
+            sensitiveWords.append("内容包含敏感词: ").append(contentSensitiveWord);
+        }
+        // 如果有敏感词，抛出异常并提示具体敏感词
+        if (sensitiveWords.length() > 0) {
+            throw new BusinessException(ErrorCode.PARAMS_ERROR, sensitiveWords.toString());
         }
         // 有参数则校验
         if (StringUtils.isNotBlank(title) && title.length() > 80) {
@@ -88,15 +120,14 @@ public class PostServiceImpl extends ServiceImpl<PostMapper, Post> implements Po
         if (postQueryRequest == null) {
             return queryWrapper;
         }
-        String searchText = postQueryRequest.getSearchText();
         String sortField = postQueryRequest.getSortField();
         String sortOrder = postQueryRequest.getSortOrder();
-        Long id = postQueryRequest.getId();
         String title = postQueryRequest.getTitle();
         String content = postQueryRequest.getContent();
         List<String> tagList = postQueryRequest.getTags();
         Long userId = postQueryRequest.getUserId();
-        Long notId = postQueryRequest.getNotId();
+        Integer isFeatured = postQueryRequest.getIsFeatured();
+        String searchText = postQueryRequest.getSearchText();
         // 拼接查询条件
         if (StringUtils.isNotBlank(searchText)) {
             queryWrapper.and(qw -> qw.like("title", searchText).or().like("content", searchText));
@@ -108,9 +139,8 @@ public class PostServiceImpl extends ServiceImpl<PostMapper, Post> implements Po
                 queryWrapper.like("tags", "\"" + tag + "\"");
             }
         }
-        queryWrapper.ne(ObjectUtils.isNotEmpty(notId), "id", notId);
-        queryWrapper.eq(ObjectUtils.isNotEmpty(id), "id", id);
         queryWrapper.eq(ObjectUtils.isNotEmpty(userId), "userId", userId);
+        queryWrapper.eq(ObjectUtils.isNotEmpty(isFeatured), "isFeatured", isFeatured);
         queryWrapper.orderBy(SqlUtils.validSortField(sortField), sortOrder.equals(CommonConstant.SORT_ORDER_ASC),
                 sortField);
         return queryWrapper;
@@ -189,12 +219,17 @@ public class PostServiceImpl extends ServiceImpl<PostMapper, Post> implements Po
             PostVO postVO = PostVO.objToVo(post);
             Long userId = post.getUserId();
             User user = null;
+            Long postId = post.getId();
             if (userIdUserListMap.containsKey(userId)) {
                 user = userIdUserListMap.get(userId).get(0);
             }
             postVO.setUser(userService.getUserVO(user));
-            postVO.setHasThumb(postIdHasThumbMap.getOrDefault(post.getId(), false));
-            postVO.setHasFavour(postIdHasFavourMap.getOrDefault(post.getId(), false));
+            postVO.setHasThumb(postIdHasThumbMap.getOrDefault(postId, false));
+            postVO.setHasFavour(postIdHasFavourMap.getOrDefault(postId, false));
+            // 获取评论数
+            postVO.setCommentNum(commentService.getCommentNum(postId));
+            // 获取最新一条评论
+            postVO.setLatestComment(commentService.getLatestComment(postId));
             return postVO;
         }).collect(Collectors.toList());
         postVoPage.setRecords(postVOList);

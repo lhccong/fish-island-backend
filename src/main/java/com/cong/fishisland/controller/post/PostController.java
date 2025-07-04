@@ -16,7 +16,7 @@ import com.cong.fishisland.model.dto.post.PostQueryRequest;
 import com.cong.fishisland.model.dto.post.PostUpdateRequest;
 import com.cong.fishisland.model.entity.post.Post;
 import com.cong.fishisland.model.entity.user.User;
-import com.cong.fishisland.model.vo.PostVO;
+import com.cong.fishisland.model.vo.post.PostVO;
 import com.cong.fishisland.service.PostService;
 import com.cong.fishisland.service.UserService;
 
@@ -71,8 +71,6 @@ public class PostController {
         postService.validPost(post, true);
         User loginUser = userService.getLoginUser();
         post.setUserId(loginUser.getId());
-        post.setFavourNum(0);
-        post.setThumbNum(0);
         boolean result = postService.save(post);
         ThrowUtils.throwIf(!result, ErrorCode.OPERATION_ERROR);
         long newPostId = post.getId();
@@ -149,6 +147,8 @@ public class PostController {
         if (post == null) {
             throw new BusinessException(ErrorCode.NOT_FOUND_ERROR);
         }
+        // 异步增加浏览量（不阻塞主线程）
+        postService.incrementViewCountAsync(id);
         return ResultUtils.success(postService.getPostVO(post));
     }
 
@@ -211,22 +211,6 @@ public class PostController {
     }
 
     // endregion
-
-    /**
-     * 分页搜索（从 ES 查询，封装类）
-     *
-     * @param postQueryRequest 发布查询请求
-     * @return {@link BaseResponse}<{@link Page}<{@link PostVO}>>
-     */
-    @PostMapping("/search/page/vo")
-    @ApiOperation(value = "分页搜索（从 ES 查询，封装类）")
-    public BaseResponse<Page<PostVO>> searchPostVoByPage(@RequestBody PostQueryRequest postQueryRequest) {
-        long size = postQueryRequest.getPageSize();
-        // 限制爬虫
-        ThrowUtils.throwIf(size > 20, ErrorCode.PARAMS_ERROR);
-        Page<Post> postPage = postService.searchFromEs(postQueryRequest);
-        return ResultUtils.success(postService.getPostVOPage(postPage));
-    }
 
     /**
      * 编辑（用户）

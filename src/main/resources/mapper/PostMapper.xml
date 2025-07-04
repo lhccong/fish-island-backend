@@ -10,18 +10,21 @@
         <result property="title" column="title" jdbcType="VARCHAR"/>
         <result property="content" column="content" jdbcType="VARCHAR"/>
         <result property="tags" column="tags" jdbcType="VARCHAR"/>
+        <result property="coverImage" column="coverImage" jdbcType="VARCHAR"/>
         <result property="thumbNum" column="thumbNum" jdbcType="BIGINT"/>
         <result property="favourNum" column="favourNum" jdbcType="BIGINT"/>
+        <result property="viewNum" column="viewNum" jdbcType="BIGINT"/>
         <result property="userId" column="userId" jdbcType="BIGINT"/>
         <result property="createTime" column="createTime" jdbcType="TIMESTAMP"/>
         <result property="updateTime" column="updateTime" jdbcType="TIMESTAMP"/>
         <result property="isDelete" column="isDelete" jdbcType="TINYINT"/>
+        <result property="isFeatured" column="isFeatured" jdbcType="TINYINT"/>
     </resultMap>
 
     <sql id="Base_Column_List">
-        id,title,content,tags,
-        thumbNum,favourNum,userId,
-        createTime,updateTime,isDelete
+        id,title,content,tags,coverImage,
+        thumbNum,favourNum,viewNum,userId,
+        createTime,updateTime,isDelete,isFeatured
     </sql>
 
     <select id="listPostWithDelete" resultType="com.cong.fishisland.model.entity.post.Post">
