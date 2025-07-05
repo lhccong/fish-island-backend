@@ -68,15 +68,27 @@ public class UndercoverGameController {
     }
 
     /**
-     * 获取当前活跃房间
+     * 根据房间ID获取房间信息
      *
      * @return 房间信息
      */
-    @GetMapping("/room/active")
-    @ApiOperation(value = "获取当前活跃房间")
-    public BaseResponse<UndercoverRoomVO> getActiveRoom(String roomId) {
+    @GetMapping("/room/byId")
+    @ApiOperation(value = "根据房间ID获取房间信息")
+    public BaseResponse<UndercoverRoomVO> getRoomById(String roomId) {
         UndercoverRoomVO roomVO = undercoverGameService.getRoomById(roomId);
         return ResultUtils.success(roomVO);
+    }
+
+    /**
+     * 获取所有房间列表
+     *
+     * @return 房间列表
+     */
+    @GetMapping("/room/list")
+    @ApiOperation(value = "获取所有房间列表")
+    public BaseResponse<List<UndercoverRoomVO>> getAllRooms() {
+        List<UndercoverRoomVO> roomList = undercoverGameService.getAllRooms();
+        return ResultUtils.success(roomList);
     }
 
     /**
@@ -87,8 +99,8 @@ public class UndercoverGameController {
     @PostMapping("/room/remove")
     @ApiOperation(value = "移除当前活跃房间（仅管理员）")
     @SaCheckRole(UserConstant.ADMIN_ROLE)
-    public BaseResponse<Boolean> removeActiveRoom() {
-        boolean result = undercoverGameService.removeActiveRoom();
+    public BaseResponse<Boolean> removeActiveRoom(String roomId) {
+        boolean result = undercoverGameService.removeActiveRoom(roomId);
         return ResultUtils.success(result);
     }
 
@@ -320,4 +332,5 @@ public class UndercoverGameController {
         boolean result = undercoverGameService.guessWord(request);
         return ResultUtils.success(result);
     }
+
 } 

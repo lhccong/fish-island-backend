@@ -54,6 +54,16 @@ public class UndercoverRoomVO {
      * 房间创建者ID
      */
     private Long creatorId;
+    
+    /**
+     * 房间创建者名称
+     */
+    private String creatorName;
+    
+    /**
+     * 房间创建者头像
+     */
+    private String creatorAvatar;
 
     /**
      * 房间创建时间

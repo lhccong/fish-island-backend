@@ -13,6 +13,9 @@ public class Message {
     @JsonProperty("id")
     private String id;
 
+    @JsonProperty("roomId")
+    private String roomId;
+
     @JsonProperty("content")
     private String content;
 

@@ -33,6 +33,13 @@ public interface UndercoverGameService {
     UndercoverRoomVO getActiveRoom();
     
     /**
+     * 获取所有房间列表
+     *
+     * @return 房间列表
+     */
+    List<UndercoverRoomVO> getAllRooms();
+    
+    /**
      * 根据房间ID获取房间信息
      *
      * @param roomId 房间ID
@@ -77,7 +84,7 @@ public interface UndercoverGameService {
      *
      * @return 是否成功移除
      */
-    boolean removeActiveRoom();
+    boolean removeActiveRoom(String roomId);
 
     /**
      * 获取玩家信息
@@ -92,7 +99,7 @@ public interface UndercoverGameService {
      * 淘汰玩家
      *
      * @param roomId 房间ID
-     * @param userId 被淘汰的用户ID
+     * @param userId 用户ID
      * @return 是否成功淘汰
      */
     boolean eliminatePlayer(String roomId, Long userId);
@@ -101,26 +108,26 @@ public interface UndercoverGameService {
      * 检查游戏是否结束
      *
      * @param roomId 房间ID
-     * @return 游戏是否结束
+     * @return 是否结束
      */
     boolean checkGameOver(String roomId);
-    
-    /**
-     * 玩家投票
-     *
-     * @param request 投票请求
-     * @return 是否投票成功
-     */
-    boolean vote(UndercoverVoteRequest request);
-    
+
     /**
      * 获取房间投票记录
      *
      * @param roomId 房间ID
-     * @return 投票记录列表
+     * @return 投票记录
      */
     List<UndercoverVoteVO> getRoomVotes(String roomId);
-    
+
+    /**
+     * 投票
+     *
+     * @param request 投票请求
+     * @return 是否成功投票
+     */
+    boolean vote(UndercoverVoteRequest request);
+
     /**
      * 获取玩家详细信息
      *
@@ -129,7 +136,7 @@ public interface UndercoverGameService {
      * @return 玩家详细信息
      */
     UndercoverPlayerDetailVO getPlayerDetailInfo(String roomId, Long userId);
-    
+
     /**
      * 获取房间内所有玩家详细信息
      *
@@ -137,12 +144,19 @@ public interface UndercoverGameService {
      * @return 玩家详细信息列表
      */
     List<UndercoverPlayerDetailVO> getRoomPlayersDetail(String roomId);
-    
+
     /**
-     * 卧底猜平民词
+     * 猜词（卧底猜词模式）
      *
      * @param request 猜词请求
      * @return 是否猜对
      */
     boolean guessWord(UndercoverGuessRequest request);
+
+    /**
+     * 按房间存活玩家顺序依次发送发言提醒，发送间隔20秒，全部玩家发送完毕后提醒投票，投票时间30秒后自动结算
+     *
+     * @param roomId 房间ID
+     */
+    void startSpeakingAndVoting(String roomId);
 } 
