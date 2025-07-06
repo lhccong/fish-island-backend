@@ -90,6 +90,7 @@ create table if not exists comment
     id         bigint auto_increment comment '评论id' primary key,
     postId     bigint                             not null comment '所属帖子id',
     userId     bigint                             not null comment '评论者用户id',
+    rootId     bigint   default null comment '根评论id',
     parentId   bigint   default null comment '父评论id（为NULL则是顶级评论）',
     content    text                               not null comment '评论内容',
     thumbNum   int      default 0                 not null comment '点赞数',

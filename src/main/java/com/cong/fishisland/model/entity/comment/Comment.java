@@ -30,6 +30,11 @@ public class Comment implements Serializable {
     private Long userId;
 
     /**
+     * 根评论id
+     */
+    private Long rootId;
+
+    /**
      * 父评论id（为NULL则是顶级评论）
      */
     private Long parentId;
