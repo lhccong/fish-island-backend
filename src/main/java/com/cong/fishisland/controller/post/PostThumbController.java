@@ -40,7 +40,7 @@ public class PostThumbController {
      * @param postThumbAddRequest 发布拇指添加请求
      * @return resultNum 本次点赞变化数
      */
-    @PostMapping("/")
+    @PostMapping("/do")
     @ApiOperation(value = "点赞 / 取消点赞")
     public BaseResponse<Integer> doThumb(@RequestBody PostThumbAddRequest postThumbAddRequest) {
         if (postThumbAddRequest == null || postThumbAddRequest.getPostId() <= 0) {

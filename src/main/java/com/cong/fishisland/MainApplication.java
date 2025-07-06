@@ -15,6 +15,7 @@ import org.springframework.scheduling.annotation.EnableScheduling;
 @SpringBootApplication()
 @MapperScan("com.cong.fishisland.mapper")
 @EnableScheduling
+@EnableAspectJAutoProxy(proxyTargetClass = true, exposeProxy = true)
 @EnableAsync
 public class MainApplication {
 
