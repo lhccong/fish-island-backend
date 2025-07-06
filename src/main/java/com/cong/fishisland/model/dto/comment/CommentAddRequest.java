@@ -14,6 +14,11 @@ public class CommentAddRequest {
     private Long postId;
 
     /**
+     * 根评论ID
+     */
+    private Long rootId;
+
+    /**
      * 父评论ID
      */
     private Long parentId;

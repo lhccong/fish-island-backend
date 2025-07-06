@@ -84,7 +84,7 @@ public class CommentServiceImpl extends ServiceImpl<CommentMapper, Comment>
         for (Comment top : topComments) {
             // 加载前3条二级评论
             List<Comment> children = this.list(new LambdaQueryWrapper<Comment>()
-                    .eq(Comment::getParentId, top.getId())
+                    .eq(Comment::getRootId, top.getId())
                     .eq(Comment::getIsDelete, 0)
                     .orderByAsc(Comment::getCreateTime)
                     .last("LIMIT 3")
@@ -145,14 +145,14 @@ public class CommentServiceImpl extends ServiceImpl<CommentMapper, Comment>
     public Page<CommentVO> getChildComments(ChildCommentQueryRequest request) {
         // 参数校验
         validChildCommentQueryRequest(request);
-        Long parentId = request.getParentId();
+        Long rootId = request.getRootId();
         int current = request.getCurrent();
         int size = request.getPageSize();
 
         // 分页查询二级评论
         Page<Comment> pageInfo = new Page<>(current, size);
         List<Comment> children = this.page(pageInfo, new LambdaQueryWrapper<Comment>()
-                .eq(Comment::getParentId, parentId)
+                .eq(Comment::getRootId, rootId)
                 .eq(Comment::getIsDelete, 0)
                 .orderByAsc(Comment::getCreateTime)
         ).getRecords();
@@ -223,7 +223,7 @@ public class CommentServiceImpl extends ServiceImpl<CommentMapper, Comment>
 
     private void validChildCommentQueryRequest(ChildCommentQueryRequest request) {
         ThrowUtils.throwIf(request == null, ErrorCode.PARAMS_ERROR, "参数为空");
-        ThrowUtils.throwIf(request.getParentId() == null, ErrorCode.PARAMS_ERROR, "父评论id不能为空");
+        ThrowUtils.throwIf(request.getRootId() == null, ErrorCode.PARAMS_ERROR, "根评论id不能为空");
         // 限制爬虫
         ThrowUtils.throwIf(request.getPageSize() > 20, ErrorCode.PARAMS_ERROR);
     }

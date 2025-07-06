@@ -8,6 +8,7 @@
             <id property="id" column="id" jdbcType="BIGINT"/>
             <result property="postId" column="postId" jdbcType="BIGINT"/>
             <result property="userId" column="userId" jdbcType="BIGINT"/>
+            <result property="rootId" column="rootId" jdbcType="BIGINT"/>
             <result property="parentId" column="parentId" jdbcType="BIGINT"/>
             <result property="content" column="content" jdbcType="VARCHAR"/>
             <result property="thumbNum" column="thumbNum" jdbcType="INTEGER"/>
@@ -17,7 +18,7 @@
     </resultMap>
 
     <sql id="Base_Column_List">
-        id,postId,userId,
+        id,postId,userId,rootId,
         parentId,content,thumbNum,
         createTime,updateTime,isDelete
     </sql>

@@ -13,7 +13,7 @@ import lombok.EqualsAndHashCode;
 @Data
 public class ChildCommentQueryRequest  extends PageRequest {
     /**
-     * 父评论id
+     * 根评论id
      */
-    private Long parentId;
+    private Long rootId;
 }

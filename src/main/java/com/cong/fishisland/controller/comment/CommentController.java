@@ -51,6 +51,7 @@ public class CommentController {
         User loginUser = userService.getLoginUser();
         Comment comment = new Comment();
         comment.setPostId(request.getPostId());
+        comment.setRootId(request.getRootId());
         comment.setParentId(request.getParentId());
         comment.setContent(request.getContent());
         comment.setUserId(loginUser.getId());
