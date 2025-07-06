@@ -20,7 +20,7 @@ public interface UndercoverGameRedisKey {
     /**
      * 房间信息键
      */
-    String ROOM_INFO = BASE_KEY + "room:%s";
+    String ROOM_INFO = BASE_KEY + "roomInfo:%s";
     
     /**
      * 玩家身份键
