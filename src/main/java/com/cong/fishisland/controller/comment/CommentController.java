@@ -68,11 +68,11 @@ public class CommentController {
     @PostMapping("/delete")
     @ApiOperation(value = "删除评论")
     public BaseResponse<Boolean> deletePost(@RequestBody DeleteRequest deleteRequest) {
-        if (deleteRequest == null || deleteRequest.getId() <= 0) {
+        if (deleteRequest == null || Long.parseLong(deleteRequest.getId()) <= 0) {
             throw new BusinessException(ErrorCode.PARAMS_ERROR);
         }
         User user = userService.getLoginUser();
-        long id = deleteRequest.getId();
+        long id = Long.parseLong(deleteRequest.getId());
         // 判断是否存在
         Comment oldComment = commentService.getById(id);
         ThrowUtils.throwIf(oldComment == null, ErrorCode.NOT_FOUND_ERROR);

@@ -80,11 +80,11 @@ public class ${upperDataKey}Controller {
     @PostMapping("/delete")
     @ApiOperation(value = "删除${dataName}")
     public BaseResponse<Boolean> delete${upperDataKey}(@RequestBody DeleteRequest deleteRequest) {
-        if (deleteRequest == null || deleteRequest.getId() <= 0) {
+        if (deleteRequest == null || Long.parseLong(deleteRequest.getId()) <= 0) {
             throw new BusinessException(ErrorCode.PARAMS_ERROR);
         }
         User user = userService.getLoginUser();
-        long id = deleteRequest.getId();
+        long id = Long.parseLong(deleteRequest.getId());
         // 判断是否存在
         ${upperDataKey} old${upperDataKey} = ${dataKey}Service.getById(id);
         ThrowUtils.throwIf(old${upperDataKey} == null, ErrorCode.NOT_FOUND_ERROR);

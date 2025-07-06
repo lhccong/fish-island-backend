@@ -305,10 +305,10 @@ public class UserController {
     @SaCheckRole(UserConstant.ADMIN_ROLE)
     @ApiOperation(value = "删除用户")
     public BaseResponse<Boolean> deleteUser(@RequestBody DeleteRequest deleteRequest) {
-        if (deleteRequest == null || deleteRequest.getId() <= 0) {
+        if (deleteRequest == null || Long.parseLong(deleteRequest.getId()) <= 0) {
             throw new BusinessException(ErrorCode.PARAMS_ERROR);
         }
-        boolean b = userService.removeById(deleteRequest.getId());
+        boolean b = userService.removeById(Long.parseLong(deleteRequest.getId()));
         return ResultUtils.success(b);
     }
 

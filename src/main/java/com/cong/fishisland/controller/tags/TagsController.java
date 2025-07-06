@@ -77,11 +77,11 @@ public class TagsController {
     @ApiOperation(value = "删除标签（仅管理员可用）")
     @SaCheckRole(UserConstant.ADMIN_ROLE)
     public BaseResponse<Boolean> deleteTags(@RequestBody DeleteRequest deleteRequest) {
-        if (deleteRequest == null || deleteRequest.getId() <= 0) {
+        if (deleteRequest == null || Long.parseLong(deleteRequest.getId()) <= 0) {
             throw new BusinessException(ErrorCode.PARAMS_ERROR);
         }
         User user = userService.getLoginUser();
-        long id = deleteRequest.getId();
+        long id = Long.parseLong(deleteRequest.getId());
         // 判断是否存在
         Tags oldTags = tagsService.getById(id);
         ThrowUtils.throwIf(oldTags == null, ErrorCode.NOT_FOUND_ERROR);

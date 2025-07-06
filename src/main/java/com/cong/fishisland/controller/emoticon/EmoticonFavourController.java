@@ -59,7 +59,7 @@ public class EmoticonFavourController{
     public BaseResponse<Boolean> deleteEmoticonFavour(@RequestBody DeleteRequest deleteRequest) {
         // 登录才能操作
         final User loginUser = userService.getLoginUser();
-        long id = deleteRequest.getId();
+        long id = Long.parseLong(deleteRequest.getId());
         // 判断是否存在
         EmoticonFavour oldEmoticonFavour = emoticonFavourService.getById(id);
         ThrowUtils.throwIf(oldEmoticonFavour == null, ErrorCode.NOT_FOUND_ERROR, "收藏表情包不存在");

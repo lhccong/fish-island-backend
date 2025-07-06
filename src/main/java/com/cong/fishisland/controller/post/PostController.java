@@ -86,11 +86,11 @@ public class PostController {
     @PostMapping("/delete")
     @ApiOperation(value = "删除帖子")
     public BaseResponse<Boolean> deletePost(@RequestBody DeleteRequest deleteRequest) {
-        if (deleteRequest == null || deleteRequest.getId() <= 0) {
+        if (deleteRequest == null || Long.parseLong(deleteRequest.getId()) <= 0) {
             throw new BusinessException(ErrorCode.PARAMS_ERROR);
         }
         User user = userService.getLoginUser();
-        long id = deleteRequest.getId();
+        long id = Long.parseLong(deleteRequest.getId());
         // 判断是否存在
         Post oldPost = postService.getById(id);
         ThrowUtils.throwIf(oldPost == null, ErrorCode.NOT_FOUND_ERROR);
@@ -112,7 +112,7 @@ public class PostController {
     @SaCheckRole(UserConstant.ADMIN_ROLE)
     @ApiOperation(value = "更新（仅管理员）")
     public BaseResponse<Boolean> updatePost(@RequestBody PostUpdateRequest postUpdateRequest) {
-        if (postUpdateRequest == null || postUpdateRequest.getId() <= 0) {
+        if (postUpdateRequest == null || Long.parseLong(postUpdateRequest.getId()) <= 0) {
             throw new BusinessException(ErrorCode.PARAMS_ERROR);
         }
         Post post = new Post();
@@ -123,7 +123,7 @@ public class PostController {
         }
         // 参数校验
         postService.validPost(post, false);
-        long id = postUpdateRequest.getId();
+        long id = Long.parseLong(postUpdateRequest.getId());
         // 判断是否存在
         Post oldPost = postService.getById(id);
         ThrowUtils.throwIf(oldPost == null, ErrorCode.NOT_FOUND_ERROR);
@@ -221,7 +221,7 @@ public class PostController {
     @PostMapping("/edit")
     @ApiOperation(value = "编辑（用户）")
     public BaseResponse<Boolean> editPost(@RequestBody PostEditRequest postEditRequest) {
-        if (postEditRequest == null || postEditRequest.getId() <= 0) {
+        if (postEditRequest == null || Long.parseLong(postEditRequest.getId()) <= 0) {
             throw new BusinessException(ErrorCode.PARAMS_ERROR);
         }
         Post post = new Post();
@@ -233,7 +233,7 @@ public class PostController {
         // 参数校验
         postService.validPost(post, false);
         User loginUser = userService.getLoginUser();
-        long id = postEditRequest.getId();
+        long id = Long.parseLong(postEditRequest.getId());
         // 判断是否存在
         Post oldPost = postService.getById(id);
         ThrowUtils.throwIf(oldPost == null, ErrorCode.NOT_FOUND_ERROR);

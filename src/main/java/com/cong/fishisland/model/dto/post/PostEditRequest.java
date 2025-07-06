@@ -14,7 +14,7 @@ public class PostEditRequest implements Serializable {
     /**
      * id
      */
-    private Long id;
+    private String id;
 
     /**
      * 标题

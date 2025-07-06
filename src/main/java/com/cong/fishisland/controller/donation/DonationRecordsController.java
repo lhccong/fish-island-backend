@@ -54,10 +54,10 @@ public class DonationRecordsController {
     @ApiOperation(value = "删除打赏记录")
     @SaCheckRole(UserConstant.ADMIN_ROLE)
     public BaseResponse<Boolean> deleteDonation(@RequestBody DeleteRequest deleteRequest) {
-        if (deleteRequest == null || deleteRequest.getId() <= 0) {
+        if (deleteRequest == null || Long.parseLong(deleteRequest.getId()) <= 0) {
             throw new BusinessException(ErrorCode.PARAMS_ERROR);
         }
-        boolean b = donationRecordsService.removeById(deleteRequest.getId());
+        boolean b = donationRecordsService.removeById(Long.parseLong(deleteRequest.getId()));
         return ResultUtils.success(b);
     }
 
