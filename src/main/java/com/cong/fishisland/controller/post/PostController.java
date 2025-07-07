@@ -226,6 +226,7 @@ public class PostController {
         }
         Post post = new Post();
         BeanUtils.copyProperties(postEditRequest, post);
+        post.setId(Long.parseLong(postEditRequest.getId()));
         List<String> tags = postEditRequest.getTags();
         if (tags != null) {
             post.setTags(JSONUtil.toJsonStr(tags));
