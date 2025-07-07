@@ -178,11 +178,35 @@ public class RedPacketServiceImpl implements RedPacketService {
         String lockKey = RED_PACKET_LOCK_KEY_PREFIX + redPacketId;
         boolean locked = false;
         try {
-            // 尝试获取锁
-            locked = Boolean.TRUE.equals(redisTemplate.opsForValue().setIfAbsent(lockKey, "1", LOCK_EXPIRE_TIME, TimeUnit.SECONDS));
+            // 尝试获取锁，最多重试5次，快速重试
+            int retryCount = 0;
+            int maxRetries = 5;
+            long retryWaitTime = 50; // 只等待50毫秒
+            
+            while (!locked && retryCount < maxRetries) {
+                locked = Boolean.TRUE.equals(redisTemplate.opsForValue().setIfAbsent(lockKey, "1", LOCK_EXPIRE_TIME, TimeUnit.SECONDS));
+                if (locked) {
+                    break;
+                }
+                
+                // 快速重试，几乎是立即重试
+                try {
+                    // 仅记录第一次和最后一次重试的日志，减少日志量
+                    if (retryCount == 0 || retryCount == maxRetries - 1) {
+                        log.info("获取锁失败，正在重试 {}/{}，红包ID: {}", retryCount + 1, maxRetries, redPacketId);
+                    }
+                    Thread.sleep(retryWaitTime);
+                    // 重试时间增长较小，保持快速响应
+                    retryWaitTime += 20;
+                } catch (InterruptedException e) {
+                    Thread.currentThread().interrupt();
+                }
+                retryCount++;
+            }
+            
             if (!locked) {
-                log.info("获取锁失败: {}", redPacketId);
-                throw new BusinessException(ErrorCode.OPERATION_ERROR, "抢红包失败，请稍后再试");
+                log.info("获取锁最终失败，已重试{}次: {}", maxRetries, redPacketId);
+                throw new BusinessException(ErrorCode.OPERATION_ERROR, "抢红包人数过多，请稍后再试");
             }
 
             // 再次检查红包状态（双重检查）
