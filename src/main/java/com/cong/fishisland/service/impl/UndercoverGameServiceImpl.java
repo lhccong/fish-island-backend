@@ -2052,6 +2052,8 @@ public class UndercoverGameServiceImpl implements UndercoverGameService {
 
                 // 发送退出消息
                 MessageWrapper messageWrapper = getSystemMessageWrapper(loginUser.getUserName() + "退出了谁是卧底游戏房间");
+                messageWrapper.getMessage().setRoomId(roomId);
+
                 webSocketService.sendToAllOnline(WSBaseResp.builder()
                         .type(MessageTypeEnum.UNDERCOVER.getType())
                         .data(messageWrapper).build());
