@@ -10,9 +10,11 @@ import com.cong.fishisland.common.exception.BusinessException;
 import com.cong.fishisland.common.exception.ThrowUtils;
 import com.cong.fishisland.constant.CommonConstant;
 import com.cong.fishisland.mapper.comment.CommentMapper;
+import com.cong.fishisland.mapper.comment.CommentThumbMapper;
 import com.cong.fishisland.model.dto.comment.ChildCommentQueryRequest;
 import com.cong.fishisland.model.dto.comment.CommentQueryRequest;
 import com.cong.fishisland.model.entity.comment.Comment;
+import com.cong.fishisland.model.entity.comment.CommentThumb;
 import com.cong.fishisland.model.entity.user.User;
 import com.cong.fishisland.model.vo.comment.CommentNodeVO;
 import com.cong.fishisland.model.vo.comment.CommentVO;
@@ -42,6 +44,9 @@ public class CommentServiceImpl extends ServiceImpl<CommentMapper, Comment>
 
     @Resource
     private UserService userService;
+
+    @Resource
+    private CommentThumbMapper commentThumbMapper;
 
     @Override
     public Long addComment(Comment comment) {
@@ -126,9 +131,11 @@ public class CommentServiceImpl extends ServiceImpl<CommentMapper, Comment>
                 if (childUser != null) {
                     vo.setUser(userService.getUserVO(childUser));
                 }
+                vo.setHasThumb(hasCommentThumb(child.getId()));
                 return vo;
             }).collect(Collectors.toList());
             node.setPreviewChildren(childVOs);
+            node.setHasThumb(hasCommentThumb(top.getId()));
             return node;
         }).collect(Collectors.toList());
         Page<CommentNodeVO> pageResult = new Page<>();
@@ -174,12 +181,11 @@ public class CommentServiceImpl extends ServiceImpl<CommentMapper, Comment>
         List<CommentVO> commentVOs = children.stream().map(child -> {
             CommentVO vo = new CommentVO();
             BeanUtils.copyProperties(child, vo);
-
             User user = userMap.get(child.getUserId());
             if (user != null) {
                 vo.setUser(userService.getUserVO(user));
             }
-
+            vo.setHasThumb(hasCommentThumb(child.getId()));
             return vo;
         }).collect(Collectors.toList());
 
@@ -248,6 +254,20 @@ public class CommentServiceImpl extends ServiceImpl<CommentMapper, Comment>
             throw new BusinessException(ErrorCode.PARAMS_ERROR, "内容过长");
         }
     }
+
+    private Boolean hasCommentThumb(Long commentId) {
+        User loginUser = userService.getLoginUserPermitNull();
+        if (commentId == null || loginUser == null) {
+            return false;
+        }
+        return commentThumbMapper.selectOne(new LambdaQueryWrapper<CommentThumb>()
+                .select(CommentThumb::getId)
+                .eq(CommentThumb::getCommentId, commentId)
+                .eq(CommentThumb::getUserId, loginUser.getId())
+                .last("LIMIT 1")
+        ) != null;
+    }
+
 }
 
 

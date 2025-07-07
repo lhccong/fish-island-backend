@@ -38,10 +38,13 @@ public class CommentVO implements Serializable {
      */
     private Integer thumbNum;
     /**
+     * 是否已点赞
+     */
+    private Boolean hasThumb;
+    /**
      * 创建时间
      */
     private Date createTime;
-
     /**
      * 创建人信息
      */
