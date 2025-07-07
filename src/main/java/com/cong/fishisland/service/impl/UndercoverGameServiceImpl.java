@@ -1348,33 +1348,6 @@ public class UndercoverGameServiceImpl implements UndercoverGameService {
                         .type(MessageTypeEnum.UNDERCOVER.getType())
                         .data(messageWrapper).build());
 
-                // 检查是否所有未淘汰的玩家都已投票
-                boolean allVoted = true;
-                // 获取所有未淘汰的玩家
-                Set<Long> activePlayers = new HashSet<>(room.getParticipantIds());
-                activePlayers.removeAll(room.getEliminatedIds());
-
-                // 检查每个未淘汰玩家是否都已投票
-                for (Long playerId : activePlayers) {
-                    String playerVoted = stringRedisTemplate.opsForValue().get(
-                            UndercoverGameRedisKey.getKey(UndercoverGameRedisKey.PLAYER_VOTED, roomId, playerId));
-                    if (playerVoted == null) {
-                        allVoted = false;
-                        break;
-                    }
-                }
-
-                // 如果所有未淘汰玩家都已投票，自动触发投票结算
-                if (allVoted) {
-                    MessageWrapper allVotedMessage = getSystemMessageWrapper("所有玩家已完成投票，即将进行投票结算");
-                    webSocketService.sendToAllOnline(WSBaseResp.builder()
-                            .type(MessageTypeEnum.UNDERCOVER.getType())
-                            .data(allVotedMessage).build());
-
-                    // 触发投票结算方法
-                    endGame(roomId);
-                }
-
                 webSocketService.sendToAllOnline(WSBaseResp.builder()
                         .type(MessageTypeEnum.REFRESH_ROOM.getType())
                         .data("").build());

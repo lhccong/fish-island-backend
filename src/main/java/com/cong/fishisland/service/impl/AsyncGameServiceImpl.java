@@ -308,8 +308,7 @@ public class AsyncGameServiceImpl implements AsyncGameService {
                                 60,
                                 TimeUnit.MINUTES
                         );
-                        // 调用异步服务的方法
-                        startSpeakingAndVoting(roomId);
+
                     }
                 }
 
@@ -360,6 +359,16 @@ public class AsyncGameServiceImpl implements AsyncGameService {
                     stringRedisTemplate.delete(
                             UndercoverGameRedisKey.getKey(UndercoverGameRedisKey.ROOM_VOTES, roomId)
                     );
+
+                    //发送消息给每个人
+                    MessageWrapper messageWrapper = getSystemMessageWrapper(gameResult);
+                    webSocketService.sendToAllOnline(WSBaseResp.builder()
+                            .type(MessageTypeEnum.UNDERCOVER.getType())
+                            .data(messageWrapper).build());
+
+                    webSocketService.sendToAllOnline(WSBaseResp.builder()
+                            .type(MessageTypeEnum.REFRESH_ROOM.getType())
+                            .data("").build());
                 } else {
                     // 如果游戏继续，确保状态为 PLAYING
                     room.setStatus(RoomStatusEnum.PLAYING);
@@ -393,18 +402,21 @@ public class AsyncGameServiceImpl implements AsyncGameService {
                             60,
                             TimeUnit.MINUTES
                     );
+                    // 调用异步服务的方法
+                    startSpeakingAndVoting(roomId);
+                    //发送消息给每个人
+                    MessageWrapper messageWrapper = getSystemMessageWrapper(gameResult);
+                    webSocketService.sendToAllOnline(WSBaseResp.builder()
+                            .type(MessageTypeEnum.UNDERCOVER.getType())
+                            .data(messageWrapper).build());
+
+                    webSocketService.sendToAllOnline(WSBaseResp.builder()
+                            .type(MessageTypeEnum.REFRESH_ROOM.getType())
+                            .data("").build());
                 }
 
 
-                //发送消息给每个人
-                MessageWrapper messageWrapper = getSystemMessageWrapper(gameResult);
-                webSocketService.sendToAllOnline(WSBaseResp.builder()
-                        .type(MessageTypeEnum.UNDERCOVER.getType())
-                        .data(messageWrapper).build());
 
-                webSocketService.sendToAllOnline(WSBaseResp.builder()
-                        .type(MessageTypeEnum.REFRESH_ROOM.getType())
-                        .data("").build());
                 return true;
             } catch (JsonProcessingException e) {
                 log.error("解析房间信息失败", e);
