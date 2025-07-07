@@ -44,7 +44,7 @@ public class UserPointsServiceImpl extends ServiceImpl<UserPointsMapper, UserPoi
         Duration expireDuration = Duration.between(now, nextDayMidnight);
         Boolean success = RedisUtils.setIfAbsent(signKey, "1", expireDuration);
 
-        if (Boolean.FALSE.equals(success)) {
+        if (!success) {
             // 说明已经签到
             return false;
         }

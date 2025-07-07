@@ -105,6 +105,8 @@ public class AsyncGameServiceImpl implements AsyncGameService {
                     if (player != null) {
                         String speakingMessage = "请玩家【" + player.getUserName() + "】开始发言，描述自己拿到的词语！";
                         MessageWrapper speakingNotice = getSystemMessageWrapper(speakingMessage);
+                        speakingNotice.getMessage().setRoomId(roomId);
+
                         webSocketService.sendToAllOnline(WSBaseResp.builder()
                                 .type(MessageTypeEnum.UNDERCOVER.getType())
                                 .data(speakingNotice).build());
@@ -126,6 +128,8 @@ public class AsyncGameServiceImpl implements AsyncGameService {
                 
                 // 所有玩家发言完毕，提醒开始投票
                 MessageWrapper voteStartMessage = getSystemMessageWrapper("所有玩家已发言完毕，现在开始投票环节！请在30秒内完成投票，投出你认为是卧底的玩家。");
+                voteStartMessage.getMessage().setRoomId(roomId);
+
                 webSocketService.sendToAllOnline(WSBaseResp.builder()
                         .type(MessageTypeEnum.UNDERCOVER.getType())
                         .data(voteStartMessage).build());
@@ -138,6 +142,8 @@ public class AsyncGameServiceImpl implements AsyncGameService {
                         UndercoverGameRedisKey.getKey(UndercoverGameRedisKey.ROOM_INFO, roomId));
                 if (checkRoomJson != null) {
                     MessageWrapper timeUpMessage = getSystemMessageWrapper("投票时间结束，即将进行结算！");
+                    timeUpMessage.getMessage().setRoomId(roomId);
+
                     webSocketService.sendToAllOnline(WSBaseResp.builder()
                             .type(MessageTypeEnum.UNDERCOVER.getType())
                             .data(timeUpMessage).build());
@@ -362,6 +368,8 @@ public class AsyncGameServiceImpl implements AsyncGameService {
 
                     //发送消息给每个人
                     MessageWrapper messageWrapper = getSystemMessageWrapper(gameResult);
+                    messageWrapper.getMessage().setRoomId(roomId);
+
                     webSocketService.sendToAllOnline(WSBaseResp.builder()
                             .type(MessageTypeEnum.UNDERCOVER.getType())
                             .data(messageWrapper).build());
@@ -404,6 +412,8 @@ public class AsyncGameServiceImpl implements AsyncGameService {
                     );
                     //发送消息给每个人
                     MessageWrapper messageWrapper = getSystemMessageWrapper(gameResult);
+                    messageWrapper.getMessage().setRoomId(roomId);
+
                     webSocketService.sendToAllOnline(WSBaseResp.builder()
                             .type(MessageTypeEnum.UNDERCOVER.getType())
                             .data(messageWrapper).build());

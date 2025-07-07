@@ -604,6 +604,7 @@ public class UndercoverGameServiceImpl implements UndercoverGameService {
                 }
 
                 MessageWrapper messageWrapper = getSystemMessageWrapper(gameStartMessage);
+                messageWrapper.getMessage().setRoomId(roomId);
                 webSocketService.sendToAllOnline(WSBaseResp.builder()
                         .type(MessageTypeEnum.UNDERCOVER.getType())
                         .data(messageWrapper).build());
@@ -1003,6 +1004,7 @@ public class UndercoverGameServiceImpl implements UndercoverGameService {
 
                 //发送消息给每个人
                 MessageWrapper messageWrapper = getSystemMessageWrapper(gameResult);
+                messageWrapper.getMessage().setRoomId(roomId);
                 webSocketService.sendToAllOnline(WSBaseResp.builder()
                         .type(MessageTypeEnum.UNDERCOVER.getType())
                         .data(messageWrapper).build());
@@ -1374,7 +1376,7 @@ public class UndercoverGameServiceImpl implements UndercoverGameService {
                         TimeUnit.MINUTES
                 );
                 MessageWrapper messageWrapper = getSystemMessageWrapper(loginUser.getUserName() + "用户已完成投票");
-
+                messageWrapper.getMessage().setRoomId(roomId);
                 webSocketService.sendToAllOnline(WSBaseResp.builder()
                         .type(MessageTypeEnum.UNDERCOVER.getType())
                         .data(messageWrapper).build());
@@ -1750,6 +1752,7 @@ public class UndercoverGameServiceImpl implements UndercoverGameService {
                             "卧底" + userName + "成功猜出平民词「" + room.getCivilianWord() + "」！卧底获胜！"
                     );
 
+                    messageWrapper.getMessage().setRoomId(roomId);
                     webSocketService.sendToAllOnline(WSBaseResp.builder()
                             .type(MessageTypeEnum.UNDERCOVER.getType())
                             .data(messageWrapper).build());
@@ -1787,6 +1790,7 @@ public class UndercoverGameServiceImpl implements UndercoverGameService {
                     }
 
                     MessageWrapper messageWrapper = getSystemMessageWrapper(message);
+                    messageWrapper.getMessage().setRoomId(roomId);
                     webSocketService.sendToAllOnline(WSBaseResp.builder()
                             .type(MessageTypeEnum.UNDERCOVER.getType())
                             .data(messageWrapper).build());
@@ -1914,6 +1918,8 @@ public class UndercoverGameServiceImpl implements UndercoverGameService {
                         stringRedisTemplate.delete(UndercoverGameRedisKey.getKey(UndercoverGameRedisKey.PLAYER_ROOM, loginUser.getId()));
 
                         MessageWrapper messageWrapper = getSystemMessageWrapper("谁是卧底游戏房间已关闭");
+                        messageWrapper.getMessage().setRoomId(roomId);
+
                         webSocketService.sendToAllOnline(WSBaseResp.builder()
                                 .type(MessageTypeEnum.UNDERCOVER.getType())
                                 .data(messageWrapper).build());
