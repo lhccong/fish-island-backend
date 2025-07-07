@@ -46,6 +46,10 @@ public class CommentNodeVO {
      */
     private UserVO user;
     /**
+     * 是否已点赞
+     */
+    private Boolean hasThumb;
+    /**
      * 二级评论总数
      */
     private Integer childCount;
