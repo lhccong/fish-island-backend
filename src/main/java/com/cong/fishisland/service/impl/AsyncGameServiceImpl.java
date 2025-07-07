@@ -402,8 +402,6 @@ public class AsyncGameServiceImpl implements AsyncGameService {
                             60,
                             TimeUnit.MINUTES
                     );
-                    // 调用异步服务的方法
-                    startSpeakingAndVoting(roomId);
                     //发送消息给每个人
                     MessageWrapper messageWrapper = getSystemMessageWrapper(gameResult);
                     webSocketService.sendToAllOnline(WSBaseResp.builder()
@@ -413,6 +411,10 @@ public class AsyncGameServiceImpl implements AsyncGameService {
                     webSocketService.sendToAllOnline(WSBaseResp.builder()
                             .type(MessageTypeEnum.REFRESH_ROOM.getType())
                             .data("").build());
+                            
+                    // 调用异步服务的方法
+                    startSpeakingAndVoting(roomId);
+
                 }
 
 
