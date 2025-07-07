@@ -30,6 +30,21 @@ public class Tags implements Serializable {
     private Integer type;
 
     /**
+     * 图标
+     */
+    private String icon;
+
+    /**
+     * 颜色
+     */
+    private String color;
+
+    /**
+     * 排序
+     */
+    private Integer sort;
+
+    /**
      * 创建时间
      */
     private Date createTime;

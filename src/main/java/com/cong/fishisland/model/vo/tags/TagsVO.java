@@ -1,7 +1,6 @@
 package com.cong.fishisland.model.vo.tags;
 
 import com.cong.fishisland.model.entity.tags.Tags;
-import com.cong.fishisland.model.vo.user.UserVO;
 import lombok.Data;
 import org.springframework.beans.BeanUtils;
 
@@ -17,9 +16,30 @@ public class TagsVO implements Serializable {
 
     private Long id;
 
+    /**
+     * 标签名称
+     */
     private String tagsName;
 
+    /**
+     * 类型
+     */
     private Integer type;
+
+    /**
+     * 图标
+     */
+    private String icon;
+
+    /**
+     * 颜色
+     */
+    private String color;
+
+    /**
+     * 排序
+     */
+    private Integer sort;
 
 
     /**
