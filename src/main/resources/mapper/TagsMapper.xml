@@ -8,14 +8,17 @@
             <id property="id" column="id" jdbcType="BIGINT"/>
             <result property="tagsName" column="tagsName" jdbcType="VARCHAR"/>
             <result property="type" column="type" jdbcType="TINYINT"/>
+            <result property="icon" column="icon" jdbcType="VARCHAR"/>
+            <result property="color" column="color" jdbcType="VARCHAR"/>
+            <result property="sort" column="sort" jdbcType="INTEGER"/>
             <result property="createTime" column="createTime" jdbcType="TIMESTAMP"/>
             <result property="updateTime" column="updateTime" jdbcType="TIMESTAMP"/>
             <result property="isDelete" column="isDelete" jdbcType="TINYINT"/>
     </resultMap>
 
     <sql id="Base_Column_List">
-        id,tagsName,
-        type,createTime,updateTime,
-        isDelete
+        id,tagsName,type,
+        icon, color, sort,
+        createTime,updateTime,isDelete
     </sql>
 </mapper>

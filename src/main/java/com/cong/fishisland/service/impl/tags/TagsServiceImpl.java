@@ -25,7 +25,6 @@ import java.util.stream.Collectors;
  * 标签服务实现
  *
  * @author <a href="https://github.com/lhccong">聪</a>
-
  */
 @Service
 @Slf4j
@@ -35,13 +34,20 @@ public class TagsServiceImpl extends ServiceImpl<TagsMapper, Tags> implements Ta
      * 校验数据
      *
      * @param tags
-     * @param add      对创建的数据进行校验
+     * @param add  对创建的数据进行校验
      */
     @Override
     public void validTags(Tags tags, boolean add) {
         ThrowUtils.throwIf(tags == null, ErrorCode.PARAMS_ERROR);
         String tagsName = tags.getTagsName();
-
+        String icon = tags.getIcon();
+        String color = tags.getColor();
+        Integer sort = tags.getSort();
+        ThrowUtils.throwIf(StringUtils.isNotBlank(icon) && icon.length() > 20, ErrorCode.PARAMS_ERROR, "图标值过长");
+        ThrowUtils.throwIf(StringUtils.isNotBlank(color) && color.length() > 20, ErrorCode.PARAMS_ERROR, "颜色值过长");
+        if (sort != null) {
+            ThrowUtils.throwIf(sort < 0 || sort > 100, ErrorCode.PARAMS_ERROR, "排序值超出范围");
+        }
         // 创建数据时，参数不能为空
         if (add) {
             ThrowUtils.throwIf(StringUtils.isBlank(tagsName), ErrorCode.PARAMS_ERROR);
@@ -60,7 +66,7 @@ public class TagsServiceImpl extends ServiceImpl<TagsMapper, Tags> implements Ta
     /**
      * 检查标签名称是否已存在
      *
-     * @param tagName 要检查的标签名称
+     * @param tagName   要检查的标签名称
      * @param excludeId 要排除的标签ID（可为空）
      */
     private void checkTagNameExist(String tagName, Long excludeId) {
@@ -88,15 +94,17 @@ public class TagsServiceImpl extends ServiceImpl<TagsMapper, Tags> implements Ta
         if (tagsQueryRequest == null) {
             return queryWrapper;
         }
-        // todo 从对象中取值
+        // 从对象中取值
         Long id = tagsQueryRequest.getId();
         String tagsName = tagsQueryRequest.getTagsName();
+        Integer type = tagsQueryRequest.getType();
         String sortField = tagsQueryRequest.getSortField();
         String sortOrder = tagsQueryRequest.getSortOrder();
-        // todo 补充需要的查询条件
+        // 精确查询
+        queryWrapper.eq(ObjectUtils.isNotEmpty(type), "type", type);
+        queryWrapper.eq(ObjectUtils.isNotEmpty(id), "id", id);
         // 模糊查询
         queryWrapper.like(StringUtils.isNotBlank(tagsName), "tagsName", tagsName);
-        queryWrapper.eq(ObjectUtils.isNotEmpty(id), "id", id);
         // 排序规则
         queryWrapper.orderBy(SqlUtils.validSortField(sortField),
                 sortOrder.equals(CommonConstant.SORT_ORDER_ASC),

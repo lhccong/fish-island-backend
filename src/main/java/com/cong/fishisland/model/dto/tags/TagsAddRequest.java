@@ -12,7 +12,30 @@ import java.io.Serializable;
 @Data
 public class TagsAddRequest implements Serializable {
 
+    /**
+     * 标签名
+     */
     private String tagsName;
+
+    /**
+     * 类型
+     */
+    private Integer type;
+
+    /**
+     * 图标
+     */
+    private String icon;
+
+    /**
+     * 颜色
+     */
+    private String color;
+
+    /**
+     * 排序
+     */
+    private Integer sort;
     
     private static final long serialVersionUID = 1L;
 }
