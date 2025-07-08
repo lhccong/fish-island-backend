@@ -142,7 +142,7 @@ public class UndercoverGameServiceImpl implements UndercoverGameService {
             room.setDuration(request.getDuration());
             room.setCreatorId(loginUser.getId());
             room.setMaxPlayers(request.getMaxPlayers());
-            room.setGameMode(request.getGameMode() != null ? request.getGameMode() : 1); // 设置游戏模式，默认为常规模式
+            room.setGameMode(request.getGameMode() != null ? request.getGameMode() : 1);
 
             // 生成房间ID
             String roomId = UUID.randomUUID().toString().replace("-", "");
@@ -355,18 +355,6 @@ public class UndercoverGameServiceImpl implements UndercoverGameService {
                 }
             }
 
-            // 计算剩余时间
-            if (room.getStartTime() != null && room.getDuration() != null) {
-                long elapsedTime = (System.currentTimeMillis() - room.getStartTime().getTime()) / 1000;
-                int remainingTime = (int) Math.max(0, room.getDuration() - elapsedTime);
-                roomVO.setRemainingTime(remainingTime);
-
-                // 如果时间到了但游戏还在进行中，自动结束游戏
-                if (remainingTime <= 0 && room.getStatus() == RoomStatusEnum.PLAYING) {
-                    endGame(roomId);
-                    roomVO.setStatus(RoomStatusEnum.ENDED);
-                }
-            }
 
             // 获取房间内所有玩家详细信息
             List<UndercoverPlayerDetailVO> participants = getRoomPlayersDetail(roomId);
