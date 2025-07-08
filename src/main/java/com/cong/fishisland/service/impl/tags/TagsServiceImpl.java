@@ -43,7 +43,7 @@ public class TagsServiceImpl extends ServiceImpl<TagsMapper, Tags> implements Ta
         String icon = tags.getIcon();
         String color = tags.getColor();
         Integer sort = tags.getSort();
-        ThrowUtils.throwIf(StringUtils.isNotBlank(icon) && icon.length() > 20, ErrorCode.PARAMS_ERROR, "图标值过长");
+        ThrowUtils.throwIf(StringUtils.isNotBlank(icon) && icon.length() > 256, ErrorCode.PARAMS_ERROR, "图标值过长");
         ThrowUtils.throwIf(StringUtils.isNotBlank(color) && color.length() > 20, ErrorCode.PARAMS_ERROR, "颜色值过长");
         if (sort != null) {
             ThrowUtils.throwIf(sort < 0 || sort > 100, ErrorCode.PARAMS_ERROR, "排序值超出范围");
