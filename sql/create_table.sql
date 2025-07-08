@@ -78,7 +78,7 @@ create table if not exists tags
     id         bigint auto_increment comment '标签id' primary key,
     tagsName   varchar(256)                       null comment '标签名',
     type       tinyint  default 0                 null comment '类型（0 官方创建，1 用户自定义）',
-    icon       varchar(20)                        null comment '图标',
+    icon       varchar(256)                       null comment '图标',
     color      varchar(20)                        null comment '颜色',
     sort       int      default 0                 not null comment '排序',
     createTime datetime default CURRENT_TIMESTAMP not null comment '创建时间',

@@ -10,10 +10,7 @@ import com.cong.fishisland.common.ResultUtils;
 import com.cong.fishisland.constant.UserConstant;
 import com.cong.fishisland.common.exception.BusinessException;
 import com.cong.fishisland.common.exception.ThrowUtils;
-import com.cong.fishisland.model.dto.post.PostAddRequest;
-import com.cong.fishisland.model.dto.post.PostEditRequest;
-import com.cong.fishisland.model.dto.post.PostQueryRequest;
-import com.cong.fishisland.model.dto.post.PostUpdateRequest;
+import com.cong.fishisland.model.dto.post.*;
 import com.cong.fishisland.model.entity.post.Post;
 import com.cong.fishisland.model.entity.user.User;
 import com.cong.fishisland.model.vo.post.PostVO;
@@ -246,4 +243,16 @@ public class PostController {
         return ResultUtils.success(result);
     }
 
+    /**
+     * 设置帖子加精状态（仅管理员）
+     *
+     * @param request 帖子加精请求
+     * @return {@link BaseResponse}<{@link Boolean}>
+     */
+    @PostMapping("/featured")
+    @SaCheckRole(UserConstant.ADMIN_ROLE)
+    @ApiOperation(value = "设置帖子加精状态（仅管理员）")
+    public BaseResponse<Boolean> setFeaturedStatus(@RequestBody PostFeaturedRequest request) {
+        return ResultUtils.success(postService.setFeaturedStatus(request));
+    }
 }

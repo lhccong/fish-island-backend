@@ -3,6 +3,7 @@ package com.cong.fishisland.service;
 import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.baomidou.mybatisplus.extension.service.IService;
+import com.cong.fishisland.model.dto.post.PostFeaturedRequest;
 import com.cong.fishisland.model.dto.post.PostQueryRequest;
 import com.cong.fishisland.model.entity.post.Post;
 import com.cong.fishisland.model.vo.post.PostVO;
@@ -59,4 +60,11 @@ public interface PostService extends IService<Post> {
      * @param postId 帖子id
      */
     void incrementViewCountAsync(Long postId);
+
+    /**
+     * 设置帖子加精状态
+     * @param request 请求
+     * @return 布尔值
+     */
+    Boolean setFeaturedStatus(PostFeaturedRequest request);
 }

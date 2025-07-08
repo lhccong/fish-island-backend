@@ -2,6 +2,7 @@ package com.cong.fishisland.service.impl.post;
 
 import cn.hutool.core.collection.CollUtil;
 import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
+import com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper;
 import com.baomidou.mybatisplus.core.conditions.update.UpdateWrapper;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
@@ -12,6 +13,7 @@ import com.cong.fishisland.constant.CommonConstant;
 import com.cong.fishisland.mapper.post.PostFavourMapper;
 import com.cong.fishisland.mapper.post.PostMapper;
 import com.cong.fishisland.mapper.post.PostThumbMapper;
+import com.cong.fishisland.model.dto.post.PostFeaturedRequest;
 import com.cong.fishisland.model.dto.post.PostQueryRequest;
 import com.cong.fishisland.model.entity.post.Post;
 import com.cong.fishisland.model.entity.post.PostFavour;
@@ -62,6 +64,16 @@ public class PostServiceImpl extends ServiceImpl<PostMapper, Post> implements Po
     @Resource
     private CommentService commentService;
 
+    /**
+     * 帖子加精
+     */
+    private static final Integer POST_FEATURED_STATUS = 1;
+
+    /**
+     * 帖子取消加精
+     */
+    private static final Integer POST_UNFEATURED_STATUS = 0;
+
     @Override
     @Async
     public void incrementViewCountAsync(Long postId) {
@@ -69,6 +81,34 @@ public class PostServiceImpl extends ServiceImpl<PostMapper, Post> implements Po
         update(new UpdateWrapper<Post>()
                 .setSql("viewNum = viewNum + 1")
                 .eq("id", postId));
+    }
+
+    @Override
+    public Boolean setFeaturedStatus(PostFeaturedRequest request) {
+        validPostFeaturedRequest(request);
+        Long id = request.getId();
+        Integer isFeatured = request.getIsFeatured();
+        // 检查帖子是否存在
+        Post post = getById(id);
+        ThrowUtils.throwIf(post == null, ErrorCode.NOT_FOUND_ERROR, "帖子不存在");
+        // 如果要修改加精状态与原来一致，则不进行更新
+        ThrowUtils.throwIf(isFeatured.equals(POST_FEATURED_STATUS) && isFeatured.equals(post.getIsFeatured()), ErrorCode.OPERATION_ERROR, "帖子已加精，请勿重复操作");
+        ThrowUtils.throwIf(isFeatured.equals(POST_UNFEATURED_STATUS) && isFeatured.equals(post.getIsFeatured()), ErrorCode.OPERATION_ERROR, "帖子已取消加精，请勿重复操作");
+        // 使用Lambda更新器高效更新状态
+        LambdaUpdateWrapper<Post> updateWrapper = new LambdaUpdateWrapper<>();
+        updateWrapper.eq(Post::getId, id)
+                .set(Post::getIsFeatured, isFeatured);
+
+        return update(updateWrapper);
+
+    }
+
+    private void validPostFeaturedRequest(PostFeaturedRequest request){
+        ThrowUtils.throwIf(request == null, ErrorCode.PARAMS_ERROR, "参数为空");
+        Long id = request.getId();
+        Integer isFeatured = request.getIsFeatured();
+        ThrowUtils.throwIf(id == null || id <= 0, ErrorCode.PARAMS_ERROR, "帖子ID不合法");
+        ThrowUtils.throwIf(isFeatured == null || (!POST_UNFEATURED_STATUS.equals(isFeatured) && !POST_FEATURED_STATUS.equals(isFeatured)), ErrorCode.PARAMS_ERROR, "加精状态参数不合法");
     }
 
     @Override
