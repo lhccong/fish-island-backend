@@ -211,7 +211,7 @@ public class CommentServiceImpl extends ServiceImpl<CommentMapper, Comment>
                 .orderByDesc(Comment::getCreateTime)
                 .last("LIMIT 1")
         );
-         return comment == null ? null : safeGetCommentVO(comment);
+        return comment == null ? null : safeGetCommentVO(comment);
     }
 
     private CommentVO safeGetCommentVO(Comment comment) {

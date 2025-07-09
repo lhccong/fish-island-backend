@@ -11,6 +11,8 @@ import com.cong.fishisland.model.entity.user.User;
 import com.cong.fishisland.service.PostService;
 import com.cong.fishisland.service.PostThumbService;
 import javax.annotation.Resource;
+
+import com.cong.fishisland.service.event.EventRemindHandler;
 import org.springframework.aop.framework.AopContext;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -26,6 +28,8 @@ public class PostThumbServiceImpl extends ServiceImpl<PostThumbMapper, PostThumb
 
     @Resource
     private PostService postService;
+    @Resource
+    private EventRemindHandler eventRemindHandler;
 
     /**
      * 点赞
@@ -47,7 +51,12 @@ public class PostThumbServiceImpl extends ServiceImpl<PostThumbMapper, PostThumb
         // 锁必须要包裹住事务方法
         PostThumbService postThumbService = (PostThumbService) AopContext.currentProxy();
         synchronized (String.valueOf(userId).intern()) {
-            return postThumbService.doPostThumbInner(userId, postId);
+            int result = postThumbService.doPostThumbInner(userId, postId);
+            // 异步处理事件提醒（避免通知自己）
+            if (result == 1 && !post.getUserId().equals(userId)) {
+                eventRemindHandler.handlePostLike(postId, userId, post.getUserId());
+            }
+            return result;
         }
     }
 
