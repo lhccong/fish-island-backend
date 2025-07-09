@@ -303,3 +303,24 @@ create table if not exists `email_ban`
 ) comment '邮箱封禁表' collate = utf8mb4_unicode_ci;
 ALTER TABLE `email_ban`
     ADD COLUMN `bannedIp` VARCHAR(45) NULL COMMENT '封禁的 IP 地址' after emailSuffix;
+
+-- 事件提醒表
+create table if not exists event_remind
+(
+    id            bigint auto_increment comment 'id' primary key,
+    action        varchar(50)                        not null comment '动作类型，如点赞、at(@)、回复等',
+    sourceId      bigint                             not null comment '事件源 ID，如评论 ID、文章 ID 等',
+    sourceType    int                                null comment '事件源类型：1- "post"、2- "comment"等',
+    sourceContent varchar(256)                       not null comment '事件源的内容，比如回复的内容，回复的评论等等',
+    url           varchar(256)                       not null comment '事件所发生的地点链接 url',
+    state         int                                not null comment '是否已读',
+    senderId      bigint                             not null comment '操作者的 ID，即谁关注了你，at 了你',
+    recipientId   bigint                             not null comment '接受通知的用户的 ID',
+    remindTime    datetime                           not null comment '提醒的时间',
+    createTime    datetime default CURRENT_TIMESTAMP not null comment '创建时间',
+    updateTime    datetime default CURRENT_TIMESTAMP not null on update CURRENT_TIMESTAMP comment '更新时间',
+    `isDelete`    tinyint  default 0                 not null comment '是否删除',
+    index idx_userId (recipientId)
+) comment '事件提醒表' collate = utf8mb4_unicode_ci;
+
+
