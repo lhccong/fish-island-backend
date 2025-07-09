@@ -11,6 +11,7 @@ import com.cong.fishisland.model.entity.comment.CommentThumb;
 import com.cong.fishisland.model.entity.user.User;
 import com.cong.fishisland.service.CommentThumbService;
 import com.cong.fishisland.mapper.comment.CommentThumbMapper;
+import com.cong.fishisland.service.event.EventRemindHandler;
 import org.springframework.aop.framework.AopContext;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -18,16 +19,18 @@ import org.springframework.transaction.annotation.Transactional;
 import javax.annotation.Resource;
 
 /**
-* @author 许林涛
-* @description 针对表【comment_thumb(评论点赞表)】的数据库操作Service实现
-* @createDate 2025-07-03 15:57:04
-*/
+ * @author 许林涛
+ * @description 针对表【comment_thumb(评论点赞表)】的数据库操作Service实现
+ * @createDate 2025-07-03 15:57:04
+ */
 @Service
 public class CommentThumbServiceImpl extends ServiceImpl<CommentThumbMapper, CommentThumb>
         implements CommentThumbService {
 
     @Resource
     private CommentMapper commentMapper;
+    @Resource
+    private EventRemindHandler eventRemindHandler;
 
     @Override
     public int doCommentThumb(long commentId, User loginUser) {
@@ -41,7 +44,12 @@ public class CommentThumbServiceImpl extends ServiceImpl<CommentThumbMapper, Com
         long userId = loginUser.getId();
         CommentThumbService thumbService = (CommentThumbService) AopContext.currentProxy();
         synchronized (String.valueOf(userId).intern()) {
-            return thumbService.doCommentThumbInner(userId, commentId);
+            int result = thumbService.doCommentThumbInner(userId, commentId);
+            // 异步处理事件提醒（避免通知自己）
+            if (result == 1 && !comment.getUserId().equals(userId)) {
+                eventRemindHandler.handleCommentLike(commentId, userId, comment.getUserId());
+            }
+            return result;
         }
     }
 

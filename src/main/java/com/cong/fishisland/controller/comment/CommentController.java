@@ -11,11 +11,14 @@ import com.cong.fishisland.model.dto.comment.ChildCommentQueryRequest;
 import com.cong.fishisland.model.dto.comment.CommentAddRequest;
 import com.cong.fishisland.model.dto.comment.CommentQueryRequest;
 import com.cong.fishisland.model.entity.comment.Comment;
+import com.cong.fishisland.model.entity.post.Post;
 import com.cong.fishisland.model.entity.user.User;
 import com.cong.fishisland.model.vo.comment.CommentNodeVO;
 import com.cong.fishisland.model.vo.comment.CommentVO;
 import com.cong.fishisland.service.CommentService;
+import com.cong.fishisland.service.PostService;
 import com.cong.fishisland.service.UserService;
+import com.cong.fishisland.service.event.EventRemindHandler;
 import io.swagger.annotations.ApiOperation;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -39,6 +42,12 @@ public class CommentController {
     @Resource
     private UserService userService;
 
+    @Resource
+    private EventRemindHandler eventRemindHandler;
+
+    @Resource
+    private PostService postService;
+
     /**
      * 添加评论
      *
@@ -56,6 +65,33 @@ public class CommentController {
         comment.setContent(request.getContent());
         comment.setUserId(loginUser.getId());
         Long commentId = commentService.addComment(comment);
+        // 确定接收者ID（避免通知自己）
+        Long recipientId = null;
+        Long parentId = comment.getParentId();
+        if ( parentId == null) {
+            // 如果是顶级评论，通知帖子作者（如果不是自己）
+            Post post = postService.getById(comment.getPostId());
+            if (post != null && !post.getUserId().equals(comment.getUserId())) {
+                recipientId = post.getUserId();
+            }
+        } else {
+            // 如果是回复评论，通知被回复的用户（如果不是自己）
+            Comment parentComment = commentService.getById(comment.getParentId());
+            if (parentComment != null && !parentComment.getUserId().equals(comment.getUserId())) {
+                recipientId = parentComment.getUserId();
+            }
+        }
+        // 异步处理事件提醒
+        if (recipientId != null) {
+            eventRemindHandler. handleComment(
+                    comment.getId(),
+                    comment.getPostId(),
+                    comment.getUserId(),
+                    recipientId,
+                    comment.getContent(),
+                    parentId != null
+            );
+        }
         return ResultUtils.success(commentId);
     }
 
