@@ -266,8 +266,8 @@ public class PostServiceImpl extends ServiceImpl<PostMapper, Post> implements Po
             postVO.setHasFavour(postIdHasFavourMap.getOrDefault(postId, false));
             // 获取评论数
             postVO.setCommentNum(commentService.getCommentNum(postId));
-            // 获取最新一条评论
-            postVO.setLatestComment(commentService.getLatestComment(postId));
+            // 获取点赞最高一条评论
+            postVO.setThumbComment(commentService.getThumbComment(postId));
             return postVO;
         }).collect(Collectors.toList());
         postVoPage.setRecords(postVOList);

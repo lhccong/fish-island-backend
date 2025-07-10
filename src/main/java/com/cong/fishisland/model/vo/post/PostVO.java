@@ -99,9 +99,9 @@ public class PostVO implements Serializable {
     private Integer commentNum;
 
     /**
-     * 最新一条评论
+     * 点赞最高一条评论
      */
-    private CommentVO latestComment;
+    private CommentVO thumbComment;
 
     /**
      * 包装类转对象
