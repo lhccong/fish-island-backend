@@ -266,6 +266,7 @@ CREATE TABLE if not exists `donation_records`
   DEFAULT CHARSET = utf8mb4
   COLLATE = utf8mb4_unicode_ci COMMENT ='用户打赏记录表';
 
+-- 英雄表
 CREATE TABLE IF NOT EXISTS hero
 (
     id            BIGINT AUTO_INCREMENT COMMENT '主键ID' PRIMARY KEY,
@@ -292,6 +293,7 @@ CREATE TABLE IF NOT EXISTS hero
     INDEX idx_type (primaryType)
 ) COMMENT '王者荣耀英雄详情表' COLLATE = utf8mb4_unicode_ci;
 
+-- 邮箱封禁表
 create table if not exists `email_ban`
 (
     id          BIGINT(20)                             NOT NULL AUTO_INCREMENT COMMENT '主键ID' PRIMARY KEY,
@@ -308,18 +310,18 @@ ALTER TABLE `email_ban`
 create table if not exists event_remind
 (
     id            bigint auto_increment comment 'id' primary key,
-    action        varchar(50)                        not null comment '动作类型，如点赞、at(@)、回复等',
-    sourceId      bigint                             not null comment '事件源 ID，如评论 ID、文章 ID 等',
-    sourceType    int                                null comment '事件源类型：1- "post"、2- "comment"等',
+    action        varchar(50)                        not null comment '动作类型：like-点赞、at-@提及、reply-回复、comment-评论、follow-关注、share-分享',
+    sourceId      bigint                             not null comment '事件源 ID，如帖子ID、评论ID 等',
+    sourceType    int                                null comment '事件源类型：1- 帖子、2- 评论等',
     sourceContent varchar(256)                       not null comment '事件源的内容，比如回复的内容，回复的评论等等',
     url           varchar(256)                       not null comment '事件所发生的地点链接 url',
-    state         int                                not null comment '是否已读',
-    senderId      bigint                             not null comment '操作者的 ID，即谁关注了你，at 了你',
+    state         int     default 0                  not null comment '是否已读',
+    senderId      bigint                             not null comment '操作者的 ID，即谁关注了你，谁艾特了你',
     recipientId   bigint                             not null comment '接受通知的用户的 ID',
     remindTime    datetime                           not null comment '提醒的时间',
     createTime    datetime default CURRENT_TIMESTAMP not null comment '创建时间',
     updateTime    datetime default CURRENT_TIMESTAMP not null on update CURRENT_TIMESTAMP comment '更新时间',
-    `isDelete`    tinyint  default 0                 not null comment '是否删除',
+    isDelete      tinyint  default 0                 not null comment '是否删除（逻辑删除）',
     index idx_userId (recipientId)
 ) comment '事件提醒表' collate = utf8mb4_unicode_ci;
 
