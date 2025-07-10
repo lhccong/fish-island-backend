@@ -28,6 +28,7 @@ public enum MessageTypeEnum {
     UNDERCOVER("undercover", "谁是卧底消息"),
     GAME_STAR("gameStart", "开始游戏"),
     REFRESH_ROOM("refreshRoom", "刷新房间信息"),
+    REFRESH_DRAW("refreshDraw", "刷新绘画信息"),
     USER_ONLINE("userOnline", "用户上线"),
     USER_OFFLINE("userOffline", "用户下线"),
     USER_MESSAGE_REVOKE("userMessageRevoke", "用户撤回消息"),
