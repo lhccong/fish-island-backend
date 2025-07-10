@@ -387,7 +387,7 @@ public class DrawGameServiceImpl implements DrawGameService {
 
         // 获取所有以 "fish:draw:roomInfo:" 开头的键
         Set<String> keys = stringRedisTemplate.keys(DrawGameRedisKey.BASE_KEY + "roomInfo:*");
-        if (keys == null || keys.isEmpty()) {
+        if (keys.isEmpty()) {
             return roomList;
         }
 
@@ -463,7 +463,7 @@ public class DrawGameServiceImpl implements DrawGameService {
                 playerVO.setIsCreator(userId.equals(room.getCreatorId()));
                 playerVO.setIsCurrentDrawer(userId.equals(room.getCurrentDrawerId()));
                 playerVO.setHasGuessedCorrectly(room.getCorrectGuessIds().contains(userId));
-                playerVO.setScore(0); // 可以根据需要实现积分系统
+                playerVO.setScore(0);
                 participants.add(playerVO);
             }
         }
