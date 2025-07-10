@@ -101,4 +101,11 @@ public interface DrawGameService {
      * @return 是否成功
      */
     boolean removeRoom(String roomId);
+
+    /**
+     * 进入下一轮游戏
+     * @param roomId 房间ID
+     * @return 是否成功
+     */
+    boolean nextRound(String roomId);
 } 

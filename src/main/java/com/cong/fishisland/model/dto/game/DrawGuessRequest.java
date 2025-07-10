@@ -1,5 +1,6 @@
 package com.cong.fishisland.model.dto.game;
 
+import com.cong.fishisland.model.ws.request.MessageWrapper;
 import lombok.Data;
 
 import java.io.Serializable;
@@ -23,4 +24,6 @@ public class DrawGuessRequest implements Serializable {
      * 猜测的词语
      */
     private String guessWord;
+
+    private MessageWrapper messageWrapper;
 } 

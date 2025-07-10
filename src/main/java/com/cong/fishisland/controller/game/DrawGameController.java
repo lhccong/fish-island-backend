@@ -190,4 +190,19 @@ public class DrawGameController {
         boolean result = drawGameService.removeRoom(roomId);
         return ResultUtils.success(result);
     }
+    
+    /**
+     * 进入下一轮游戏
+     *
+     * @param roomId 房间ID
+     * @return 是否成功
+     */
+    @PostMapping("/game/next-round")
+    public BaseResponse<Boolean> nextRound(@RequestParam String roomId) {
+        if (StringUtils.isBlank(roomId)) {
+            throw new BusinessException(ErrorCode.PARAMS_ERROR);
+        }
+        boolean result = drawGameService.nextRound(roomId);
+        return ResultUtils.success(result);
+    }
 } 

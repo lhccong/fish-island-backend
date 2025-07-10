@@ -76,6 +76,16 @@ public class DrawRoomVO implements Serializable {
      * 当前回合结束时间
      */
     private Long roundEndTime;
+    
+    /**
+     * 总共轮数
+     */
+    private Integer totalRounds;
+    
+    /**
+     * 当前轮次
+     */
+    private Integer currentRound;
 
     /**
      * 当前绘画者ID

@@ -374,8 +374,7 @@ public class WebSocketServiceImpl implements WebSocketService {
             sendMsg(channel, errorResp);
             return null;
         }
-        SendMessageDto result = new SendMessageDto(messageDto, message);
-        return result;
+        return new SendMessageDto(messageDto, message);
     }
 
     private static class SendMessageDto {

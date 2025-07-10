@@ -35,6 +35,11 @@ public class DrawGameRedisKey {
      * 房间猜词记录键 - fish:draw:roomGuesses:{roomId}
      */
     public static final String ROOM_GUESSES = "roomGuesses";
+    
+    /**
+     * 玩家积分键 - fish:draw:playerScore:{roomId}:{userId}
+     */
+    public static final String PLAYER_SCORE = "playerScore";
 
     /**
      * 构建完整的Redis键

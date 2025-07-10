@@ -61,6 +61,11 @@ public class DrawRoom {
     private Long roundEndTime;
 
     /**
+     * 总共轮数
+     */
+    private Integer totalRounds;
+    
+    /**
      * 每轮游戏持续时间（秒）
      */
     private Integer roundDuration;
@@ -74,4 +79,9 @@ public class DrawRoom {
      * 当前绘画者ID
      */
     private Long currentDrawerId;
+    
+    /**
+     * 当前轮次
+     */
+    private Integer currentRound;
 } 
