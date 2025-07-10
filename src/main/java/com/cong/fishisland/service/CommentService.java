@@ -38,4 +38,9 @@ public interface CommentService extends IService<Comment> {
      * 获取帖子最新一条评论
      */
     CommentVO getLatestComment(Long postId);
+
+    /**
+     * 获取帖子点赞最高一条评论
+     */
+    CommentVO getThumbComment(Long postId);
 }
