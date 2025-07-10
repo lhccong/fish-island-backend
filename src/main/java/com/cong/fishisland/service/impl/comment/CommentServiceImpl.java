@@ -214,6 +214,18 @@ public class CommentServiceImpl extends ServiceImpl<CommentMapper, Comment>
         return comment == null ? null : safeGetCommentVO(comment);
     }
 
+    @Override
+    public CommentVO getThumbComment(Long postId) {
+        ThrowUtils.throwIf(postId == null, ErrorCode.PARAMS_ERROR, "帖子id不能为空");
+        Comment comment = this.getOne(new LambdaQueryWrapper<Comment>()
+                .eq(Comment::getPostId, postId)
+                .isNull(Comment::getParentId)
+                .orderByDesc(Comment::getThumbNum)
+                .last("LIMIT 1")
+        );
+        return comment == null ? null : safeGetCommentVO(comment);
+    }
+
     private CommentVO safeGetCommentVO(Comment comment) {
         if (comment == null) {
             return null;
