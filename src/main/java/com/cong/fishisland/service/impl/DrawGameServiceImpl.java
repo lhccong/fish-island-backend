@@ -92,6 +92,11 @@ public class DrawGameServiceImpl implements DrawGameService {
             throw new BusinessException(ErrorCode.PARAMS_ERROR, "总轮数不能超过20轮");
         }
 
+        // 设置房间模式，默认为轮换模式
+        if (request.getCreatorOnlyMode() == null) {
+            request.setCreatorOnlyMode(false);
+        }
+
         // 验证是否登录
         User loginUser = userService.getLoginUser();
 
@@ -114,6 +119,7 @@ public class DrawGameServiceImpl implements DrawGameService {
             room.setRoundDuration(600);
             room.setCorrectGuessIds(new HashSet<>());
             room.setCurrentDrawerId(loginUser.getId());
+            room.setCreatorOnlyMode(request.getCreatorOnlyMode());
             // 如果自定义词语为空，从词库中随机选择一个
             try {
                 Map<String, String> wordData = getRandomWordWithHint();
@@ -475,6 +481,9 @@ public class DrawGameServiceImpl implements DrawGameService {
                 .collect(Collectors.toList());
         roomVO.setCorrectGuessPlayers(correctGuessPlayers);
 
+        // 设置房间模式
+        roomVO.setCreatorOnlyMode(room.getCreatorOnlyMode());
+
         return roomVO;
     }
 
@@ -536,6 +545,7 @@ public class DrawGameServiceImpl implements DrawGameService {
                         60,
                         TimeUnit.MINUTES
                 );
+
 
                 // 通知前端刷新绘画数据
                 webSocketService.sendToAllOnline(WSBaseResp.builder()
@@ -604,24 +614,18 @@ public class DrawGameServiceImpl implements DrawGameService {
                 }
 
                 // 检查用户是否是当前绘画者，绘画者不能猜词
-                if (loginUser.getId().equals(room.getCurrentDrawerId())) {
-                    // 判断猜词是否正确
-                    boolean isCorrect = guessWord.trim().equalsIgnoreCase(room.getCurrentWord().trim());
-
+                if (loginUser.getId().equals(room.getCurrentDrawerId()) || room.getCorrectGuessIds().contains(loginUser.getId())) {
                     MessageWrapper userMessage = request.getMessageWrapper();
-                    if (isCorrect) {
-                        userMessage.getMessage().setContent("***");
-                    }
+
+                    String contentWord = userMessage.getMessage().getContent()
+                            .replace(room.getCurrentWord(), "***");
+                    userMessage.getMessage().setContent(contentWord);
+
                     userMessage.getMessage().setRoomId(roomId);
                     webSocketService.sendToAllOnline(WSBaseResp.builder()
                             .type(MessageTypeEnum.DRAW.getType())
                             .data(userMessage).build(), loginUser.getId());
                     return null;
-                }
-
-                // 检查用户是否已经猜中
-                if (room.getCorrectGuessIds().contains(loginUser.getId())) {
-                    throw new BusinessException(ErrorCode.OPERATION_ERROR, "您已经猜中，无需再猜");
                 }
 
                 // 创建猜词记录
@@ -784,7 +788,7 @@ public class DrawGameServiceImpl implements DrawGameService {
 
                 // 检查房间状态
                 if (room.getStatus() != RoomStatusEnum.WAITING) {
-                    throw new BusinessException(ErrorCode.OPERATION_ERROR, "房间已开始或已结束");
+                    throw new BusinessException(ErrorCode.OPERATION_ERROR, "房间已结束无法观战");
                 }
 
                 // 检查参与者数量
@@ -799,9 +803,15 @@ public class DrawGameServiceImpl implements DrawGameService {
                 room.setCorrectGuessIds(new HashSet<>());
                 room.setCurrentRound(1);
 
-                // 如果当前绘画者为空，默认设置为房主
-                if (room.getCurrentDrawerId() == null) {
+                // 根据房间模式设置绘画者
+                if (Boolean.TRUE.equals(room.getCreatorOnlyMode())) {
+                    // 房主绘画模式，绘画者始终为房主
                     room.setCurrentDrawerId(room.getCreatorId());
+                } else {
+                    // 轮换模式，如果当前绘画者为空，默认设置为房主
+                    if (room.getCurrentDrawerId() == null) {
+                        room.setCurrentDrawerId(room.getCreatorId());
+                    }
                 }
 
                 // 更新房间信息
@@ -818,6 +828,11 @@ public class DrawGameServiceImpl implements DrawGameService {
 
                 // 清空猜词记录
                 stringRedisTemplate.delete(DrawGameRedisKey.getKey(DrawGameRedisKey.ROOM_GUESSES, roomId));
+                
+                // 发送清空画板通知
+                webSocketService.sendToAllOnline(WSBaseResp.builder()
+                        .type(MessageTypeEnum.CLEAR_DRAW.getType())
+                        .data(roomId).build());
 
                 // 发送游戏开始消息
                 MessageWrapper messageWrapper = getSystemMessageWrapper("你画我猜游戏开始啦！房主需要根据提示词进行绘画，其他玩家猜词。提示类别：" + room.getWordHint());
@@ -842,6 +857,13 @@ public class DrawGameServiceImpl implements DrawGameService {
                 webSocketService.sendToAllOnline(WSBaseResp.builder()
                         .type(MessageTypeEnum.DRAW.getType())
                         .data(nextRoundMessage).build());
+
+                // 发送当前绘画者提示
+                MessageWrapper drawerInfoMessage = getSystemMessageWrapper("当前绘画者是：" + drawerName);
+                drawerInfoMessage.getMessage().setRoomId(roomId);
+                webSocketService.sendToAllOnline(WSBaseResp.builder()
+                        .type(MessageTypeEnum.DRAW.getType())
+                        .data(drawerInfoMessage).build());
 
                 // 通知前端刷新房间状态
                 webSocketService.sendToAllOnline(WSBaseResp.builder()
@@ -917,6 +939,11 @@ public class DrawGameServiceImpl implements DrawGameService {
                         60,
                         TimeUnit.MINUTES
                 );
+                
+                // 发送清空画板通知
+                webSocketService.sendToAllOnline(WSBaseResp.builder()
+                        .type(MessageTypeEnum.CLEAR_DRAW.getType())
+                        .data(roomId).build());
 
                 // 发送游戏结束消息
                 MessageWrapper messageWrapper = getSystemMessageWrapper("你画我猜游戏结束！本轮的提示词是「" + room.getCurrentWord() + "」，类别是「" + room.getWordHint() + "」");
@@ -1197,7 +1224,7 @@ public class DrawGameServiceImpl implements DrawGameService {
                 boolean isCreator = loginUser.getId().equals(room.getCreatorId());
                 boolean isAdmin = UserConstant.ADMIN_ROLE.equals(loginUser.getUserRole());
 
-                if (!isCreator && !isAdmin) {
+                if (!isCreator && !isAdmin && !loginUser.getId().equals(room.getCurrentDrawerId())) {
                     throw new BusinessException(ErrorCode.NO_AUTH_ERROR, "只有房主或管理员可以进入下一轮");
                 }
 
@@ -1283,14 +1310,24 @@ public class DrawGameServiceImpl implements DrawGameService {
                 // 重置正确猜词列表
                 room.setCorrectGuessIds(new HashSet<>());
 
-                // 选择下一个绘画者（简单实现：从参与者中选择一个不是当前绘画者的用户）
-                Long nextDrawerId = null;
-//                for (Long playerId : room.getParticipantIds()) {
-//                    if (!playerId.equals(room.getCurrentDrawerId())) {
-//                        nextDrawerId = playerId;
-//                        break;
-//                    }
-//                }
+                // 选择下一个绘画者，根据房间模式决定
+                Long nextDrawerId;
+
+                // 如果是房主绘画模式，绘画者始终为房主
+                if (Boolean.TRUE.equals(room.getCreatorOnlyMode())) {
+                    nextDrawerId = room.getCreatorId();
+                } else {
+                    // 轮换模式，按顺序选择下一个绘画者
+                    List<Long> participantList = new ArrayList<>(room.getParticipantIds());
+                    // 按用户ID排序，保证顺序一致
+                    Collections.sort(participantList);
+
+                    // 找到当前绘画者在列表中的位置
+                    int currentIndex = participantList.indexOf(room.getCurrentDrawerId());
+                    // 选择下一个绘画者（如果当前是最后一个，则选择第一个）
+                    int nextIndex = (currentIndex + 1) % participantList.size();
+                    nextDrawerId = participantList.get(nextIndex);
+                }
 
                 // 如果没有找到下一个绘画者（可能只有一个玩家），则使用当前绘画者
                 if (nextDrawerId == null) {
@@ -1325,6 +1362,11 @@ public class DrawGameServiceImpl implements DrawGameService {
 
                 // 清空猜词记录
                 stringRedisTemplate.delete(DrawGameRedisKey.getKey(DrawGameRedisKey.ROOM_GUESSES, roomId));
+                
+                // 发送清空画板通知
+                webSocketService.sendToAllOnline(WSBaseResp.builder()
+                        .type(MessageTypeEnum.CLEAR_DRAW.getType())
+                        .data(roomId).build());
 
                 // 发送下一轮开始消息
                 User drawer = userService.getById(nextDrawerId);
@@ -1342,6 +1384,13 @@ public class DrawGameServiceImpl implements DrawGameService {
                         .type(MessageTypeEnum.INFO.getType())
                         .data(wordMessage)
                         .build(), nextDrawerId);
+
+                // 发送当前绘画者提示
+                MessageWrapper drawerInfoMessage = getSystemMessageWrapper("当前绘画者是：" + drawerName);
+                drawerInfoMessage.getMessage().setRoomId(roomId);
+                webSocketService.sendToAllOnline(WSBaseResp.builder()
+                        .type(MessageTypeEnum.DRAW.getType())
+                        .data(drawerInfoMessage).build());
 
                 // 通知前端刷新房间状态
                 webSocketService.sendToAllOnline(WSBaseResp.builder()

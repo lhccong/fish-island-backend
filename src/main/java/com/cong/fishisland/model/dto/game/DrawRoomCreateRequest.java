@@ -5,22 +5,29 @@ import lombok.Data;
 import java.io.Serializable;
 
 /**
- * 你画我猜游戏房间创建请求
+ * 创建你画我猜房间请求
  *
  * @author cong
  */
 @Data
 public class DrawRoomCreateRequest implements Serializable {
 
-    private static final long serialVersionUID = 1L;
-
     /**
-     * 房间最大人数（默认8人）
+     * 最大玩家数
      */
     private Integer maxPlayers;
 
     /**
-     * 总共轮数（默认10轮）
+     * 总轮数
      */
     private Integer totalRounds;
+    
+    /**
+     * 房间模式
+     * true: 房主绘画模式
+     * false: 轮换模式
+     */
+    private Boolean creatorOnlyMode;
+
+    private static final long serialVersionUID = 1L;
 } 

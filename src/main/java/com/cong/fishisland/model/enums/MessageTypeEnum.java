@@ -27,6 +27,7 @@ public enum MessageTypeEnum {
     CHAT("chat", "群聊天消息"),
     UNDERCOVER("undercover", "谁是卧底消息"),
     DRAW("draw", "你画我猜消息"),
+    CLEAR_DRAW("clearDraw", "清空画板"),
     GAME_STAR("gameStart", "开始游戏"),
     REFRESH_ROOM("refreshRoom", "刷新房间信息"),
     REFRESH_DRAW("refreshDraw", "刷新绘画房间信息"),

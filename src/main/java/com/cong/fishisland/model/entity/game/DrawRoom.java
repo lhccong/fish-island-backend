@@ -84,4 +84,11 @@ public class DrawRoom {
      * 当前轮次
      */
     private Integer currentRound;
+    
+    /**
+     * 房间模式
+     * true: 房主绘画模式
+     * false: 轮换模式
+     */
+    private Boolean creatorOnlyMode;
 } 

@@ -111,4 +111,11 @@ public class DrawRoomVO implements Serializable {
      * 正确猜中的玩家列表
      */
     private List<DrawPlayerVO> correctGuessPlayers;
+    
+    /**
+     * 房间模式
+     * true: 房主绘画模式
+     * false: 轮换模式
+     */
+    private Boolean creatorOnlyMode;
 } 
