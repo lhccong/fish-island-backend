@@ -103,6 +103,34 @@ public class PostServiceImpl extends ServiceImpl<PostMapper, Post> implements Po
 
     }
 
+    @Override
+    public Page<PostVO> listFavourPostByPage(PostQueryRequest postQueryRequest, Long userId) {
+        ThrowUtils.throwIf(postQueryRequest == null, ErrorCode.PARAMS_ERROR);
+        long current = postQueryRequest.getCurrent();
+        long size = postQueryRequest.getPageSize();
+
+        // 1. 分页查询收藏记录
+        Page<PostFavour> favourPage = new Page<>(current, size);
+        QueryWrapper<PostFavour> favourQueryWrapper = new QueryWrapper<>();
+        favourQueryWrapper.eq("userId", userId);
+        Page<PostFavour> postFavourPage = postFavourMapper.selectPage(favourPage, favourQueryWrapper);
+
+        // 2. 提取帖子ID并查询帖子
+        List<Long> postIdList = postFavourPage.getRecords().stream()
+                .map(PostFavour::getPostId)
+                .collect(Collectors.toList());
+
+        if (CollUtil.isEmpty(postIdList)) {
+            return new Page<>(current, size, 0);
+        }
+
+        // 3. 查询帖子并转换VO
+        QueryWrapper<Post> postQueryWrapper = new QueryWrapper<>();
+        postQueryWrapper.in("id", postIdList);
+        Page<Post> postPage = this.page(new Page<>(current, size), postQueryWrapper);
+        return getPostVOPage(postPage);
+    }
+
     private void validPostFeaturedRequest(PostFeaturedRequest request){
         ThrowUtils.throwIf(request == null, ErrorCode.PARAMS_ERROR, "参数为空");
         Long id = request.getId();
@@ -218,6 +246,8 @@ public class PostServiceImpl extends ServiceImpl<PostMapper, Post> implements Po
             PostFavour postFavour = postFavourMapper.selectOne(postFavourQueryWrapper);
             postVO.setHasFavour(postFavour != null);
         }
+        // 获取评论数
+        postVO.setCommentNum(commentService.getCommentNum(postId));
         return postVO;
     }
 
