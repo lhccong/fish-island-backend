@@ -67,4 +67,12 @@ public interface PostService extends IService<Post> {
      * @return 布尔值
      */
     Boolean setFeaturedStatus(PostFeaturedRequest request);
+
+    /**
+     * 获取当前用户收藏的帖子
+     * @param postQueryRequest 帖子查询请求
+     * @param id 用户id
+     * @return {@link Page}<{@link PostVO}>
+     */
+    Page<PostVO> listFavourPostByPage(PostQueryRequest postQueryRequest, Long id);
 }
