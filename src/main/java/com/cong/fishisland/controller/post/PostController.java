@@ -255,4 +255,19 @@ public class PostController {
     public BaseResponse<Boolean> setFeaturedStatus(@RequestBody PostFeaturedRequest request) {
         return ResultUtils.success(postService.setFeaturedStatus(request));
     }
+
+    /**
+     * 分页获取当前用户收藏的帖子
+     *
+     * @param postQueryRequest 帖子查询请求
+     * @return {@link BaseResponse}<{@link Page}<{@link PostVO}>>
+     */
+    @PostMapping("/my/favour/list/page/vo")
+    @ApiOperation(value = "分页获取当前用户收藏的帖子")
+    public BaseResponse<Page<PostVO>> listMyFavourPostVoByPage(@RequestBody PostQueryRequest postQueryRequest) {
+        User loginUser = userService.getLoginUser();
+        Page<PostVO> postVoPage = postService.listFavourPostByPage(postQueryRequest, loginUser.getId());
+        return ResultUtils.success(postVoPage);
+    }
+
 }
