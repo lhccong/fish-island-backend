@@ -58,7 +58,7 @@ public class EventRemindHandler {
      * 异步处理点赞评论事件
      */
     @Async("eventRemindExecutor")
-    public void handleCommentLike(Long commentId, Long senderId, Long recipientId) {
+    public void handleCommentLike(Long commentId, Long senderId, Long recipientId, Long postId) {
         // 检查是否已存在相同事件
         if (eventRemindService.existsEvent(
                 ActionTypeConstant.LIKE,
@@ -76,7 +76,7 @@ public class EventRemindHandler {
         event.setSourceId(commentId);
         event.setSourceType(SourceTypeConstant.COMMENT);
         event.setSourceContent("用户点赞了你的评论");
-        event.setUrl(String.valueOf(commentId));
+        event.setUrl(String.valueOf(postId));
         event.setSenderId(senderId);
         event.setRecipientId(recipientId);
         event.setRemindTime(new Date());
@@ -103,7 +103,7 @@ public class EventRemindHandler {
         event.setSourceId(commentId);
         event.setSourceType(SourceTypeConstant.COMMENT);
         event.setSourceContent(content);
-        event.setUrl(String.valueOf(commentId));
+        event.setUrl(String.valueOf(postId));
         event.setSenderId(senderId);
         event.setRecipientId(recipientId);
         event.setRemindTime(new Date());

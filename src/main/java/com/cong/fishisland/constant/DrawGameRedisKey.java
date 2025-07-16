@@ -1,59 +1,67 @@
 package com.cong.fishisland.constant;
 
 /**
- * 你画我猜游戏Redis键常量
+ * 你画我猜游戏Redis键
  *
  * @author cong
  */
-public class DrawGameRedisKey {
+public interface DrawGameRedisKey {
+
     /**
      * 基础键前缀
      */
-    public static final String BASE_KEY = "fish:draw:";
+    String BASE_KEY = "fish:draw:";
 
     /**
-     * 房间信息键 - fish:draw:roomInfo:{roomId}
+     * 房间信息
      */
-    public static final String ROOM_INFO = "roomInfo";
+    String ROOM_INFO = "roomInfo";
 
     /**
-     * 房间绘画数据键 - fish:draw:drawData:{roomId}
+     * 玩家所在房间
      */
-    public static final String DRAW_DATA = "drawData";
+    String PLAYER_ROOM = "playerRoom";
 
     /**
-     * 玩家所在房间键 - fish:draw:playerRoom:{userId}
+     * 绘画数据
      */
-    public static final String PLAYER_ROOM = "playerRoom";
+    String DRAW_DATA = "drawData";
 
     /**
-     * 玩家猜词记录键 - fish:draw:playerGuess:{roomId}:{userId}
+     * 房间猜词记录
      */
-    public static final String PLAYER_GUESS = "playerGuess";
+    String ROOM_GUESSES = "roomGuesses";
 
     /**
-     * 房间猜词记录键 - fish:draw:roomGuesses:{roomId}
+     * 玩家积分
      */
-    public static final String ROOM_GUESSES = "roomGuesses";
+    String PLAYER_SCORE = "playerScore";
     
     /**
-     * 玩家积分键 - fish:draw:playerScore:{roomId}:{userId}
+     * 当天已使用的词语
      */
-    public static final String PLAYER_SCORE = "playerScore";
+    String USED_WORDS = "usedWords";
+    
+    /**
+     * 房间列表（轻量级，不包含绘画数据）
+     */
+    String ROOM_LIST = "roomList";
 
     /**
-     * 构建完整的Redis键
+     * 获取完整的Redis键
      *
-     * @param keyPrefix 键前缀
-     * @param params    参数列表
+     * @param keys 键的各个部分
      * @return 完整的Redis键
      */
-    public static String getKey(String keyPrefix, Object... params) {
-        StringBuilder key = new StringBuilder(BASE_KEY);
-        key.append(keyPrefix);
-        for (Object param : params) {
-            key.append(":").append(param);
+    static String getKey(String... keys) {
+        StringBuilder sb = new StringBuilder(BASE_KEY);
+        for (String key : keys) {
+            sb.append(key).append(":");
         }
-        return key.toString();
+        // 移除最后一个冒号
+        if (sb.charAt(sb.length() - 1) == ':') {
+            sb.deleteCharAt(sb.length() - 1);
+        }
+        return sb.toString();
     }
-} 
+}
