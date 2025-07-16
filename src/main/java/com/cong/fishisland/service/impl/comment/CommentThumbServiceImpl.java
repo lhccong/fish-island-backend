@@ -47,7 +47,7 @@ public class CommentThumbServiceImpl extends ServiceImpl<CommentThumbMapper, Com
             int result = thumbService.doCommentThumbInner(userId, commentId);
             // 异步处理事件提醒（避免通知自己）
             if (result == 1 && !comment.getUserId().equals(userId)) {
-                eventRemindHandler.handleCommentLike(commentId, userId, comment.getUserId());
+                eventRemindHandler.handleCommentLike(commentId, userId, comment.getUserId(),comment.getPostId());
             }
             return result;
         }
