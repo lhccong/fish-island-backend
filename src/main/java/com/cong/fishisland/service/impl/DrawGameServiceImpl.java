@@ -120,9 +120,10 @@ public class DrawGameServiceImpl implements DrawGameService {
             room.setCorrectGuessIds(new HashSet<>());
             room.setCurrentDrawerId(loginUser.getId());
             room.setCreatorOnlyMode(request.getCreatorOnlyMode());
+            room.setWordType(request.getWordType());
             // 如果自定义词语为空，从词库中随机选择一个
             try {
-                Map<String, String> wordData = getRandomWordWithHint();
+                Map<String, String> wordData = getRandomWordWithHint(request.getWordType());
                 room.setCurrentWord(wordData.get("word"));
                 room.setWordHint(wordData.get("hint"));
             } catch (IOException e) {
@@ -189,11 +190,16 @@ public class DrawGameServiceImpl implements DrawGameService {
      * 从文件中随机获取一个词语及其提示词
      * 确保当天已使用过的词语不会再次出现
      *
+     * @param wordType 词库类型，如果为空则使用默认词库
      * @return 包含词语和提示词的Map，key为"word"和"hint"
      * @throws IOException 如果读取文件失败
      */
-    private Map<String, String> getRandomWordWithHint() throws IOException {
-        ClassPathResource resource = new ClassPathResource("draw-words.txt");
+    private Map<String, String> getRandomWordWithHint(String wordType) throws IOException {
+        String fileName = "draw-words.txt";
+        if (StringUtils.isNotBlank(wordType)) {
+            fileName = "draw-words-" + wordType + ".txt";
+        }
+        ClassPathResource resource = new ClassPathResource(fileName);
         List<String> lines = new ArrayList<>();
 
         try (BufferedReader reader = new BufferedReader(
@@ -205,6 +211,13 @@ public class DrawGameServiceImpl implements DrawGameService {
                     lines.add(trimmedLine);
                 }
             }
+        } catch (IOException e) {
+            log.error("读取词库文件 {} 失败，将使用默认词库", fileName, e);
+            // 如果指定的词库文件不存在，尝试使用默认词库
+            if (!fileName.equals("draw-words.txt")) {
+                return getRandomWordWithHint(null);
+            }
+            throw e;
         }
 
         if (lines.isEmpty()) {
@@ -1522,7 +1535,7 @@ public class DrawGameServiceImpl implements DrawGameService {
 
                 // 选择新的词语
                 try {
-                    Map<String, String> wordData = getRandomWordWithHint();
+                    Map<String, String> wordData = getRandomWordWithHint(room.getWordType());
                     room.setCurrentWord(wordData.get("word"));
                     room.setWordHint(wordData.get("hint"));
                 } catch (IOException e) {

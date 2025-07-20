@@ -13,7 +13,7 @@ import java.io.Serializable;
 public class DrawRoomCreateRequest implements Serializable {
 
     /**
-     * 最大玩家数
+     * 房间最大人数
      */
     private Integer maxPlayers;
 
@@ -23,11 +23,14 @@ public class DrawRoomCreateRequest implements Serializable {
     private Integer totalRounds;
     
     /**
-     * 房间模式
-     * true: 房主绘画模式
-     * false: 轮换模式
+     * 是否仅创建者绘画模式
      */
     private Boolean creatorOnlyMode;
+    
+    /**
+     * 词库类型
+     */
+    private String wordType;
 
     private static final long serialVersionUID = 1L;
 } 
