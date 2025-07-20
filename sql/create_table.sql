@@ -315,7 +315,7 @@ create table if not exists event_remind
     sourceType    int                                null comment '事件源类型：1- 帖子、2- 评论等',
     sourceContent varchar(256)                       not null comment '事件源的内容，比如回复的内容，回复的评论等等',
     url           varchar(256)                       not null comment '事件所发生的地点链接 url',
-    state         int     default 0                  not null comment '是否已读',
+    state         int      default 0                 not null comment '是否已读',
     senderId      bigint                             not null comment '操作者的 ID，即谁关注了你，谁艾特了你',
     recipientId   bigint                             not null comment '接受通知的用户的 ID',
     remindTime    datetime                           not null comment '提醒的时间',
@@ -324,5 +324,23 @@ create table if not exists event_remind
     isDelete      tinyint  default 0                 not null comment '是否删除（逻辑删除）',
     index idx_userId (recipientId)
 ) comment '事件提醒表' collate = utf8mb4_unicode_ci;
+
+-- 用户会员表
+CREATE TABLE if not exists `user_vip`
+(
+    `id`         BIGINT AUTO_INCREMENT COMMENT '会员ID',
+    `userId`     BIGINT COMMENT '用户ID',
+    `cardNo`     VARCHAR(256)  NULL COMMENT '会员兑换卡号（永久会员无卡号）',
+    `type`       tinyint           default 1 not null comment '1-月卡会员 2-永久会员',
+    `validDays`  DATETIME          default null comment '会员到期时间，永久会员为null',
+    `isDelete`   tinyint           default 0 not null comment '是否删除',
+    `createTime` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+    `updateTime` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
+    PRIMARY KEY (`id`),
+    -- 索引
+    INDEX `idx_donor` (`userId`)
+) ENGINE = InnoDB
+  DEFAULT CHARSET = utf8mb4
+  COLLATE = utf8mb4_unicode_ci COMMENT ='用户会员表';
 
 
