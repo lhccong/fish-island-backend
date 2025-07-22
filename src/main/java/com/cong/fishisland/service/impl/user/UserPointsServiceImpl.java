@@ -78,7 +78,7 @@ public class UserPointsServiceImpl extends ServiceImpl<UserPointsMapper, UserPoi
 
     public int calculateLevel(int points) {
         // 等级对应的积分范围 (起始积分)
-        int[] thresholds = {0, 125, 300, 600, 1100, 2100, 4100};
+        int[] thresholds = {0, 125, 300, 600, 1100, 2100, 4100, 6000, 8000, 10000, 12000, 14000, 16000, 18000};
 
         for (int i = thresholds.length - 1; i >= 0; i--) {
             if (points >= thresholds[i]) {
