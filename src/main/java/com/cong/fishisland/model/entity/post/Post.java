@@ -84,6 +84,11 @@ public class Post implements Serializable {
      */
     private Integer isFeatured;
 
+    /**
+     * 总结
+     */
+    private String summary;
+
     @TableField(exist = false)
     private static final long serialVersionUID = 1L;
 }

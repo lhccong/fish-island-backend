@@ -136,6 +136,9 @@ create table if not exists post
     index idx_userId (userId),
     index idx_featured (isFeatured)
 ) comment '帖子表' collate = utf8mb4_unicode_ci;
+-- 修改帖子表，新增总结字段
+ALTER TABLE post
+    ADD COLUMN summary TEXT NULL COMMENT '总结';
 
 -- 帖子点赞表（硬删除）
 create table if not exists post_thumb

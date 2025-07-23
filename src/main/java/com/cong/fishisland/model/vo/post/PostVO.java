@@ -94,6 +94,11 @@ public class PostVO implements Serializable {
     private Integer isFeatured;
 
     /**
+     * 摘要
+     */
+    private String summary;
+
+    /**
      * 评论数
      */
     private Integer commentNum;
