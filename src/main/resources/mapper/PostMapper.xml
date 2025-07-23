@@ -19,12 +19,13 @@
         <result property="updateTime" column="updateTime" jdbcType="TIMESTAMP"/>
         <result property="isDelete" column="isDelete" jdbcType="TINYINT"/>
         <result property="isFeatured" column="isFeatured" jdbcType="TINYINT"/>
+        <result property="summary" column="summary" jdbcType="VARCHAR"/>
     </resultMap>
 
     <sql id="Base_Column_List">
         id,title,content,tags,coverImage,
         thumbNum,favourNum,viewNum,userId,
-        createTime,updateTime,isDelete,isFeatured
+        createTime,updateTime,isDelete,isFeatured, summary
     </sql>
 
     <select id="listPostWithDelete" resultType="com.cong.fishisland.model.entity.post.Post">

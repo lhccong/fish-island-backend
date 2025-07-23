@@ -20,6 +20,7 @@ import com.cong.fishisland.service.UserService;
 import java.util.List;
 import javax.annotation.Resource;
 
+import com.cong.fishisland.service.event.PostSummaryHandler;
 import io.swagger.annotations.ApiOperation;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.BeanUtils;
@@ -44,6 +45,9 @@ public class PostController {
 
     @Resource
     private UserService userService;
+
+    @Resource
+    private PostSummaryHandler postSummaryHandler;
 
     // region 增删改查
 
@@ -71,6 +75,7 @@ public class PostController {
         boolean result = postService.save(post);
         ThrowUtils.throwIf(!result, ErrorCode.OPERATION_ERROR);
         long newPostId = post.getId();
+        postSummaryHandler.generateSummaryAsync(newPostId);
         return ResultUtils.success(newPostId);
     }
 
@@ -125,6 +130,9 @@ public class PostController {
         Post oldPost = postService.getById(id);
         ThrowUtils.throwIf(oldPost == null, ErrorCode.NOT_FOUND_ERROR);
         boolean result = postService.updateById(post);
+        if (result){
+            postSummaryHandler.generateSummaryAsync(id);
+        }
         return ResultUtils.success(result);
     }
 
@@ -240,6 +248,9 @@ public class PostController {
             throw new BusinessException(ErrorCode.NO_AUTH_ERROR);
         }
         boolean result = postService.updateById(post);
+        if (result){
+            postSummaryHandler.generateSummaryAsync(id);
+        }
         return ResultUtils.success(result);
     }
 
