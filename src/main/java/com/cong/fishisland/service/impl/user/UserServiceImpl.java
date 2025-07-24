@@ -18,21 +18,21 @@ import com.cong.fishisland.config.GitHubConfig;
 import com.cong.fishisland.constant.CommonConstant;
 import com.cong.fishisland.constant.NewUserDataTypeWebConstant;
 import com.cong.fishisland.constant.SystemConstants;
+import com.cong.fishisland.constant.VipTypeConstant;
 import com.cong.fishisland.manager.EmailManager;
 import com.cong.fishisland.mapper.user.UserMapper;
 import com.cong.fishisland.mapper.user.UserThirdAuthMapper;
+import com.cong.fishisland.mapper.user.UserVipMapper;
 import com.cong.fishisland.model.dto.user.NewUserDataWebRequest;
 import com.cong.fishisland.model.dto.user.UserQueryRequest;
-import com.cong.fishisland.model.entity.user.EmailBan;
-import com.cong.fishisland.model.entity.user.User;
-import com.cong.fishisland.model.entity.user.UserPoints;
-import com.cong.fishisland.model.entity.user.UserThirdAuth;
+import com.cong.fishisland.model.entity.user.*;
 import com.cong.fishisland.model.enums.DeleteStatusEnum;
 import com.cong.fishisland.model.enums.UserRoleEnum;
 import com.cong.fishisland.model.vo.user.*;
 import com.cong.fishisland.service.EmailBanService;
 import com.cong.fishisland.service.UserPointsService;
 import com.cong.fishisland.service.UserService;
+import com.cong.fishisland.service.UserVipService;
 import com.cong.fishisland.utils.SqlUtils;
 import lombok.extern.slf4j.Slf4j;
 import me.zhyd.oauth.model.AuthCallback;
@@ -102,6 +102,9 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements Us
 
     @Resource
     private UserThirdAuthMapper userThirdAuthMapper;
+
+    @Resource
+    private UserVipMapper userVipMapper;
 
     private static final ConcurrentHashMap<String, ReentrantLock> LOCK_MAP = new ConcurrentHashMap<>();
 
@@ -657,6 +660,8 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements Us
             return loginUserVO;
         }
 
+        loginUserVO.setVip(isUserVip(user.getId()));
+
         loginUserVO.setPoints(userPoints.getPoints());
         loginUserVO.setLevel(userPoints.getLevel());
         loginUserVO.setUsedPoints(userPoints.getUsedPoints());
@@ -688,6 +693,31 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements Us
         UserVO userVO = new UserVO();
         BeanUtils.copyProperties(user, userVO);
         return userVO;
+    }
+
+    public boolean isUserVip(Long userId) {
+        if (userId == null) {
+            return false;
+        }
+
+        // 查询用户会员信息
+        QueryWrapper<UserVip> queryWrapper = new QueryWrapper<>();
+        queryWrapper.eq("userId", userId);
+        queryWrapper.eq("isDelete", 0);
+        UserVip userVip = userVipMapper.selectOne(queryWrapper);
+
+        if (userVip == null) {
+            return false;
+        }
+
+        // 如果是永久会员，直接返回true
+        if (VipTypeConstant.PERMANENT.equals(userVip.getType())) {
+            return true;
+        }
+
+        // 如果是月卡会员，检查是否过期
+        Date now = new Date();
+        return userVip.getValidDays() != null && now.before(userVip.getValidDays());
     }
 
     @Override

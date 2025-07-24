@@ -74,7 +74,7 @@ public class RedPacketServiceImpl implements RedPacketService {
 
         //获取当前用户积分
         UserPoints userPoints = userPointsService.getById(loginUser.getId());
-        if (userPoints.getLevel() < 6 && !Objects.equals(loginUser.getUserRole(), UserRoleEnum.ADMIN.getValue())) {
+        if (userPoints.getLevel() < 6 && !Objects.equals(loginUser.getUserRole(), UserRoleEnum.ADMIN.getValue()) && userVipService.isUserVip(loginUser.getId())) {
             throw new BusinessException(ErrorCode.OPERATION_ERROR, "您的等级不足，无法发送红包");
         }
 
