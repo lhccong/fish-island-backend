@@ -118,7 +118,7 @@ public class CommentServiceImpl extends ServiceImpl<CommentMapper, Comment>
 
             // 获取二级评论总数
             node.setChildCount((int) this.count(new LambdaQueryWrapper<Comment>()
-                    .eq(Comment::getParentId, top.getId())
+                    .eq(Comment::getRootId, top.getId())
             ));
 
             // 填充二级评论用户信息
