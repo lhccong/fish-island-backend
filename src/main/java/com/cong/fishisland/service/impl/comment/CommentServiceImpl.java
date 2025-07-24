@@ -67,19 +67,18 @@ public class CommentServiceImpl extends ServiceImpl<CommentMapper, Comment>
         int size = commentQueryRequest.getPageSize();
         String sortField = commentQueryRequest.getSortField();
         String sortOrder = commentQueryRequest.getSortOrder();
-        // 获取评论总数
-        long totalComments = this.count(new LambdaQueryWrapper<Comment>()
-                .eq(Comment::getPostId, postId)
-        );
+
         // 分页查询顶级评论
         Page<Comment> topPage = new Page<>(current, size);
         QueryWrapper<Comment> queryWrapper = new QueryWrapper<>();
         queryWrapper.eq("postId", postId);
         queryWrapper.isNull("parentId");
         queryWrapper.orderBy(SqlUtils.validSortField(sortField), sortOrder.equals(CommonConstant.SORT_ORDER_ASC), sortField);
-        List<Comment> topComments = this.page(topPage, queryWrapper).getRecords();
+        Page<Comment> page = this.page(topPage, queryWrapper);
+
+        List<Comment> topComments = page.getRecords();
         if (CollUtil.isEmpty(topComments)) {
-            return new Page<>(current, size, totalComments);
+            return new Page<>(current, size, 0);
         }
         // 收集所有需要查询的用户ID
         Set<Long> userIds = new HashSet<>();
@@ -138,11 +137,13 @@ public class CommentServiceImpl extends ServiceImpl<CommentMapper, Comment>
             node.setHasThumb(hasCommentThumb(top.getId()));
             return node;
         }).collect(Collectors.toList());
+
         Page<CommentNodeVO> pageResult = new Page<>();
+
         if (CollUtil.isNotEmpty(nodes)) {
             pageResult.setCurrent(current);
             pageResult.setSize(size);
-            pageResult.setTotal(totalComments);
+            pageResult.setTotal(page.getTotal());
             pageResult.setRecords(nodes);
         }
         return pageResult;
