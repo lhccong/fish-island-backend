@@ -40,7 +40,7 @@ public class LoginUserVO implements Serializable {
     private  String email;
 
     /**
-     * 用户角色：user/admin/ban
+     * 用户角色：user/admin/ban/vip
      */
     private String userRole;
 

@@ -9,7 +9,7 @@ import com.cong.fishisland.constant.UserConstant;
 import com.cong.fishisland.model.dto.user.UserMuteRequest;
 import com.cong.fishisland.model.vo.user.UserMuteVO;
 import com.cong.fishisland.service.UserMuteService;
-import io.swagger.annotations.Api;
+import com.cong.fishisland.service.UserVipService;
 import io.swagger.annotations.ApiOperation;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.web.bind.annotation.*;
@@ -29,6 +29,8 @@ public class UserMuteController {
 
     @Resource
     private UserMuteService userMuteService;
+    @Resource
+    private UserVipService userVipService;
 
     /**
      * 禁言用户
@@ -45,6 +47,9 @@ public class UserMuteController {
         }
         if (userMuteRequest.getDuration() <= 0) {
             throw new BusinessException(ErrorCode.PARAMS_ERROR, "禁言时间必须大于0");
+        }
+        if (userVipService.isUserVip(userMuteRequest.getUserId())) {
+            throw new BusinessException(ErrorCode.PARAMS_ERROR, "VIP用户不能被禁言");
         }
         boolean result = userMuteService.muteUser(userMuteRequest.getUserId(), userMuteRequest.getDuration());
         return ResultUtils.success(result);

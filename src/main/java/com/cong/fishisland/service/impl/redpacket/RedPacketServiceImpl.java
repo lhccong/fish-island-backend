@@ -13,6 +13,7 @@ import com.cong.fishisland.model.vo.redpacket.RedPacketRecordVO;
 import com.cong.fishisland.service.RedPacketService;
 import com.cong.fishisland.service.UserPointsService;
 import com.cong.fishisland.service.UserService;
+import com.cong.fishisland.service.UserVipService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.BeanUtils;
@@ -38,6 +39,7 @@ public class RedPacketServiceImpl implements RedPacketService {
     private final RedisTemplate<String, Object> redisTemplate;
     private final UserService userService;
     private final UserPointsService userPointsService;
+    private final UserVipService userVipService;
 
     // Redis key前缀
     private static final String RED_PACKET_KEY_PREFIX = "redpacket:";
@@ -50,6 +52,7 @@ public class RedPacketServiceImpl implements RedPacketService {
     private static final long RED_PACKET_EXPIRE_TIME = 24 * 60 * 60;
     // 每日发红包次数限制
     private static final int NORMAL_USER_DAILY_LIMIT = 1;
+    private static final int VIP_USER_DAILY_LIMIT = 2;
     private static final int ADMIN_DAILY_LIMIT = 3;
 
     // 锁的过期时间（10秒）
@@ -92,15 +95,26 @@ public class RedPacketServiceImpl implements RedPacketService {
             dailyCount = 0;
         }
 
-        int dailyLimit = Objects.equals(loginUser.getUserRole(), UserRoleEnum.ADMIN.getValue())
-                ? ADMIN_DAILY_LIMIT
-                : NORMAL_USER_DAILY_LIMIT;
+        int dailyLimit;
+        boolean userVip = userVipService.isUserVip(loginUser.getId());
+        if (Objects.equals(loginUser.getUserRole(), UserRoleEnum.ADMIN.getValue())) {
+            dailyLimit = ADMIN_DAILY_LIMIT;
+        } else if (userVip) {
+            dailyLimit = VIP_USER_DAILY_LIMIT;
+        } else {
+            dailyLimit = NORMAL_USER_DAILY_LIMIT;
+        }
 
         if (dailyCount >= dailyLimit) {
-            throw new BusinessException(ErrorCode.OPERATION_ERROR,
-                    Objects.equals(loginUser.getUserRole(), UserRoleEnum.ADMIN.getValue())
-                            ? "管理员每日最多只能发送3次红包"
-                            : "您今日已发送过红包，请明天再来");
+            String message;
+            if (Objects.equals(loginUser.getUserRole(), UserRoleEnum.ADMIN.getValue())) {
+                message = "管理员每日最多只能发送3次红包";
+            } else if (userVip) {
+                message = "VIP用户每日最多只能发送2次红包";
+            } else {
+                message = "您今日已发送过红包，请明天再来";
+            }
+            throw new BusinessException(ErrorCode.OPERATION_ERROR, message);
         }
 
 
@@ -182,13 +196,13 @@ public class RedPacketServiceImpl implements RedPacketService {
             int retryCount = 0;
             int maxRetries = 5;
             long retryWaitTime = 50; // 只等待50毫秒
-            
+
             while (!locked && retryCount < maxRetries) {
                 locked = Boolean.TRUE.equals(redisTemplate.opsForValue().setIfAbsent(lockKey, "1", LOCK_EXPIRE_TIME, TimeUnit.SECONDS));
                 if (locked) {
                     break;
                 }
-                
+
                 // 快速重试，几乎是立即重试
                 try {
                     // 仅记录第一次和最后一次重试的日志，减少日志量
@@ -203,7 +217,7 @@ public class RedPacketServiceImpl implements RedPacketService {
                 }
                 retryCount++;
             }
-            
+
             if (!locked) {
                 log.info("获取锁最终失败，已重试{}次: {}", maxRetries, redPacketId);
                 throw new BusinessException(ErrorCode.OPERATION_ERROR, "抢红包人数过多，请稍后再试");

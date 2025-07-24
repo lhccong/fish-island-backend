@@ -29,6 +29,7 @@ import com.cong.fishisland.model.ws.response.WSBaseResp;
 import com.cong.fishisland.service.RoomMessageService;
 import com.cong.fishisland.service.UserMuteService;
 import com.cong.fishisland.service.UserService;
+import com.cong.fishisland.service.UserVipService;
 import com.cong.fishisland.websocket.cache.UserCache;
 import com.cong.fishisland.websocket.event.AIAnswerEvent;
 import com.cong.fishisland.websocket.event.AddSpeakPointEvent;
@@ -76,6 +77,7 @@ public class WebSocketServiceImpl implements WebSocketService {
     private static final String ROOM_ID = "roomId";
     private final RoomMessageService roomMessageService;
     private final UserMuteService userMuteService;
+    private final UserVipService userVipService;
 
 
     /**
@@ -374,6 +376,8 @@ public class WebSocketServiceImpl implements WebSocketService {
             sendMsg(channel, errorResp);
             return null;
         }
+        message.getSender().setVip(userVipService.isUserVip(loginUserId));
+
         return new SendMessageDto(messageDto, message);
     }
 

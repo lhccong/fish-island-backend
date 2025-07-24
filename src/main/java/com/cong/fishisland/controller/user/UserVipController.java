@@ -31,7 +31,7 @@ import javax.annotation.Resource;
 @RestController
 @RequestMapping("/user/vip")
 @Slf4j
-@Api(tags = "用户会员接口")
+//@Api(tags = "用户会员接口")
 public class UserVipController {
 
     @Resource

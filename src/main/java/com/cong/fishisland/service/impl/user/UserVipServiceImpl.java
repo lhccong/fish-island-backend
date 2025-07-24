@@ -280,7 +280,7 @@ public class UserVipServiceImpl extends ServiceImpl<UserVipMapper, UserVip>
         // 查询用户会员信息
         QueryWrapper<UserVip> queryWrapper = new QueryWrapper<>();
         queryWrapper.eq("userId", userId);
-        queryWrapper.eq("type", VipTypeConstant.PERMANENT); // 永久会员
+        queryWrapper.eq("type", VipTypeConstant.PERMANENT);
         queryWrapper.eq("isDelete", 0);
         return this.count(queryWrapper) > 0;
     }
