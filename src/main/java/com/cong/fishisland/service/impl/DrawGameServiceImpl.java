@@ -195,7 +195,7 @@ public class DrawGameServiceImpl implements DrawGameService {
      * @throws IOException 如果读取文件失败
      */
     private Map<String, String> getRandomWordWithHint(String wordType) throws IOException {
-        String fileName = "draw-words.txt";
+        String fileName = "draw-words-default.txt";
         if (StringUtils.isNotBlank(wordType)) {
             fileName = "draw-words-" + wordType + ".txt";
         }
@@ -214,7 +214,7 @@ public class DrawGameServiceImpl implements DrawGameService {
         } catch (IOException e) {
             log.error("读取词库文件 {} 失败，将使用默认词库", fileName, e);
             // 如果指定的词库文件不存在，尝试使用默认词库
-            if (!fileName.equals("draw-words.txt")) {
+            if (!fileName.equals("draw-words-default.txt")) {
                 return getRandomWordWithHint(null);
             }
             throw e;
