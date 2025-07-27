@@ -367,6 +367,7 @@ create table if not exists fish_pet
     petId        BIGINT auto_increment comment '宠物 ID' PRIMARY KEY,
     petUrl       VARCHAR(256) comment '宠物图片地址',
     name         VARCHAR(256) comment '宠物名称',
+    userId       BIGINT comment '用户 ID',
     level        INT default 1 comment '宠物等级',
     exp          INT default 0 comment '当前经验值',
     mood         INT default 100 comment '宠物心情值（0-100）',
@@ -376,4 +377,17 @@ create table if not exists fish_pet
     updateTime   DATETIME default CURRENT_TIMESTAMP not null on update CURRENT_TIMESTAMP comment '更新时间',
     isDelete     TINYINT default 0 not null comment '是否删除'
 ) comment '摸鱼宠物表' collate = utf8mb4_unicode_ci;
+
+-- 宠物皮肤表
+create table if not exists pet_skin
+(
+    skinId    BIGINT auto_increment comment '皮肤 ID' PRIMARY KEY,
+    url        VARCHAR(256) comment '皮肤地址',
+    description        VARCHAR(256) comment '皮肤描述',
+    name       VARCHAR(256) comment '皮肤名称',
+    points     INT      DEFAULT 1 comment '皮肤所需兑换积分',
+    createTime datetime default CURRENT_TIMESTAMP not null comment '创建时间',
+    updateTime datetime default CURRENT_TIMESTAMP not null on update CURRENT_TIMESTAMP comment '更新时间',
+    isDelete   tinyint  default 0                 not null comment '是否删除'
+) comment '宠物皮肤表' collate = utf8mb4_unicode_ci;
 
