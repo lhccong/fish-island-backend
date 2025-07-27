@@ -3,6 +3,7 @@ package com.cong.fishisland.model.vo.pet;
 import lombok.Data;
 import java.io.Serializable;
 import java.util.Date;
+import java.util.List;
 
 /**
  * 其他用户宠物视图对象（不包含扩展数据）
@@ -46,6 +47,11 @@ public class OtherUserPetVO implements Serializable {
      * 饥饿度
      */
     private Integer hunger;
+
+    /**
+     * 宠物拥有的皮肤列表
+     */
+    private List<PetSkinVO> skins;
     
     /**
      * 创建时间

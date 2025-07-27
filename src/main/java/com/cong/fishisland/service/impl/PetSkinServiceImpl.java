@@ -131,17 +131,30 @@ public class PetSkinServiceImpl extends ServiceImpl<PetSkinMapper, PetSkin> impl
     public PetVO setPetSkin(PetSkinSetRequest petSkinSetRequest, Long userId) {
         Long skinId = petSkinSetRequest.getSkinId();
         
-        // 查询皮肤信息
-        PetSkin petSkin = this.getById(skinId);
-        if (petSkin == null) {
-            throw new BusinessException(ErrorCode.NOT_FOUND_ERROR, "皮肤不存在");
-        }
-        
         // 查询用户宠物
         FishPet fishPet = fishPetMapper.selectOne(new LambdaQueryWrapper<FishPet>()
                 .eq(FishPet::getUserId, userId));
         if (fishPet == null) {
             throw new BusinessException(ErrorCode.NOT_FOUND_ERROR, "请先创建宠物");
+        }
+        
+        // 如果skinId为-1，则恢复原皮
+        if (skinId != null && skinId == -1L) {
+            // 默认原皮的图片地址，可以根据实际情况设置
+            String defaultPetUrl = "https://api.oss.cqbo.com/moyu/pet/超级玛丽马里奥 (73)_爱给网_aigei_com.png";
+            fishPet.setPetUrl(defaultPetUrl);
+            fishPetMapper.updateById(fishPet);
+            
+            // 返回更新后的宠物信息
+            PetVO petVO = new PetVO();
+            BeanUtils.copyProperties(fishPet, petVO);
+            return petVO;
+        }
+        
+        // 查询皮肤信息
+        PetSkin petSkin = this.getById(skinId);
+        if (petSkin == null) {
+            throw new BusinessException(ErrorCode.NOT_FOUND_ERROR, "皮肤不存在");
         }
         
         // 检查是否已拥有该皮肤

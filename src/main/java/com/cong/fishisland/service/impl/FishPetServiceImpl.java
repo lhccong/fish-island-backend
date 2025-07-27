@@ -202,6 +202,10 @@ public class FishPetServiceImpl extends ServiceImpl<FishPetMapper, FishPet> impl
         OtherUserPetVO otherUserPetVO = new OtherUserPetVO();
         BeanUtils.copyProperties(fishPet, otherUserPetVO);
 
+        // 获取宠物拥有的皮肤列表
+        List<PetSkinVO> petSkins = this.getPetSkins(fishPet.getPetId());
+        otherUserPetVO.setSkins(petSkins);
+
         return otherUserPetVO;
     }
 

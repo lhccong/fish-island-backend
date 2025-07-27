@@ -16,10 +16,6 @@ public class CreatePetRequest implements Serializable {
      */
     private String name;
     
-    /**
-     * 宠物图片地址（可选）
-     */
-    private String petUrl;
 
     private static final long serialVersionUID = 1L;
 } 
