@@ -2,10 +2,10 @@ package com.cong.fishisland.controller.pet;
 
 import com.cong.fishisland.common.BaseResponse;
 import com.cong.fishisland.common.ErrorCode;
+import com.cong.fishisland.common.ResultUtils;
 import com.cong.fishisland.common.exception.BusinessException;
 import com.cong.fishisland.model.vo.pet.PetRankVO;
 import com.cong.fishisland.service.FishPetService;
-import com.cong.fishisland.utils.ResultUtils;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.web.bind.annotation.GetMapping;
