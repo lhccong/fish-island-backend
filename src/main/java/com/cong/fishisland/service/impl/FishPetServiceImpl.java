@@ -5,11 +5,13 @@ import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import com.cong.fishisland.common.ErrorCode;
 import com.cong.fishisland.common.exception.BusinessException;
+import com.cong.fishisland.constant.PetRedisKey;
 import com.cong.fishisland.mapper.pet.FishPetMapper;
 import com.cong.fishisland.model.dto.pet.CreatePetRequest;
 import com.cong.fishisland.model.dto.pet.UpdatePetNameRequest;
 import com.cong.fishisland.model.entity.pet.FishPet;
 import com.cong.fishisland.model.vo.pet.OtherUserPetVO;
+import com.cong.fishisland.model.vo.pet.PetRankVO;
 import com.cong.fishisland.model.vo.pet.PetSkinVO;
 import com.cong.fishisland.model.vo.pet.PetVO;
 import com.cong.fishisland.service.FishPetService;
@@ -61,6 +63,11 @@ public class FishPetServiceImpl extends ServiceImpl<FishPetMapper, FishPet> impl
     private static final int PAT_POINT_COST = 3;
     // 修改宠物名字消耗的积分
     private static final int RENAME_POINT_COST = 100;
+    
+    // 宠物排行榜缓存时间（24小时）
+    private static final Duration PET_RANK_CACHE_DURATION = Duration.ofHours(24);
+    // 默认排行榜数量
+    private static final int DEFAULT_RANK_LIMIT = 10;
 
     @Override
     public Long createPet(CreatePetRequest createPetRequest) {
@@ -323,7 +330,7 @@ public class FishPetServiceImpl extends ServiceImpl<FishPetMapper, FishPet> impl
                 int pointsToAdd = Math.min(level, maxPoints);
 
                 // 为用户增加积分（非签到积分）
-                userPointsService.updatePoints(userId, pointsToAdd, false);
+                userPointsService.updateUsedPoints(userId, -pointsToAdd);
 
                 log.info("宠物产出积分：用户ID={}, 宠物等级={}, 产出积分={}", userId, level, pointsToAdd);
                 count++;
@@ -364,6 +371,83 @@ public class FishPetServiceImpl extends ServiceImpl<FishPetMapper, FishPet> impl
 
         // 查询皮肤信息
         return petSkinService.getPetSkinsByIds(skinIds);
+    }
+    
+    @Override
+    public int generatePetRankList() {
+        log.info("开始生成宠物排行榜");
+        
+        try {
+            // 从数据库获取排行榜数据
+            List<PetRankVO> petRankList = baseMapper.getPetRankList(DEFAULT_RANK_LIMIT);
+            
+            if (petRankList == null || petRankList.isEmpty()) {
+                log.info("没有宠物数据，不生成排行榜");
+                return 0;
+            }
+            
+            // 设置排名
+            for (int i = 0; i < petRankList.size(); i++) {
+                petRankList.get(i).setRank(i + 1);
+            }
+            
+            // 将排行榜数据缓存到Redis
+            String petRankKey = PetRedisKey.getKey(PetRedisKey.PET_RANK);
+            
+            // 先删除旧的排行榜数据
+            RedisUtils.delete(petRankKey);
+            
+            // 将新的排行榜数据存入Redis
+            String petRankJson = JSON.toJSONString(petRankList);
+            RedisUtils.set(petRankKey, petRankJson, PET_RANK_CACHE_DURATION);
+            
+            log.info("宠物排行榜生成成功，共{}条数据", petRankList.size());
+            return petRankList.size();
+        } catch (Exception e) {
+            log.error("生成宠物排行榜异常", e);
+            return 0;
+        }
+    }
+    
+    @Override
+    public List<PetRankVO> getPetRankList(int limit) {
+        // 限制获取数量
+        if (limit <= 0) {
+            limit = 10; // 默认获取前10名
+        }
+        limit = Math.min(limit, DEFAULT_RANK_LIMIT);
+        
+        // 从Redis获取排行榜数据
+        String petRankKey = PetRedisKey.getKey(PetRedisKey.PET_RANK);
+        String petRankJson = RedisUtils.get(petRankKey);
+        
+        List<PetRankVO> petRankList;
+        
+        if (petRankJson != null && !petRankJson.isEmpty()) {
+            // 如果Redis中有数据，直接返回
+            petRankList = JSON.parseArray(petRankJson, PetRankVO.class);
+            
+            // 如果需要的数量小于缓存的数量，截取前limit个
+            if (petRankList.size() > limit) {
+                petRankList = petRankList.subList(0, limit);
+            }
+        } else {
+            // 如果Redis中没有数据，从数据库获取并生成排行榜
+            petRankList = baseMapper.getPetRankList(limit);
+            
+            // 设置排名
+            for (int i = 0; i < petRankList.size(); i++) {
+                petRankList.get(i).setRank(i + 1);
+            }
+            
+            // 将排行榜数据缓存到Redis
+            if (!petRankList.isEmpty()) {
+                String newPetRankJson = JSON.toJSONString(petRankList);
+                RedisUtils.set(petRankKey, newPetRankJson, PET_RANK_CACHE_DURATION);
+            }
+        }
+        
+        return petRankList;
     }
 
     /**

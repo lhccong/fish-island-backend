@@ -5,6 +5,7 @@ import com.cong.fishisland.model.dto.pet.CreatePetRequest;
 import com.cong.fishisland.model.dto.pet.UpdatePetNameRequest;
 import com.cong.fishisland.model.entity.pet.FishPet;
 import com.cong.fishisland.model.vo.pet.OtherUserPetVO;
+import com.cong.fishisland.model.vo.pet.PetRankVO;
 import com.cong.fishisland.model.vo.pet.PetSkinVO;
 import com.cong.fishisland.model.vo.pet.PetVO;
 
@@ -101,4 +102,19 @@ public interface FishPetService extends IService<FishPet> {
      * @return 皮肤列表
      */
     List<PetSkinVO> getPetSkins(Long petId);
+    
+    /**
+     * 生成宠物排行榜并缓存到Redis
+     * 
+     * @return 生成的排行榜数量
+     */
+    int generatePetRankList();
+    
+    /**
+     * 获取宠物排行榜
+     * 
+     * @param limit 获取数量，默认为前10名
+     * @return 宠物排行榜列表
+     */
+    List<PetRankVO> getPetRankList(int limit);
 } 

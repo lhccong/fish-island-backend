@@ -34,34 +34,51 @@
     </update>
     
     <update id="batchUpdateOnlineUserPetExp">
-        UPDATE fish_pet
-        SET 
-            exp = CASE 
-                WHEN exp + 1 >= 100 THEN 0 
-                ELSE exp + 1 
-            END,
-            level = CASE 
-                WHEN exp + 1 >= 100 THEN level + 1 
-                ELSE level 
-            END,
-            updateTime = NOW()
-        WHERE userId IN 
-        <foreach collection="userIds" item="userId" open="(" separator="," close=")">
-            #{userId}
-        </foreach>
-        AND hunger > 0 
-        AND mood > 0
-        AND isDelete = 0
+        <if test="userIds != null and userIds.size() > 0">
+            UPDATE fish_pet
+            SET exp = CASE
+                    WHEN exp + 1 >= 100 THEN 0
+                    ELSE exp + 1
+                END,
+                level = CASE
+                    WHEN exp + 1 >= 100 THEN level + 1
+                    ELSE level
+                END,
+                updateTime = NOW()
+            WHERE isDelete = 0
+            AND userId IN
+            <foreach collection="userIds" item="userId" open="(" separator="," close=")">
+                #{userId}
+            </foreach>
+            AND hunger > 0 AND mood > 0
+        </if>
     </update>
     
-    <select id="getPetsForDailyPoints" resultType="java.util.HashMap">
-        SELECT 
-            petId,
-            userId,
-            level
+    <select id="getPetsForDailyPoints" resultType="java.util.Map">
+        SELECT petId, userId, level
         FROM fish_pet
-        WHERE hunger > 0 
-        AND mood > 0
-        AND isDelete = 0
+        WHERE isDelete = 0
+        AND hunger > 0 AND mood > 0
+    </select>
+    
+    <select id="getPetRankList" resultType="com.cong.fishisland.model.vo.pet.PetRankVO">
+        SELECT 
+            p.petId,
+            p.name,
+            p.petUrl,
+            p.level,
+            p.exp,
+            p.userId,
+            u.userName,
+            u.userAvatar
+        FROM 
+            fish_pet p
+        LEFT JOIN 
+            user u ON p.userId = u.id
+        WHERE 
+            p.isDelete = 0 AND u.isDelete = 0
+        ORDER BY 
+            p.level DESC, p.exp DESC
+        LIMIT #{limit}
     </select>
 </mapper> 

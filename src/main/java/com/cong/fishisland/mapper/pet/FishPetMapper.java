@@ -2,6 +2,7 @@ package com.cong.fishisland.mapper.pet;
 
 import com.baomidou.mybatisplus.core.mapper.BaseMapper;
 import com.cong.fishisland.model.entity.pet.FishPet;
+import com.cong.fishisland.model.vo.pet.PetRankVO;
 import org.apache.ibatis.annotations.MapKey;
 import org.apache.ibatis.annotations.Param;
 
@@ -41,4 +42,13 @@ public interface FishPetMapper extends BaseMapper<FishPet> {
      */
     @MapKey("petId")
     List<Map<String, Object>> getPetsForDailyPoints();
+    
+    /**
+     * 获取宠物排行榜数据
+     * 按照宠物等级和经验值排序
+     *
+     * @param limit 获取数量
+     * @return 宠物排行榜数据
+     */
+    List<PetRankVO> getPetRankList(@Param("limit") int limit);
 } 

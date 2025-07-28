@@ -8,9 +8,11 @@ import com.cong.fishisland.constant.PointConstant;
 import com.cong.fishisland.model.entity.user.UserPoints;
 import com.cong.fishisland.service.UserPointsService;
 import com.cong.fishisland.mapper.user.UserPointsMapper;
+import com.cong.fishisland.service.UserVipService;
 import com.cong.fishisland.utils.RedisUtils;
 import org.springframework.stereotype.Service;
 
+import javax.annotation.Resource;
 import java.time.Duration;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
@@ -25,6 +27,8 @@ import java.util.Optional;
 @Service
 public class UserPointsServiceImpl extends ServiceImpl<UserPointsMapper, UserPoints>
         implements UserPointsService {
+    @Resource
+    private UserVipService userVipService;
 
     private static final String SIGN_IN_KEY_PREFIX = "user:signin:";
     private static final String SPEAK_KEY_PREFIX = "user:speak:";
@@ -50,7 +54,12 @@ public class UserPointsServiceImpl extends ServiceImpl<UserPointsMapper, UserPoi
         }
 
         // **数据库更新积分**
-        updatePoints(Long.valueOf(loginUserId.toString()), PointConstant.SIGN_IN_POINT, true);
+        Long userId = Long.valueOf(loginUserId.toString());
+        updatePoints(userId, PointConstant.SIGN_IN_POINT, true);
+
+        if (userVipService.isUserVip(userId)) {
+            updateUsedPoints(userId, -PointConstant.SIGN_IN_POINT);
+        }
 
 
         return true;

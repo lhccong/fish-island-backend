@@ -31,7 +31,7 @@ public class PetStatusUpdateJob {
     // 每小时心情值减少值
     private static final int MOOD_DECREMENT = 3;
     // 宠物产出积分的最大值
-    private static final int MAX_PET_POINTS = 10;
+    private static final int MAX_PET_POINTS = 50;
 
 
     /**
@@ -110,6 +110,29 @@ public class PetStatusUpdateJob {
             log.info("宠物每日积分产出任务执行完成");
         } catch (Exception e) {
             log.error("宠物每日积分产出任务执行异常", e);
+        }
+    }
+    
+    /**
+     * 每天凌晨0点5分生成宠物排行榜
+     * 排行榜数据存入Redis，缓存24小时
+     */
+    @Scheduled(cron = "0 5 0 * * ?") // 每天0点5分执行
+    public void generatePetRankList() {
+        log.info("开始执行宠物排行榜生成任务");
+        
+        try {
+            int count = fishPetService.generatePetRankList();
+            
+            if (count > 0) {
+                log.info("宠物排行榜生成成功，共有{}个宠物进入排行榜", count);
+            } else {
+                log.info("没有符合条件的宠物进入排行榜");
+            }
+            
+            log.info("宠物排行榜生成任务执行完成");
+        } catch (Exception e) {
+            log.error("宠物排行榜生成任务执行异常", e);
         }
     }
 } 
