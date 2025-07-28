@@ -52,7 +52,14 @@ public class OtherUserPetVO implements Serializable {
      * 宠物拥有的皮肤列表
      */
     private List<PetSkinVO> skins;
-    
+
+
+    /**
+     * 当前经验值
+     */
+    private Integer exp;
+
+
     /**
      * 创建时间
      */

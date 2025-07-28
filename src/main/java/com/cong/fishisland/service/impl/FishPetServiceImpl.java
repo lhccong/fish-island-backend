@@ -48,9 +48,6 @@ public class FishPetServiceImpl extends ServiceImpl<FishPetMapper, FishPet> impl
     private final UserPointsService userPointsService;
     private final PetSkinService petSkinService;
 
-    // Redis键前缀
-    private static final String PET_FEED_KEY_PREFIX = "pet:feed:";
-    private static final String PET_PAT_KEY_PREFIX = "pet:pat:";
 
     // 每次喂食增加的饥饿度
     private static final int FEED_HUNGER_INCREASE = 20;
@@ -58,8 +55,6 @@ public class FishPetServiceImpl extends ServiceImpl<FishPetMapper, FishPet> impl
     private static final int FEED_MOOD_INCREASE = 5;
     // 每次抚摸增加的心情值
     private static final int PAT_MOOD_INCREASE = 15;
-    // 喂食和抚摸的冷却时间（分钟）
-    private static final int ACTION_COOLDOWN_MINUTES = 1;
 
     // 喂食和抚摸消耗的积分
     private static final int FEED_POINT_COST = 5;
@@ -118,6 +113,11 @@ public class FishPetServiceImpl extends ServiceImpl<FishPetMapper, FishPet> impl
 
     @Override
     public PetVO getPetDetail() {
+
+        if (!StpUtil.isLogin()) {
+            return null;
+        }
+
         Long userId = StpUtil.getLoginIdAsLong();
 
 
@@ -136,7 +136,7 @@ public class FishPetServiceImpl extends ServiceImpl<FishPetMapper, FishPet> impl
         // 转换为VO
         PetVO petVO = new PetVO();
         BeanUtils.copyProperties(fishPet, petVO);
-        
+
         // 获取宠物拥有的皮肤列表
         List<PetSkinVO> petSkins = this.getPetSkins(fishPet.getPetId());
         petVO.setSkins(petSkins);
@@ -173,7 +173,7 @@ public class FishPetServiceImpl extends ServiceImpl<FishPetMapper, FishPet> impl
         if (!Objects.equals(fishPet.getUserId(), userId)) {
             throw new BusinessException(ErrorCode.NO_AUTH_ERROR, "无权修改该宠物");
         }
-        
+
         // 扣除用户积分
         userPointsService.deductPoints(userId, RENAME_POINT_COST);
 
@@ -216,10 +216,9 @@ public class FishPetServiceImpl extends ServiceImpl<FishPetMapper, FishPet> impl
         // 检查宠物是否存在且属于当前用户
         FishPet fishPet = checkPetOwnership(petId, userId);
 
-        // 检查喂食冷却时间
-        String feedKey = PET_FEED_KEY_PREFIX + userId + ":" + LocalDate.now();
-        if (RedisUtils.get(feedKey) != null) {
-            throw new BusinessException(ErrorCode.OPERATION_ERROR, "喂食冷却中，请稍后再试");
+        // 检查饥饿度是否已满
+        if (fishPet.getHunger() >= 100) {
+            throw new BusinessException(ErrorCode.OPERATION_ERROR, "宠物已经吃饱了，不需要再喂食");
         }
 
         // 扣除用户积分
@@ -229,19 +228,18 @@ public class FishPetServiceImpl extends ServiceImpl<FishPetMapper, FishPet> impl
         int newHunger = Math.min(100, fishPet.getHunger() + FEED_HUNGER_INCREASE);
         int newMood = Math.min(100, fishPet.getMood() + FEED_MOOD_INCREASE);
 
+        // 增加1点经验值
+        int newExp = fishPet.getExp() + 1;
+
         fishPet.setHunger(newHunger);
         fishPet.setMood(newMood);
+        fishPet.setExp(newExp);
 
         boolean result = this.updateById(fishPet);
         if (!result) {
             throw new BusinessException(ErrorCode.OPERATION_ERROR, "喂食失败");
         }
 
-        // 设置喂食冷却时间
-        LocalDateTime now = LocalDateTime.now();
-        LocalDateTime cooldownEnd = now.plusMinutes(ACTION_COOLDOWN_MINUTES);
-        Duration cooldownDuration = Duration.between(now, cooldownEnd);
-        RedisUtils.setIfAbsent(feedKey, "1", cooldownDuration);
 
         // 返回更新后的宠物信息
         PetVO petVO = new PetVO();
@@ -257,10 +255,9 @@ public class FishPetServiceImpl extends ServiceImpl<FishPetMapper, FishPet> impl
         // 检查宠物是否存在且属于当前用户
         FishPet fishPet = checkPetOwnership(petId, userId);
 
-        // 检查抚摸冷却时间
-        String patKey = PET_PAT_KEY_PREFIX + userId + ":" + LocalDate.now();
-        if (RedisUtils.get(patKey) != null) {
-            throw new BusinessException(ErrorCode.OPERATION_ERROR, "抚摸冷却中，请稍后再试");
+        // 检查心情值是否已满
+        if (fishPet.getMood() >= 100) {
+            throw new BusinessException(ErrorCode.OPERATION_ERROR, "宠物心情已经很好了，不需要再抚摸");
         }
 
         // 扣除用户积分
@@ -270,16 +267,15 @@ public class FishPetServiceImpl extends ServiceImpl<FishPetMapper, FishPet> impl
         int newMood = Math.min(100, fishPet.getMood() + PAT_MOOD_INCREASE);
         fishPet.setMood(newMood);
 
+        // 增加1点经验值
+        int newExp = fishPet.getExp() + 1;
+        fishPet.setExp(newExp);
+
         boolean result = this.updateById(fishPet);
         if (!result) {
             throw new BusinessException(ErrorCode.OPERATION_ERROR, "抚摸失败");
         }
 
-        // 设置抚摸冷却时间
-        LocalDateTime now = LocalDateTime.now();
-        LocalDateTime cooldownEnd = now.plusMinutes(ACTION_COOLDOWN_MINUTES);
-        Duration cooldownDuration = Duration.between(now, cooldownEnd);
-        RedisUtils.setIfAbsent(patKey, "1", cooldownDuration);
 
         // 返回更新后的宠物信息
         PetVO petVO = new PetVO();
@@ -292,43 +288,43 @@ public class FishPetServiceImpl extends ServiceImpl<FishPetMapper, FishPet> impl
     public int batchUpdatePetStatus(int hungerDecrement, int moodDecrement) {
         return baseMapper.batchUpdatePetStatus(hungerDecrement, moodDecrement);
     }
-    
+
     @Override
     public int batchUpdateOnlineUserPetExp(List<String> userIds) {
         if (userIds == null || userIds.isEmpty()) {
             return 0;
         }
-        
+
         // 注意：在SQL实现中，只有当宠物的饥饿度(hunger)和心情值(mood)都大于0时，
         // 宠物才会获得经验并可能升级。这确保了宠物需要得到适当的照顾才能成长。
         return baseMapper.batchUpdateOnlineUserPetExp(userIds);
     }
-    
+
     @Override
     @Transactional(rollbackFor = Exception.class)
     public int generateDailyPetPoints(int maxPoints) {
         // 获取所有符合条件的宠物（饥饿度和心情值都大于0）
         List<Map<String, Object>> eligiblePets = baseMapper.getPetsForDailyPoints();
-        
+
         if (eligiblePets == null || eligiblePets.isEmpty()) {
             log.info("没有符合条件的宠物产出积分");
             return 0;
         }
-        
+
         int count = 0;
-        
+
         // 为每个符合条件的宠物产出积分
         for (Map<String, Object> pet : eligiblePets) {
             try {
                 Long userId = ((Number) pet.get("userId")).longValue();
                 int level = ((Number) pet.get("level")).intValue();
-                
+
                 // 产出积分 = 宠物等级（最高不超过maxPoints）
                 int pointsToAdd = Math.min(level, maxPoints);
-                
+
                 // 为用户增加积分（非签到积分）
                 userPointsService.updatePoints(userId, pointsToAdd, false);
-                
+
                 log.info("宠物产出积分：用户ID={}, 宠物等级={}, 产出积分={}", userId, level, pointsToAdd);
                 count++;
             } catch (Exception e) {
@@ -336,7 +332,7 @@ public class FishPetServiceImpl extends ServiceImpl<FishPetMapper, FishPet> impl
                 // 继续处理下一个宠物，不影响整体流程
             }
         }
-        
+
         return count;
     }
 
