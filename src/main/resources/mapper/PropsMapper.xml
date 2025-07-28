@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper
+        PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.cong.fishisland.mapper.props.PropsMapper">
+
+    <resultMap id="BaseResultMap" type="com.cong.fishisland.model.entity.props.Props">
+            <id property="frameId" column="frameId" jdbcType="BIGINT"/>
+            <result property="imgUrl" column="imgUrl" jdbcType="VARCHAR"/>
+            <result property="type" column="type" jdbcType="VARCHAR"/>
+            <result property="description" column="description" jdbcType="VARCHAR"/>
+            <result property="name" column="name" jdbcType="VARCHAR"/>
+            <result property="points" column="points" jdbcType="INTEGER"/>
+            <result property="createTime" column="createTime" jdbcType="TIMESTAMP"/>
+            <result property="updateTime" column="updateTime" jdbcType="TIMESTAMP"/>
+            <result property="isDelete" column="isDelete" jdbcType="TINYINT"/>
+    </resultMap>
+
+    <sql id="Base_Column_List">
+        frameId,imgUrl,type,
+        description,name,points,
+        createTime,updateTime,isDelete
+    </sql>
+</mapper>

@@ -1,0 +1,67 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper
+        PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.cong.fishisland.mapper.pet.FishPetMapper">
+
+    <resultMap id="BaseResultMap" type="com.cong.fishisland.model.entity.pet.FishPet">
+        <id property="petId" column="petId" jdbcType="BIGINT"/>
+        <result property="petUrl" column="petUrl" jdbcType="VARCHAR"/>
+        <result property="name" column="name" jdbcType="VARCHAR"/>
+        <result property="userId" column="userId" jdbcType="BIGINT"/>
+        <result property="level" column="level" jdbcType="INTEGER"/>
+        <result property="exp" column="exp" jdbcType="INTEGER"/>
+        <result property="mood" column="mood" jdbcType="INTEGER"/>
+        <result property="hunger" column="hunger" jdbcType="INTEGER"/>
+        <result property="extendData" column="extendData" jdbcType="VARCHAR"/>
+        <result property="createTime" column="createTime" jdbcType="TIMESTAMP"/>
+        <result property="updateTime" column="updateTime" jdbcType="TIMESTAMP"/>
+        <result property="isDelete" column="isDelete" jdbcType="TINYINT"/>
+    </resultMap>
+
+    <sql id="Base_Column_List">
+        petId,petUrl,name,userId,
+        level,exp,mood,hunger,extendData,
+        createTime,updateTime,isDelete
+    </sql>
+    
+    <update id="batchUpdatePetStatus">
+        UPDATE fish_pet
+        SET hunger = GREATEST(0, hunger - #{hungerDecrement}),
+            mood = GREATEST(0, mood - #{moodDecrement}),
+            updateTime = NOW()
+        WHERE isDelete = 0
+    </update>
+    
+    <update id="batchUpdateOnlineUserPetExp">
+        UPDATE fish_pet
+        SET 
+            exp = CASE 
+                WHEN exp + 1 >= 100 THEN 0 
+                ELSE exp + 1 
+            END,
+            level = CASE 
+                WHEN exp + 1 >= 100 THEN level + 1 
+                ELSE level 
+            END,
+            updateTime = NOW()
+        WHERE userId IN 
+        <foreach collection="userIds" item="userId" open="(" separator="," close=")">
+            #{userId}
+        </foreach>
+        AND hunger > 0 
+        AND mood > 0
+        AND isDelete = 0
+    </update>
+    
+    <select id="getPetsForDailyPoints" resultType="java.util.HashMap">
+        SELECT 
+            petId,
+            userId,
+            level
+        FROM fish_pet
+        WHERE hunger > 0 
+        AND mood > 0
+        AND isDelete = 0
+    </select>
+</mapper> 
