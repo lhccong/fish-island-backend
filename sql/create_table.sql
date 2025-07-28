@@ -333,17 +333,28 @@ CREATE TABLE if not exists `user_vip`
 (
     `id`         BIGINT AUTO_INCREMENT COMMENT '会员ID',
     `userId`     BIGINT COMMENT '用户ID',
-    `cardNo`     VARCHAR(256)  NULL COMMENT '会员兑换卡号（永久会员无卡号）',
-    `type`       tinyint           default 1 not null comment '1-月卡会员 2-永久会员',
-    `validDays`  DATETIME          default null comment '会员到期时间，永久会员为null',
-    `isDelete`   tinyint           default 0 not null comment '是否删除',
-    `createTime` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
-    `updateTime` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
+    `cardNo`     VARCHAR(256) NULL COMMENT '会员兑换卡号（永久会员无卡号）',
+    `type`       tinyint               default 1 not null comment '1-月卡会员 2-永久会员',
+    `validDays`  DATETIME              default null comment '会员到期时间，永久会员为null',
+    `isDelete`   tinyint               default 0 not null comment '是否删除',
+    `createTime` DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+    `updateTime` DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
     PRIMARY KEY (`id`),
     -- 索引
     INDEX `idx_donor` (`userId`)
 ) ENGINE = InnoDB
   DEFAULT CHARSET = utf8mb4
   COLLATE = utf8mb4_unicode_ci COMMENT ='用户会员表';
+
+-- 词库表
+create table if not exists word_library
+(
+    id         BIGINT AUTO_INCREMENT COMMENT '词库ID' primary key,
+    word       VARCHAR(100)                       NOT NULL COMMENT '词语名称',
+    category   VARCHAR(50)                        NOT NULL COMMENT '词库分类: undercover-谁是卧底, draw-default-你画我猜默认, draw-hero-你画我猜王者荣耀, draw-idiom-你画我猜成语',
+    wordType   VARCHAR(50)                        COMMENT '词语类型（如：水果、动物、王者英雄、成语等）',
+    createTime datetime default CURRENT_TIMESTAMP not null comment '创建时间',
+    updateTime datetime default CURRENT_TIMESTAMP not null on update CURRENT_TIMESTAMP comment '更新时间'
+) COMMENT '词库表' collate = utf8mb4_unicode_ci;
 
 
