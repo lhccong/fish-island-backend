@@ -360,7 +360,7 @@ INSERT INTO word_library (id, word, category, wordType, createTime, updateTime) 
 INSERT INTO word_library (id, word, category, wordType, createTime, updateTime) VALUES (1907431092369630030, '知乎', 'undercover', '网站', NOW(), NOW());
 
 -- 你画我猜默认
-INSERT INTO word_library (id, word, category, wordType, createTime, updateTime) VALUES (1907331092369625001, '苹果', 'draw-default', '水果', NOW(), NOW());
+INSERT INTO word_library (id, word, category, wordType, createTime, updateTime) VALUES (1907331092369625001, '榴莲', 'draw-default', '水果', NOW(), NOW());
 INSERT INTO word_library (id, word, category, wordType, createTime, updateTime) VALUES (1907331092369625002, '香蕉', 'draw-default', '水果', NOW(), NOW());
 INSERT INTO word_library (id, word, category, wordType, createTime, updateTime) VALUES (1907331092369625003, '橙子', 'draw-default', '水果', NOW(), NOW());
 INSERT INTO word_library (id, word, category, wordType, createTime, updateTime) VALUES (1907331092369625004, '西瓜', 'draw-default', '水果', NOW(), NOW());

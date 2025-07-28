@@ -5,9 +5,12 @@ import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import com.cong.fishisland.common.ErrorCode;
 import com.cong.fishisland.common.exception.ThrowUtils;
+import com.cong.fishisland.constant.CommonConstant;
+import com.cong.fishisland.mapper.word.WordLibraryMapper;
+import com.cong.fishisland.model.dto.word.WordLibraryQueryRequest;
 import com.cong.fishisland.model.entity.word.WordLibrary;
 import com.cong.fishisland.service.WordLibraryService;
-import com.cong.fishisland.mapper.word.WordLibraryMapper;
+import com.cong.fishisland.utils.SqlUtils;
 import org.apache.commons.lang3.StringUtils;
 import org.springframework.stereotype.Service;
 
@@ -89,6 +92,46 @@ public class WordLibraryServiceImpl extends ServiceImpl<WordLibraryMapper, WordL
         WordLibrary wordLibrary = this.getOne(queryWrapper);
         ThrowUtils.throwIf(wordLibrary == null, ErrorCode.SYSTEM_ERROR, "获取词语类型失败");
         return wordLibrary.getWordType();
+    }
+
+
+    @Override
+    public QueryWrapper<WordLibrary> getQueryWrapper(WordLibraryQueryRequest wordLibraryQueryRequest) {
+        ThrowUtils.throwIf(wordLibraryQueryRequest == null, ErrorCode.PARAMS_ERROR, "请求参数为空");
+
+        Long id = wordLibraryQueryRequest.getId();
+        String word = wordLibraryQueryRequest.getWord();
+        String category = wordLibraryQueryRequest.getCategory();
+        String wordType = wordLibraryQueryRequest.getWordType();
+        String sortField = wordLibraryQueryRequest.getSortField();
+        String sortOrder = wordLibraryQueryRequest.getSortOrder();
+
+        QueryWrapper<WordLibrary> queryWrapper = new QueryWrapper<>();
+        queryWrapper.eq(id != null, "id", id);
+        queryWrapper.like(StringUtils.isNotBlank(word), "word", word);
+        queryWrapper.eq(StringUtils.isNotBlank(category), "category", category);
+        queryWrapper.like(StringUtils.isNotBlank(wordType), "wordType", wordType);
+        queryWrapper.orderBy(SqlUtils.validSortField(sortField),
+                sortOrder.equals(CommonConstant.SORT_ORDER_ASC), sortField);
+        return queryWrapper;
+    }
+
+    /**
+     * 判断词库项是否存在
+     * @param word 词语名称
+     * @param category 词语分类
+     * @param id id
+     * @return 是否存在
+     */
+    @Override
+    public Boolean existWordLibrary(String word, String category, Long id) {
+        ThrowUtils.throwIf(StringUtils.isBlank(word), ErrorCode.PARAMS_ERROR, "词语名称为空");
+        ThrowUtils.throwIf(StringUtils.isBlank(category), ErrorCode.PARAMS_ERROR, "词语分类为空");
+        QueryWrapper<WordLibrary> queryWrapper = new QueryWrapper<>();
+        queryWrapper.eq("word", word);
+        queryWrapper.eq("category", category);
+        queryWrapper.ne(id != null, "id", id);
+        return wordLibraryMapper.exists(queryWrapper);
     }
 }
 
