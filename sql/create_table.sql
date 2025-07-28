@@ -346,6 +346,17 @@ CREATE TABLE if not exists `user_vip`
   DEFAULT CHARSET = utf8mb4
   COLLATE = utf8mb4_unicode_ci COMMENT ='用户会员表';
 
+-- 词库表
+create table if not exists word_library
+(
+    id         BIGINT AUTO_INCREMENT COMMENT '词库ID' primary key,
+    word       VARCHAR(100)                       NOT NULL COMMENT '词语名称',
+    category   VARCHAR(50)                        NOT NULL COMMENT '词库分类: undercover-谁是卧底, draw-default-你画我猜默认, draw-hero-你画我猜王者荣耀, draw-idiom-你画我猜成语',
+    wordType   VARCHAR(50)                        COMMENT '词语类型（如：水果、动物、王者英雄、成语等）',
+    createTime datetime default CURRENT_TIMESTAMP not null comment '创建时间',
+    updateTime datetime default CURRENT_TIMESTAMP not null on update CURRENT_TIMESTAMP comment '更新时间'
+) COMMENT '词库表' collate = utf8mb4_unicode_ci;
+
 
 -- 道具表
 create table if not exists props

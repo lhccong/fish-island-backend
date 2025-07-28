@@ -1,6 +1,7 @@
 package com.cong.fishisland.service.impl;
 
 import cn.dev33.satoken.stp.StpUtil;
+import cn.hutool.core.collection.CollUtil;
 import com.cong.fishisland.common.ErrorCode;
 import com.cong.fishisland.common.exception.BusinessException;
 import com.cong.fishisland.constant.DrawGameRedisKey;
@@ -21,6 +22,7 @@ import com.cong.fishisland.model.ws.request.Sender;
 import com.cong.fishisland.model.ws.response.WSBaseResp;
 import com.cong.fishisland.service.DrawGameService;
 import com.cong.fishisland.service.UserService;
+import com.cong.fishisland.service.WordLibraryService;
 import com.cong.fishisland.websocket.service.WebSocketService;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.core.type.TypeReference;
@@ -31,15 +33,11 @@ import org.jetbrains.annotations.NotNull;
 import org.redisson.api.RLock;
 import org.redisson.api.RedissonClient;
 import org.springframework.beans.BeanUtils;
-import org.springframework.core.io.ClassPathResource;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Service;
 
 import javax.annotation.Resource;
-import java.io.BufferedReader;
 import java.io.IOException;
-import java.io.InputStreamReader;
-import java.nio.charset.StandardCharsets;
 import java.time.Instant;
 import java.util.*;
 import java.util.concurrent.TimeUnit;
@@ -68,6 +66,9 @@ public class DrawGameServiceImpl implements DrawGameService {
 
     @Resource
     private WebSocketService webSocketService;
+
+    @Resource
+    private WordLibraryService wordLibraryService;
 
     @Override
     public String createRoom(DrawRoomCreateRequest request) {
@@ -195,70 +196,29 @@ public class DrawGameServiceImpl implements DrawGameService {
      * @throws IOException 如果读取文件失败
      */
     private Map<String, String> getRandomWordWithHint(String wordType) throws IOException {
-        String fileName = "draw-words-default.txt";
+        String category = "draw-default";
         if (StringUtils.isNotBlank(wordType)) {
-            fileName = "draw-words-" + wordType + ".txt";
-        }
-        ClassPathResource resource = new ClassPathResource(fileName);
-        List<String> lines = new ArrayList<>();
-
-        try (BufferedReader reader = new BufferedReader(
-                new InputStreamReader(resource.getInputStream(), StandardCharsets.UTF_8))) {
-            String line;
-            while ((line = reader.readLine()) != null) {
-                if (StringUtils.isNotBlank(line)) {
-                    String trimmedLine = line.trim();
-                    lines.add(trimmedLine);
-                }
-            }
-        } catch (IOException e) {
-            log.error("读取词库文件 {} 失败，将使用默认词库", fileName, e);
-            // 如果指定的词库文件不存在，尝试使用默认词库
-            if (!fileName.equals("draw-words-default.txt")) {
-                return getRandomWordWithHint(null);
-            }
-            throw e;
-        }
-
-        if (lines.isEmpty()) {
-            // 如果词库为空，返回默认词语和提示词
-            Map<String, String> defaultResult = new HashMap<>();
-            defaultResult.put("word", "苹果");
-            defaultResult.put("hint", "水果");
-            return defaultResult;
+            category = "draw-" + wordType;
         }
 
         // 获取当天已使用的词语列表
         String today = new java.text.SimpleDateFormat("yyyy-MM-dd").format(new Date());
         String usedWordsKey = DrawGameRedisKey.getKey(DrawGameRedisKey.USED_WORDS, today);
         Set<String> usedWords = stringRedisTemplate.opsForSet().members(usedWordsKey);
-
-        // 如果所有词语都已使用过，则清空已使用列表
-        if (usedWords != null && usedWords.size() >= lines.size()) {
+        // 从词库中随机获取一个词语及其提示词
+        Map<String, String> map = wordLibraryService.getDrawGameWordLibrary(category, usedWords);
+        log.info("从词库中获取词语：{}", map);
+        if (CollUtil.isEmpty(map)) {
+            // 如果词库为空，返回默认词语和提示词
+            Map<String, String> defaultResult = new HashMap<>();
+            defaultResult.put("word", "苹果");
+            defaultResult.put("hint", "水果");
             stringRedisTemplate.delete(usedWordsKey);
-            usedWords = new HashSet<>();
+            return defaultResult;
         }
-
-        // 筛选未使用的词语
-        List<String> availableLines = new ArrayList<>();
-        for (String line : lines) {
-            String word = line.split(",")[0];
-            if (usedWords == null || !usedWords.contains(word)) {
-                availableLines.add(line);
-            }
-        }
-
-        // 如果没有可用词语，使用所有词语
-        if (availableLines.isEmpty()) {
-            availableLines = lines;
-        }
-
-        // 随机选择一行
-        String selectedLine = availableLines.get(new Random().nextInt(availableLines.size()));
-        String[] parts = selectedLine.split(",");
 
         // 将选中的词语添加到已使用列表
-        stringRedisTemplate.opsForSet().add(usedWordsKey, parts[0]);
+        stringRedisTemplate.opsForSet().add(usedWordsKey, map.get("word"));
         // 设置过期时间为明天凌晨00:00:00
         Calendar tomorrow = Calendar.getInstance();
         tomorrow.add(Calendar.DAY_OF_MONTH, 1);
@@ -268,12 +228,7 @@ public class DrawGameServiceImpl implements DrawGameService {
         tomorrow.set(Calendar.MILLISECOND, 0);
         long expireSeconds = (tomorrow.getTimeInMillis() - System.currentTimeMillis()) / 1000;
         stringRedisTemplate.expire(usedWordsKey, expireSeconds, TimeUnit.SECONDS);
-
-        Map<String, String> result = new HashMap<>();
-        result.put("word", parts[0]);
-        result.put("hint", parts.length > 1 ? parts[1] : "未知类别");
-
-        return result;
+        return map;
     }
 
     @NotNull
@@ -660,7 +615,7 @@ public class DrawGameServiceImpl implements DrawGameService {
                         .data(roomId).build());
 
                 //发送提示
-                String message = "绘画者【"+loginUser.getUserName() + "】绘画完成大家快来猜猜是什么";
+                String message = "绘画者【" + loginUser.getUserName() + "】绘画完成大家快来猜猜是什么";
                 MessageWrapper messageWrapper = getSystemMessageWrapper(message);
                 messageWrapper.getMessage().setRoomId(roomId);
 

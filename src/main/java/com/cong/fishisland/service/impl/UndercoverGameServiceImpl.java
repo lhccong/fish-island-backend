@@ -23,6 +23,7 @@ import com.cong.fishisland.model.ws.response.WSBaseResp;
 import com.cong.fishisland.service.AsyncGameService;
 import com.cong.fishisland.service.UndercoverGameService;
 import com.cong.fishisland.service.UserService;
+import com.cong.fishisland.service.WordLibraryService;
 import com.cong.fishisland.websocket.service.WebSocketService;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.core.type.TypeReference;
@@ -33,17 +34,11 @@ import org.jetbrains.annotations.NotNull;
 import org.redisson.api.RLock;
 import org.redisson.api.RedissonClient;
 import org.springframework.beans.BeanUtils;
-import org.springframework.core.io.ClassPathResource;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Service;
-import org.springframework.scheduling.annotation.Async;
-import org.springframework.aop.framework.AopContext;
 
 import javax.annotation.Resource;
-import java.io.BufferedReader;
 import java.io.IOException;
-import java.io.InputStreamReader;
-import java.nio.charset.StandardCharsets;
 import java.time.Instant;
 import java.util.*;
 import java.util.concurrent.TimeUnit;
@@ -74,6 +69,9 @@ public class UndercoverGameServiceImpl implements UndercoverGameService {
 
     @Resource
     private AsyncGameService asyncGameService;
+
+    @Resource
+    private WordLibraryService wordLibraryService;
 
     @Override
     public String createRoom(UndercoverRoomCreateRequest request) {
@@ -189,9 +187,6 @@ public class UndercoverGameServiceImpl implements UndercoverGameService {
      * @throws IOException 如果读取文件失败
      */
     private String[] getRandomWordPair() throws IOException {
-        ClassPathResource resource = new ClassPathResource("undercover-words.txt");
-        List<String> wordPairs = new ArrayList<>();
-        List<String> availableWordPairs = new ArrayList<>();
 
         // 获取当天已使用的词语对
         Set<String> usedWordPairs = new HashSet<>();
@@ -206,31 +201,11 @@ public class UndercoverGameServiceImpl implements UndercoverGameService {
                 usedWordPairs = new HashSet<>();
             }
         }
-
-        try (BufferedReader reader = new BufferedReader(
-                new InputStreamReader(resource.getInputStream(), StandardCharsets.UTF_8))) {
-            String line;
-            while ((line = reader.readLine()) != null) {
-                if (StringUtils.isNotBlank(line) && line.contains(",")) {
-                    String trimmedLine = line.trim();
-                    wordPairs.add(trimmedLine);
-
-                    // 如果该词语对今天未使用过，则添加到可用词语对列表中
-                    if (!usedWordPairs.contains(trimmedLine)) {
-                        availableWordPairs.add(trimmedLine);
-                    }
-                }
-            }
-        }
-
+        // 从数据库总随机获取词语对
+        String[] result = wordLibraryService.getUndercoverGameWordLibrary("undercover", usedWordPairs);
         // 如果没有可用的词语对（所有词语对都已使用过），则使用所有词语对
-        if (availableWordPairs.isEmpty()) {
-            if (wordPairs.isEmpty()) {
-                return null;
-            }
+        if (result == null) {
             log.info("所有词语对已在今天使用过，重新使用所有词语对");
-            availableWordPairs = new ArrayList<>(wordPairs);
-
             // 清空已使用的词语对记录
             usedWordPairs.clear();
             try {
@@ -239,11 +214,12 @@ public class UndercoverGameServiceImpl implements UndercoverGameService {
             } catch (JsonProcessingException e) {
                 log.error("序列化已使用词语对失败", e);
             }
+            //设置默认值：黑衣人、黑手党
+            result = new String[]{"黑衣人", "黑手党"};
+            return result;
         }
-
         // 随机选择一对可用词语
-        String randomPair = availableWordPairs.get(new Random().nextInt(availableWordPairs.size()));
-
+        String randomPair = result[0] + "," + result[1];
         // 将选择的词语对添加到已使用列表中
         usedWordPairs.add(randomPair);
         try {
@@ -253,8 +229,7 @@ public class UndercoverGameServiceImpl implements UndercoverGameService {
         } catch (JsonProcessingException e) {
             log.error("序列化已使用词语对失败", e);
         }
-
-        return randomPair.split(",");
+        return result;
     }
 
     @Override
@@ -672,10 +647,10 @@ public class UndercoverGameServiceImpl implements UndercoverGameService {
 
         // 创建一个布尔数组来标记哪些位置分配为卧底
         boolean[] isUndercover = new boolean[totalPlayers];
-        
+
         // 使用随机数生成器
         Random random = new Random();
-        
+
         // 确保卧底分布均匀，不会连续分配
         int assignedUndercovers = 0;
         while (assignedUndercovers < undercoverCount) {
@@ -686,7 +661,7 @@ public class UndercoverGameServiceImpl implements UndercoverGameService {
                 assignedUndercovers++;
             }
         }
-        
+
         // 根据标记分配角色
         for (int i = 0; i < totalPlayers; i++) {
             Long userId = participants.get(i);
@@ -727,12 +702,12 @@ public class UndercoverGameServiceImpl implements UndercoverGameService {
             }
         }
     }
-    
+
     /**
      * 检查相邻位置是否有卧底，避免连续分配
-     * 
+     *
      * @param isUndercover 标记数组
-     * @param position 当前位置
+     * @param position     当前位置
      * @param totalPlayers 总玩家数
      * @return 相邻位置是否有卧底
      */
