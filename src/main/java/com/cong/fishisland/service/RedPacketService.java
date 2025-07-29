@@ -14,6 +14,7 @@ public interface RedPacketService {
     
     /**
      * 创建红包
+     * 注意：VIP用户每日第一个红包不需要花积分
      *
      * @param request 创建红包请求
      * @return 红包ID
