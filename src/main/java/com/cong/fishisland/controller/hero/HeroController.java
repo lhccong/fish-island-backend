@@ -183,4 +183,41 @@ public class HeroController {
         return ResultUtils.success(ranking);
     }
 
+    /**
+     * 获取当前用户猜英雄数据
+     *
+     * @return 当前用户猜英雄数据
+     */
+    @GetMapping("/guess/user")
+    public BaseResponse<HeroRankingVO> getCurrentUserGuessData() {
+        // 获取当前登录用户
+        User loginUser = userService.getLoginUser();
+        Long userId = loginUser.getId();
+        String userIdStr = userId.toString();
+
+        // 创建返回对象
+        HeroRankingVO result = new HeroRankingVO();
+        result.setUserId(userId);
+        result.setUserName(loginUser.getUserName());
+        result.setUserAvatar(loginUser.getUserAvatar());
+
+        // 先查询用户是否在排行榜里
+        Double score = redisTemplate.opsForZSet().score(RedisKey.GUESS_HERO_RANKING, userIdStr);
+        if (score != null) {
+            // 用户在排行榜中，查询排行榜数据
+            result.setScore(score.intValue());
+            // 计算排名（从0开始的排名）
+            Long rank = redisTemplate.opsForZSet().reverseRank(RedisKey.GUESS_HERO_RANKING, userIdStr);
+            if (rank != null) {
+                // 设置排名（转换为从1开始）
+                result.setRank(rank + 1);
+            }
+        } else {
+            // 用户不在排行榜中，score设为0
+            result.setScore(0);
+            // 不设置rank属性（保持为null）
+        }
+        return ResultUtils.success(result);
+    }
+
 }
