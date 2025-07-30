@@ -26,12 +26,7 @@ import org.springframework.transaction.annotation.Transactional;
 import toolgood.words.StringSearch;
 
 import java.time.Duration;
-import java.time.LocalDate;
-import java.time.LocalDateTime;
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Map;
-import java.util.Objects;
+import java.util.*;
 
 import com.alibaba.fastjson.JSON;
 import com.alibaba.fastjson.JSONObject;
@@ -63,7 +58,7 @@ public class FishPetServiceImpl extends ServiceImpl<FishPetMapper, FishPet> impl
     private static final int PAT_POINT_COST = 3;
     // 修改宠物名字消耗的积分
     private static final int RENAME_POINT_COST = 100;
-    
+
     // 宠物排行榜缓存时间（24小时）
     private static final Duration PET_RANK_CACHE_DURATION = Duration.ofHours(24);
     // 默认排行榜数量
@@ -235,22 +230,23 @@ public class FishPetServiceImpl extends ServiceImpl<FishPetMapper, FishPet> impl
         int newHunger = Math.min(100, fishPet.getHunger() + FEED_HUNGER_INCREASE);
         int newMood = Math.min(100, fishPet.getMood() + FEED_MOOD_INCREASE);
 
-        // 增加1点经验值
-        int newExp = fishPet.getExp() + 1;
 
         fishPet.setHunger(newHunger);
         fishPet.setMood(newMood);
-        fishPet.setExp(newExp);
 
         boolean result = this.updateById(fishPet);
         if (!result) {
             throw new BusinessException(ErrorCode.OPERATION_ERROR, "喂食失败");
         }
 
+        List<String> userIds = new ArrayList<>();
+        userIds.add(userId.toString());
+        batchUpdateOnlineUserPetExp(userIds);
 
         // 返回更新后的宠物信息
         PetVO petVO = new PetVO();
         BeanUtils.copyProperties(fishPet, petVO);
+        petVO.setExp(petVO.getExp() + 1);
 
         return petVO;
     }
@@ -274,11 +270,13 @@ public class FishPetServiceImpl extends ServiceImpl<FishPetMapper, FishPet> impl
         int newMood = Math.min(100, fishPet.getMood() + PAT_MOOD_INCREASE);
         fishPet.setMood(newMood);
 
-        // 增加1点经验值
-        int newExp = fishPet.getExp() + 1;
-        fishPet.setExp(newExp);
 
         boolean result = this.updateById(fishPet);
+
+        List<String> userIds = new ArrayList<>();
+        userIds.add(userId.toString());
+        batchUpdateOnlineUserPetExp(userIds);
+
         if (!result) {
             throw new BusinessException(ErrorCode.OPERATION_ERROR, "抚摸失败");
         }
@@ -287,6 +285,8 @@ public class FishPetServiceImpl extends ServiceImpl<FishPetMapper, FishPet> impl
         // 返回更新后的宠物信息
         PetVO petVO = new PetVO();
         BeanUtils.copyProperties(fishPet, petVO);
+        petVO.setExp(petVO.getExp() + 1);
+
 
         return petVO;
     }
@@ -372,35 +372,35 @@ public class FishPetServiceImpl extends ServiceImpl<FishPetMapper, FishPet> impl
         // 查询皮肤信息
         return petSkinService.getPetSkinsByIds(skinIds);
     }
-    
+
     @Override
     public int generatePetRankList() {
         log.info("开始生成宠物排行榜");
-        
+
         try {
             // 从数据库获取排行榜数据
             List<PetRankVO> petRankList = baseMapper.getPetRankList(DEFAULT_RANK_LIMIT);
-            
+
             if (petRankList == null || petRankList.isEmpty()) {
                 log.info("没有宠物数据，不生成排行榜");
                 return 0;
             }
-            
+
             // 设置排名
             for (int i = 0; i < petRankList.size(); i++) {
                 petRankList.get(i).setRank(i + 1);
             }
-            
+
             // 将排行榜数据缓存到Redis
             String petRankKey = PetRedisKey.getKey(PetRedisKey.PET_RANK);
-            
+
             // 先删除旧的排行榜数据
             RedisUtils.delete(petRankKey);
-            
+
             // 将新的排行榜数据存入Redis
             String petRankJson = JSON.toJSONString(petRankList);
             RedisUtils.set(petRankKey, petRankJson, PET_RANK_CACHE_DURATION);
-            
+
             log.info("宠物排行榜生成成功，共{}条数据", petRankList.size());
             return petRankList.size();
         } catch (Exception e) {
@@ -408,25 +408,25 @@ public class FishPetServiceImpl extends ServiceImpl<FishPetMapper, FishPet> impl
             return 0;
         }
     }
-    
+
     @Override
     public List<PetRankVO> getPetRankList(int limit) {
         // 限制获取数量
         if (limit <= 0) {
-            limit = 10; // 默认获取前10名
+            limit = 10;
         }
         limit = Math.min(limit, DEFAULT_RANK_LIMIT);
-        
+
         // 从Redis获取排行榜数据
         String petRankKey = PetRedisKey.getKey(PetRedisKey.PET_RANK);
         String petRankJson = RedisUtils.get(petRankKey);
-        
+
         List<PetRankVO> petRankList;
-        
+
         if (petRankJson != null && !petRankJson.isEmpty()) {
             // 如果Redis中有数据，直接返回
             petRankList = JSON.parseArray(petRankJson, PetRankVO.class);
-            
+
             // 如果需要的数量小于缓存的数量，截取前limit个
             if (petRankList.size() > limit) {
                 petRankList = petRankList.subList(0, limit);
@@ -434,19 +434,19 @@ public class FishPetServiceImpl extends ServiceImpl<FishPetMapper, FishPet> impl
         } else {
             // 如果Redis中没有数据，从数据库获取并生成排行榜
             petRankList = baseMapper.getPetRankList(limit);
-            
+
             // 设置排名
             for (int i = 0; i < petRankList.size(); i++) {
                 petRankList.get(i).setRank(i + 1);
             }
-            
+
             // 将排行榜数据缓存到Redis
             if (!petRankList.isEmpty()) {
                 String newPetRankJson = JSON.toJSONString(petRankList);
                 RedisUtils.set(petRankKey, newPetRankJson, PET_RANK_CACHE_DURATION);
             }
         }
-        
+
         return petRankList;
     }
 
