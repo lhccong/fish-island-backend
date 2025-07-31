@@ -4,6 +4,7 @@ import com.alibaba.fastjson.JSON;
 import com.cong.fishisland.common.ErrorCode;
 import com.cong.fishisland.common.exception.BusinessException;
 import com.cong.fishisland.model.dto.redpacket.CreateRedPacketRequest;
+import com.cong.fishisland.model.entity.chat.RoomMessage;
 import com.cong.fishisland.model.entity.redpacket.RedPacket;
 import com.cong.fishisland.model.entity.redpacket.RedPacketRecord;
 import com.cong.fishisland.model.entity.user.User;
@@ -15,10 +16,7 @@ import com.cong.fishisland.model.ws.request.Message;
 import com.cong.fishisland.model.ws.request.MessageWrapper;
 import com.cong.fishisland.model.ws.request.Sender;
 import com.cong.fishisland.model.ws.response.WSBaseResp;
-import com.cong.fishisland.service.RedPacketService;
-import com.cong.fishisland.service.UserPointsService;
-import com.cong.fishisland.service.UserService;
-import com.cong.fishisland.service.UserVipService;
+import com.cong.fishisland.service.*;
 import com.cong.fishisland.websocket.service.WebSocketService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -50,6 +48,7 @@ public class RedPacketServiceImpl implements RedPacketService {
     private final UserPointsService userPointsService;
     private final UserVipService userVipService;
     private final WebSocketService webSocketService;
+    private final RoomMessageService roomMessageService;
 
     // Redis key前缀
     private static final String RED_PACKET_KEY_PREFIX = "redpacket:";
@@ -85,6 +84,8 @@ public class RedPacketServiceImpl implements RedPacketService {
         redPacket.setRemainingCount(20);
         redPacket.setCreateTime(new Date());
         redPacket.setExpireTime(new Date(System.currentTimeMillis() + RED_PACKET_EXPIRE_TIME * 1000));
+        // 进行中
+        redPacket.setStatus(0);
 
         // 如果是平均红包，计算每个红包的金额
         redPacket.setAmountPerPacket(10);
@@ -108,6 +109,8 @@ public class RedPacketServiceImpl implements RedPacketService {
         webSocketService.sendToAllOnline(WSBaseResp.builder()
                 .type(MessageTypeEnum.CHAT.getType())
                 .data(systemMessageWrapper).build());
+
+        saveMessage(-1, systemMessageWrapper);
 
 
     }
@@ -279,9 +282,9 @@ public class RedPacketServiceImpl implements RedPacketService {
             // 尝试获取锁，最多重试5次，快速重试
             int retryCount = 0;
             int maxRetries = 5;
-            long retryWaitTime = 50; // 只等待50毫秒
+            long retryWaitTime = 50;
 
-            while (!locked && retryCount < maxRetries) {
+            while (retryCount < maxRetries) {
                 locked = Boolean.TRUE.equals(redisTemplate.opsForValue().setIfAbsent(lockKey, "1", LOCK_EXPIRE_TIME, TimeUnit.SECONDS));
                 if (locked) {
                     break;
@@ -474,5 +477,15 @@ public class RedPacketServiceImpl implements RedPacketService {
      */
     private String getTodayDate() {
         return java.time.LocalDate.now().format(java.time.format.DateTimeFormatter.ofPattern("yyyyMMdd"));
+    }
+
+    private void saveMessage(long loginUserId, MessageWrapper result) {
+        //保存消息到数据库
+        RoomMessage roomMessage = new RoomMessage();
+        roomMessage.setUserId(loginUserId);
+        roomMessage.setRoomId(-1L);
+        roomMessage.setMessageJson(JSON.toJSONString(result));
+        roomMessage.setMessageId(result.getMessage().getId());
+        roomMessageService.save(roomMessage);
     }
 } 

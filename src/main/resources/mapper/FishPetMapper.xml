@@ -36,13 +36,13 @@
     <update id="batchUpdateOnlineUserPetExp">
         <if test="userIds != null and userIds.size() > 0">
             UPDATE fish_pet
-            SET exp = CASE
-                    WHEN exp + 1 >= 100 THEN 0
-                    ELSE exp + 1
-                END,
-                level = CASE
+            SET level = CASE
                     WHEN exp + 1 >= 100 THEN level + 1
                     ELSE level
+                END,
+                exp = CASE
+                    WHEN exp + 1 >= 100 THEN 0
+                    ELSE exp + 1
                 END,
                 updateTime = NOW()
             WHERE isDelete = 0

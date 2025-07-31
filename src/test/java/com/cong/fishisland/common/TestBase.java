@@ -10,7 +10,7 @@ import org.springframework.test.web.servlet.MockMvc;
 @SpringBootTest(
         classes = { MainApplication.class, },
         webEnvironment = SpringBootTest.WebEnvironment.MOCK,
-        properties = {"spring.profiles.active=local"}
+        properties = {"spring.profiles.active=pre"}
 )
 @Slf4j
 @AutoConfigureMockMvc
