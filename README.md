@@ -6,7 +6,7 @@
 
 
 <p align="center">
-  <a href="https://github.com/lhccong/fish-island-backend"><img src="./doc/img/moyu.png" width="300" height="250" alt="摸鱼岛 logo"></a>
+  <a href="https://github.com/lhccong/fish-island-backend"><img src="./doc/img/moyu.png" width="300" height="300" alt="摸鱼岛 logo"></a>
 </p>
 
 
