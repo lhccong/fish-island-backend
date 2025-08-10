@@ -118,7 +118,7 @@ public class PetStatusUpdateJob {
      * 排行榜数据存入Redis，缓存24小时
      * 移除昨天排行榜用户的宠物称号，给今天排行榜用户添加宠物称号
      */
-    @Scheduled(fixedRate = 3600000)// 每天0点5分执行
+    @Scheduled(cron = "0 5 0 * * ?") // 每天0点5分执行
     public void generatePetRankList() {
         log.info("开始执行宠物排行榜生成任务");
         
