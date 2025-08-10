@@ -117,4 +117,12 @@ public interface FishPetService extends IService<FishPet> {
      * @return 宠物排行榜列表
      */
     List<PetRankVO> getPetRankList(int limit);
+
+    /**
+     * 更新用户宠物称号
+     * 移除昨天排行榜用户的宠物称号，给今天排行榜用户添加宠物称号
+     * 
+     * @return 更新的用户数量
+     */
+    int updatePetRankTitles();
 } 

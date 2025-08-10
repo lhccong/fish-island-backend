@@ -1,11 +1,13 @@
 package com.cong.fishisland.service.impl;
 
 import cn.dev33.satoken.stp.StpUtil;
+import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import com.cong.fishisland.common.ErrorCode;
 import com.cong.fishisland.common.exception.BusinessException;
 import com.cong.fishisland.constant.PetRedisKey;
+import com.cong.fishisland.constant.TitleConstant;
 import com.cong.fishisland.mapper.pet.FishPetMapper;
 import com.cong.fishisland.model.dto.pet.CreatePetRequest;
 import com.cong.fishisland.model.dto.pet.UpdatePetNameRequest;
@@ -14,9 +16,12 @@ import com.cong.fishisland.model.vo.pet.OtherUserPetVO;
 import com.cong.fishisland.model.vo.pet.PetRankVO;
 import com.cong.fishisland.model.vo.pet.PetSkinVO;
 import com.cong.fishisland.model.vo.pet.PetVO;
+import com.cong.fishisland.model.entity.user.User;
 import com.cong.fishisland.service.FishPetService;
 import com.cong.fishisland.service.PetSkinService;
 import com.cong.fishisland.service.UserPointsService;
+import com.cong.fishisland.service.UserTitleService;
+import com.cong.fishisland.service.UserService;
 import com.cong.fishisland.utils.RedisUtils;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -44,6 +49,8 @@ public class FishPetServiceImpl extends ServiceImpl<FishPetMapper, FishPet> impl
     private final StringSearch wordsUtil;
     private final UserPointsService userPointsService;
     private final PetSkinService petSkinService;
+    private final UserTitleService userTitleService;
+    private final UserService userService;
 
 
     // 每次喂食增加的饥饿度
@@ -472,5 +479,94 @@ public class FishPetServiceImpl extends ServiceImpl<FishPetMapper, FishPet> impl
         }
 
         return fishPet;
+    }
+
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public int updatePetRankTitles() {
+        log.info("开始执行宠物排行榜称号更新任务");
+
+        try {
+            // 1. 获取所有拥有宠物称号的用户ID列表
+            Set<Long> usersWithPetTitle = new HashSet<>();
+            List<User> allUsers = userService.list(new LambdaQueryWrapper<User>().like(User::getTitleIdList, TitleConstant.PET_RANK_TITLE_ID.toString()));
+            for (User user : allUsers) {
+                if (user.getTitleIdList() != null && !user.getTitleIdList().isEmpty()) {
+                    List<String> titleIds = JSON.parseArray(user.getTitleIdList(), String.class);
+                    if (titleIds.contains(TitleConstant.PET_RANK_TITLE_ID.toString())) {
+                        usersWithPetTitle.add(user.getId());
+                    }
+                }
+            }
+
+            // 2. 获取今天排行榜的用户ID列表
+            List<PetRankVO> todayRankList = baseMapper.getPetRankList(DEFAULT_RANK_LIMIT);
+            Set<Long> todayUserIds = new HashSet<>();
+            if (todayRankList != null && !todayRankList.isEmpty()) {
+                for (PetRankVO rankVO : todayRankList) {
+                    todayUserIds.add(rankVO.getUserId());
+                }
+            }
+
+            int updatedCount = 0;
+
+            // 3. 移除所有拥有宠物称号但不在今天排行榜中的用户
+            for (Long userId : usersWithPetTitle) {
+                if (!todayUserIds.contains(userId)) {
+                    try {
+                        // 检查用户当前是否正在使用宠物称号
+                        User user = userService.getById(userId);
+                        if (user != null && TitleConstant.PET_RANK_TITLE_ID.equals(user.getTitleId())) {
+                            // 如果用户当前正在使用宠物称号，将其设置为默认称号
+                            user.setTitleId(TitleConstant.DEFAULT_TITLE_ID);
+                            userService.updateById(user);
+                            log.info("用户{}当前正在使用宠物称号，已设置为默认称号", userId);
+                        }
+
+                        // 从用户的称号列表中移除宠物称号
+                        boolean removed = userTitleService.removeTitleFromUser(userId, TitleConstant.PET_RANK_TITLE_ID);
+                        if (removed) {
+                            updatedCount++;
+                            log.info("成功移除用户{}的宠物称号", userId);
+                        }
+                    } catch (Exception e) {
+                        log.error("移除用户{}的宠物称号时发生异常", userId, e);
+                    }
+                }
+            }
+
+            // 4. 给今天排行榜用户添加宠物称号
+            for (Long userId : todayUserIds) {
+                try {
+                    // 检查用户是否已经拥有宠物称号
+                    User user = userService.getById(userId);
+                    if (user != null) {
+                        List<String> titleIds = new ArrayList<>();
+                        if (user.getTitleIdList() != null && !user.getTitleIdList().isEmpty()) {
+                            titleIds = JSON.parseArray(user.getTitleIdList(), String.class);
+                        }
+
+                        // 如果用户还没有宠物称号，则添加
+                        if (!titleIds.contains(TitleConstant.PET_RANK_TITLE_ID.toString())) {
+                            boolean added = userTitleService.addTitleToUser(userId, TitleConstant.PET_RANK_TITLE_ID);
+                            if (added) {
+                                updatedCount++;
+                                log.info("成功给用户{}添加宠物称号", userId);
+                            }
+                        } else {
+                            log.info("用户{}已经拥有宠物称号，无需重复添加", userId);
+                        }
+                    }
+                } catch (Exception e) {
+                    log.error("给用户{}添加宠物称号时发生异常", userId, e);
+                }
+            }
+
+            log.info("宠物排行榜称号更新任务执行完成，共更新{}个用户", updatedCount);
+            return updatedCount;
+        } catch (Exception e) {
+            log.error("宠物排行榜称号更新任务执行异常", e);
+            return 0;
+        }
     }
 } 
