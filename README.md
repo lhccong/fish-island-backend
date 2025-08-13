@@ -102,6 +102,11 @@ _✨ 开源🌟一站式摸鱼网 ✨_
     + [✅] 网站标题闪烁消息提醒
     + [✅] 摸鱼初始页
 
+## Star History
+
+[![Star History Chart](https://api.star-history.com/svg?repos=lhccong/fish-island-backend&type=Date)](https://www.star-history.com/#lhccong/fish-island-backend&Date)
+
+
 ## 截图展示
 
 ### 信息聚合
