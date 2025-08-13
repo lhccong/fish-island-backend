@@ -6,7 +6,7 @@
 
 
 <p align="center">
-  <a href="https://github.com/lhccong/fish-island-backend"><img src="./doc/img/moyu.png" width="300" height="250" alt="摸鱼岛 logo"></a>
+  <a href="https://github.com/lhccong/fish-island-backend"><img src="./doc/img/moyu.png" width="300" height="300" alt="摸鱼岛 logo"></a>
 </p>
 
 
@@ -102,6 +102,10 @@ _✨ Open Source 🌟 One-Stop Procrastination Website ✨_
     + [✅] Website icon customization
     + [✅] Website title flash message notifications
     + [✅] Initial landing page
+
+## Star History
+
+[![Star History Chart](https://api.star-history.com/svg?repos=lhccong/fish-island-backend&type=Date)](https://www.star-history.com/#lhccong/fish-island-backend&Date)
 
 ## Screenshots
 
