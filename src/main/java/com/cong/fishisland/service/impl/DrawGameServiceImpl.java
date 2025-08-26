@@ -687,7 +687,7 @@ public class DrawGameServiceImpl implements DrawGameService {
                 // 检查绘画数据是否为空
                 String drawData = stringRedisTemplate.opsForValue().get(
                         DrawGameRedisKey.getKey(DrawGameRedisKey.DRAW_DATA, roomId));
-                if (StringUtils.isBlank(drawData) && !loginUser.getId().equals(room.getCreatorId())) {
+                if (StringUtils.isBlank(drawData)) {
                     MessageWrapper userMessage = request.getMessageWrapper();
 
                     String contentWord = userMessage.getMessage().getContent();
