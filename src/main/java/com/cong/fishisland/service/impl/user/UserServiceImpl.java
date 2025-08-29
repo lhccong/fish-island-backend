@@ -879,7 +879,8 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements Us
                 "sina.com",
                 "vip.qq.com",
                 "139.com",
-                "88.com"
+                "88.com",
+                "icloud.com"
         );
 
         // 基本格式校验
