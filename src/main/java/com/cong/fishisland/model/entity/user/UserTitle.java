@@ -28,6 +28,12 @@ public class UserTitle {
     private String name;
 
     /**
+     * 称号图标
+     */
+    @TableField(value = "titleImg")
+    private String titleImg;
+
+    /**
      * 创建时间
      */
     @TableField(value = "createTime")
