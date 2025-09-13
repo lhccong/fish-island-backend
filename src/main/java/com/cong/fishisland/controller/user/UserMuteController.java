@@ -1,6 +1,7 @@
 package com.cong.fishisland.controller.user;
 
 import cn.dev33.satoken.annotation.SaCheckRole;
+import cn.dev33.satoken.stp.StpUtil;
 import com.cong.fishisland.common.BaseResponse;
 import com.cong.fishisland.common.ErrorCode;
 import com.cong.fishisland.common.ResultUtils;
@@ -15,6 +16,8 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.web.bind.annotation.*;
 
 import javax.annotation.Resource;
+import java.util.Arrays;
+import java.util.List;
 
 /**
  * 用户禁言控制器
@@ -42,13 +45,15 @@ public class UserMuteController {
     @ApiOperation(value = "禁言用户")
     @SaCheckRole(UserConstant.ADMIN_ROLE)
     public BaseResponse<Boolean> muteUser(@RequestBody UserMuteRequest userMuteRequest) {
+        List<String> superAdminUserIdList = Arrays.asList("1", "1900004165649797122");
+
         if (userMuteRequest == null || userMuteRequest.getUserId() == null || userMuteRequest.getDuration() == null) {
             throw new BusinessException(ErrorCode.PARAMS_ERROR, "参数不能为空");
         }
         if (userMuteRequest.getDuration() <= 0) {
             throw new BusinessException(ErrorCode.PARAMS_ERROR, "禁言时间必须大于0");
         }
-        if (userVipService.isUserVip(userMuteRequest.getUserId())) {
+        if (userVipService.isUserVip(userMuteRequest.getUserId()) && !superAdminUserIdList.contains(StpUtil.getLoginId().toString())) {
             throw new BusinessException(ErrorCode.PARAMS_ERROR, "VIP用户不能被禁言");
         }
         boolean result = userMuteService.muteUser(userMuteRequest.getUserId(), userMuteRequest.getDuration());
