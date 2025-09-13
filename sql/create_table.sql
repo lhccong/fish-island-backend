@@ -46,6 +46,9 @@ create table if not exists user_title
     updateTime datetime default CURRENT_TIMESTAMP not null on update CURRENT_TIMESTAMP comment '更新时间',
     isDelete   tinyint  default 0                 not null comment '是否删除'
 ) comment '用户称号' collate = utf8mb4_unicode_ci;
+ALTER TABLE `user_title`
+    ADD COLUMN `titleImg` VARCHAR(256) NULL COMMENT '称号图标' after titleId;
+
 
 -- 头像框表
 create table if not exists avatar_frame
