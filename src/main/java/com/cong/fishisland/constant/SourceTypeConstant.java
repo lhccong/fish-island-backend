@@ -12,4 +12,8 @@ public interface SourceTypeConstant {
      * 评论
      */
     int COMMENT = 2;
+    /**
+     * 系统类型
+     */
+    int SYSTEM = 3;
 }

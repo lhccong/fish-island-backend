@@ -63,6 +63,7 @@ public class PostFavourController {
         return ResultUtils.success(result);
     }
 
+
     /**
      * 获取我收藏的帖子列表
      *

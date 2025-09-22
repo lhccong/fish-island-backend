@@ -92,12 +92,12 @@ public class EventRemindHandler {
     @Async("eventRemindExecutor")
     public void handleComment(Long commentId, Long postId,
                               Long senderId, Long recipientId,
-                              String content,Boolean isReply) {
+                              String content, Boolean isReply) {
         // 创建事件提醒
         EventRemind event = new EventRemind();
-        if (isReply){
+        if (isReply) {
             event.setAction(ActionTypeConstant.REPLY);
-        }else {
+        } else {
             event.setAction(ActionTypeConstant.COMMENT);
         }
         event.setSourceId(commentId);
@@ -112,4 +112,25 @@ public class EventRemindHandler {
         log.info("保存评论事件: commentId={}, postId={}, senderId={}, recipientId={}",
                 commentId, postId, senderId, recipientId);
     }
+
+
+    /**
+     * 异步处理关注事件
+     */
+    @Async("eventRemindExecutor")
+    public void handleSystemMessage(Long recipientId, String content) {
+
+        // 创建事件提醒
+        EventRemind event = new EventRemind();
+        event.setAction(ActionTypeConstant.SYSTEM);
+        event.setSourceType(SourceTypeConstant.SYSTEM);
+        event.setSourceContent(content);
+        event.setRecipientId(recipientId);
+        event.setRemindTime(new Date());
+        eventRemindService.save(event);
+
+        log.info("保存系统消息事件: recipientId={}", recipientId);
+
+    }
+
 }

@@ -36,7 +36,7 @@ public interface FishPetMapper extends BaseMapper<FishPet> {
     
     /**
      * 获取所有符合条件的宠物及其用户ID和等级
-     * 条件：饥饿度和心情值都大于0
+     * 条件：饥饿度或心情值至少有一个大于0
      *
      * @return 宠物列表，包含用户ID和宠物等级
      */

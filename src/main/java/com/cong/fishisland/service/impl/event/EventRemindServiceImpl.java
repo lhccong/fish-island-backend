@@ -115,10 +115,15 @@ public class EventRemindServiceImpl extends ServiceImpl<EventRemindMapper, Event
         List<EventRemindVO> eventRemindVOList = records.stream().map(EventRemindVO::objToVo).collect(Collectors.toList());
         voPage.setRecords(eventRemindVOList);
         voPage.getRecords().forEach(vo -> {
-            User user = null;
+            User user;
             Long userId = vo.getSenderId();
             if (userIdUserListMap.containsKey(userId)) {
                 user = userIdUserListMap.get(userId).get(0);
+            }else {
+                user = new User();
+                user.setId(-1L);
+                user.setUserName("系统消息");
+                user.setUserAvatar("https://s1.aigei.com/src/img/gif/41/411d8d587bfc41aeaadfb44ae246da0d.gif?imageMogr2/auto-orient/thumbnail/!282x282r/gravity/Center/crop/282x282/quality/85/%7CimageView2/2/w/282&e=2051020800&token=P7S2Xpzfz11vAkASLTkfHN7Fw-oOZBecqeJaxypL:OU5w-4wX8swq04CJ3p4N0tl_J7E=");
             }
             vo.setSenderUser(userService.getUserVO(user));
         });

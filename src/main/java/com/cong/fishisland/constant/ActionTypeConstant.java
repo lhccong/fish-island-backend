@@ -33,4 +33,9 @@ public interface ActionTypeConstant {
      * 分享
      */
     String SHARE = "share";
+
+    /**
+     * 系统
+     */
+    String SYSTEM = "system";
 }
