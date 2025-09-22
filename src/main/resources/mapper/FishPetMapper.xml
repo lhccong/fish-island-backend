@@ -50,7 +50,7 @@
             <foreach collection="userIds" item="userId" open="(" separator="," close=")">
                 #{userId}
             </foreach>
-            AND hunger > 0 AND mood > 0
+            AND (hunger > 0 OR mood > 0)
         </if>
     </update>
     
@@ -58,7 +58,7 @@
         SELECT petId, userId, level
         FROM fish_pet
         WHERE isDelete = 0
-        AND hunger > 0 AND mood > 0
+        AND (hunger > 0 OR mood > 0)
     </select>
     
     <select id="getPetRankList" resultType="com.cong.fishisland.model.vo.pet.PetRankVO">

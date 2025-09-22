@@ -311,15 +311,15 @@ public class FishPetServiceImpl extends ServiceImpl<FishPetMapper, FishPet> impl
             return 0;
         }
 
-        // 注意：在SQL实现中，只有当宠物的饥饿度(hunger)和心情值(mood)都大于0时，
-        // 宠物才会获得经验并可能升级。这确保了宠物需要得到适当的照顾才能成长。
+        // 注意：在SQL实现中，只有当宠物的饥饿度(hunger)或心情值(mood)任意一个大于0时，
+        // 宠物才会获得经验并可能升级。这确保了宠物得到基本照顾就能成长。
         return baseMapper.batchUpdateOnlineUserPetExp(userIds);
     }
 
     @Override
     @Transactional(rollbackFor = Exception.class)
     public int generateDailyPetPoints(int maxPoints) {
-        // 获取所有符合条件的宠物（饥饿度和心情值都大于0）
+        // 获取所有符合条件的宠物（饥饿度或心情值任意一个大于0）
         List<Map<String, Object>> eligiblePets = baseMapper.getPetsForDailyPoints();
 
         if (eligiblePets == null || eligiblePets.isEmpty()) {
