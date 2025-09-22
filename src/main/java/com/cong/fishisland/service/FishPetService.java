@@ -78,7 +78,7 @@ public interface FishPetService extends IService<FishPet> {
     /**
      * 批量更新在线用户宠物经验
      * 经验值满100时，等级加1，经验值清零
-     * 注意：只要宠物的饥饿度或心情值有一个大于0，就可以更新经验
+     * 注意：只有当宠物的饥饿度和心情值都大于0时，才会更新经验
      *
      * @param userIds 在线用户ID列表
      * @return 更新的记录数
@@ -88,7 +88,7 @@ public interface FishPetService extends IService<FishPet> {
     /**
      * 宠物每日产出积分
      * 产出积分 = 宠物等级（最高不超过maxPoints）
-     * 注意：只要宠物的饥饿度或心情值有一个大于0，就可以产出积分
+     * 注意：只有当宠物的饥饿度和心情值都大于0时，才会产出积分
      *
      * @param maxPoints 最大积分限制
      * @return 产出积分的宠物数量

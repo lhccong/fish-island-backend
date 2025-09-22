@@ -68,9 +68,6 @@ public class FishPetServiceImpl extends ServiceImpl<FishPetMapper, FishPet> impl
     // 修改宠物名字消耗的积分
     private static final int RENAME_POINT_COST = 100;
 
-    // 宠物最大等级
-    private static final int MAX_PET_LEVEL = 30;
-
     // 宠物排行榜缓存时间（24小时）
     private static final Duration PET_RANK_CACHE_DURATION = Duration.ofHours(24);
     // 默认排行榜数量
@@ -230,11 +227,6 @@ public class FishPetServiceImpl extends ServiceImpl<FishPetMapper, FishPet> impl
         // 检查宠物是否存在且属于当前用户
         FishPet fishPet = checkPetOwnership(petId, userId);
 
-        // 检查宠物是否已达到最大等级
-        if (fishPet.getLevel() >= MAX_PET_LEVEL) {
-            throw new BusinessException(ErrorCode.OPERATION_ERROR, "宠物已达到最大等级，无需喂食");
-        }
-
         // 检查饥饿度是否已满
         if (fishPet.getHunger() >= 100) {
             throw new BusinessException(ErrorCode.OPERATION_ERROR, "宠物已经吃饱了，不需要再喂食");
@@ -260,10 +252,10 @@ public class FishPetServiceImpl extends ServiceImpl<FishPetMapper, FishPet> impl
         userIds.add(userId.toString());
         batchUpdateOnlineUserPetExp(userIds);
 
-        // 重新获取宠物信息（可能因为升级而改变了属性）
-        FishPet updatedPet = this.getById(petId);
+        // 返回更新后的宠物信息
         PetVO petVO = new PetVO();
-        BeanUtils.copyProperties(updatedPet, petVO);
+        BeanUtils.copyProperties(fishPet, petVO);
+        petVO.setExp(petVO.getExp() + 1);
 
         return petVO;
     }
@@ -274,11 +266,6 @@ public class FishPetServiceImpl extends ServiceImpl<FishPetMapper, FishPet> impl
 
         // 检查宠物是否存在且属于当前用户
         FishPet fishPet = checkPetOwnership(petId, userId);
-
-        // 检查宠物是否已达到最大等级
-        if (fishPet.getLevel() >= MAX_PET_LEVEL) {
-            throw new BusinessException(ErrorCode.OPERATION_ERROR, "宠物已达到最大等级，无需抚摸");
-        }
 
         // 检查心情值是否已满
         if (fishPet.getMood() >= 100) {
@@ -303,10 +290,12 @@ public class FishPetServiceImpl extends ServiceImpl<FishPetMapper, FishPet> impl
             throw new BusinessException(ErrorCode.OPERATION_ERROR, "抚摸失败");
         }
 
-        // 重新获取宠物信息（可能因为升级而改变了属性）
-        FishPet updatedPet = this.getById(petId);
+
+        // 返回更新后的宠物信息
         PetVO petVO = new PetVO();
-        BeanUtils.copyProperties(updatedPet, petVO);
+        BeanUtils.copyProperties(fishPet, petVO);
+        petVO.setExp(petVO.getExp() + 1);
+
 
         return petVO;
     }
@@ -322,15 +311,15 @@ public class FishPetServiceImpl extends ServiceImpl<FishPetMapper, FishPet> impl
             return 0;
         }
 
-        // 注意：在SQL实现中，只要宠物的饥饿度(hunger)或心情值(mood)有一个大于0，
-        // 宠物就可以获得经验并可能升级。这降低了宠物成长的门槛。
+        // 注意：在SQL实现中，只有当宠物的饥饿度(hunger)和心情值(mood)都大于0时，
+        // 宠物才会获得经验并可能升级。这确保了宠物需要得到适当的照顾才能成长。
         return baseMapper.batchUpdateOnlineUserPetExp(userIds);
     }
 
     @Override
     @Transactional(rollbackFor = Exception.class)
     public int generateDailyPetPoints(int maxPoints) {
-        // 获取所有符合条件的宠物（饥饿度或心情值至少有一个大于0）
+        // 获取所有符合条件的宠物（饥饿度和心情值都大于0）
         List<Map<String, Object>> eligiblePets = baseMapper.getPetsForDailyPoints();
 
         if (eligiblePets == null || eligiblePets.isEmpty()) {
@@ -507,9 +496,9 @@ public class FishPetServiceImpl extends ServiceImpl<FishPetMapper, FishPet> impl
                 if (user.getTitleIdList() != null && !user.getTitleIdList().isEmpty()) {
                     List<String> titleIds = JSON.parseArray(user.getTitleIdList(), String.class);
                     if (titleIds.contains(TitleConstant.PET_RANK_TITLE_ID.toString()) ||
-                            titleIds.contains(TitleConstant.PET_RANK_FIRST_TITLE_ID.toString()) ||
-                            titleIds.contains(TitleConstant.PET_RANK_SECOND_TITLE_ID.toString()) ||
-                            titleIds.contains(TitleConstant.PET_RANK_THIRD_TITLE_ID.toString())) {
+                        titleIds.contains(TitleConstant.PET_RANK_FIRST_TITLE_ID.toString()) ||
+                        titleIds.contains(TitleConstant.PET_RANK_SECOND_TITLE_ID.toString()) ||
+                        titleIds.contains(TitleConstant.PET_RANK_THIRD_TITLE_ID.toString())) {
                         usersWithPetTitle.add(user.getId());
                     }
                 }
@@ -533,9 +522,9 @@ public class FishPetServiceImpl extends ServiceImpl<FishPetMapper, FishPet> impl
                         // 检查用户当前是否正在使用宠物称号
                         User user = userService.getById(userId);
                         if (user != null && (TitleConstant.PET_RANK_TITLE_ID.equals(user.getTitleId()) ||
-                                TitleConstant.PET_RANK_FIRST_TITLE_ID.equals(user.getTitleId()) ||
-                                TitleConstant.PET_RANK_SECOND_TITLE_ID.equals(user.getTitleId()) ||
-                                TitleConstant.PET_RANK_THIRD_TITLE_ID.equals(user.getTitleId()))) {
+                            TitleConstant.PET_RANK_FIRST_TITLE_ID.equals(user.getTitleId()) ||
+                            TitleConstant.PET_RANK_SECOND_TITLE_ID.equals(user.getTitleId()) ||
+                            TitleConstant.PET_RANK_THIRD_TITLE_ID.equals(user.getTitleId()))) {
                             // 如果用户当前正在使用宠物称号，将其设置为默认称号
                             user.setTitleId(TitleConstant.DEFAULT_TITLE_ID);
                             userService.updateById(user);
@@ -548,7 +537,7 @@ public class FishPetServiceImpl extends ServiceImpl<FishPetMapper, FishPet> impl
                         removed |= userTitleService.removeTitleFromUser(userId, TitleConstant.PET_RANK_FIRST_TITLE_ID);
                         removed |= userTitleService.removeTitleFromUser(userId, TitleConstant.PET_RANK_SECOND_TITLE_ID);
                         removed |= userTitleService.removeTitleFromUser(userId, TitleConstant.PET_RANK_THIRD_TITLE_ID);
-
+                        
                         if (removed) {
                             updatedCount++;
                             log.info("成功移除用户{}的宠物称号", userId);
@@ -590,31 +579,32 @@ public class FishPetServiceImpl extends ServiceImpl<FishPetMapper, FishPet> impl
             // 5. 给前三名用户添加额外称号
             if (todayRankList != null && !todayRankList.isEmpty()) {
                 // 第一名额外称号
-                Long firstUserId = todayRankList.get(0).getUserId();
-                try {
-                    User user = userService.getById(firstUserId);
-                    if (user != null) {
-                        List<String> titleIds = new ArrayList<>();
-                        if (user.getTitleIdList() != null && !user.getTitleIdList().isEmpty()) {
-                            titleIds = JSON.parseArray(user.getTitleIdList(), String.class);
-                        }
-
-                        // 如果用户还没有第一名额外称号，则添加
-                        if (!titleIds.contains(TitleConstant.PET_RANK_FIRST_TITLE_ID.toString())) {
-                            boolean added = userTitleService.addTitleToUser(firstUserId, TitleConstant.PET_RANK_FIRST_TITLE_ID);
-                            if (added) {
-                                updatedCount++;
-                                log.info("成功给第一名用户{}添加额外称号", firstUserId);
-                                eventRemindHandler.handleSystemMessage(firstUserId, "恭喜获得宠物排行榜第一名额外称号！");
+                if (todayRankList.size() >= 1) {
+                    Long firstUserId = todayRankList.get(0).getUserId();
+                    try {
+                        User user = userService.getById(firstUserId);
+                        if (user != null) {
+                            List<String> titleIds = new ArrayList<>();
+                            if (user.getTitleIdList() != null && !user.getTitleIdList().isEmpty()) {
+                                titleIds = JSON.parseArray(user.getTitleIdList(), String.class);
                             }
-                        } else {
-                            log.info("第一名用户{}已经拥有额外称号，无需重复添加", firstUserId);
-                        }
-                    }
-                } catch (Exception e) {
-                    log.error("给第一名用户{}添加额外称号时发生异常", firstUserId, e);
-                }
 
+                            // 如果用户还没有第一名额外称号，则添加
+                            if (!titleIds.contains(TitleConstant.PET_RANK_FIRST_TITLE_ID.toString())) {
+                                boolean added = userTitleService.addTitleToUser(firstUserId, TitleConstant.PET_RANK_FIRST_TITLE_ID);
+                                if (added) {
+                                    updatedCount++;
+                                    log.info("成功给第一名用户{}添加额外称号", firstUserId);
+                                    eventRemindHandler.handleSystemMessage(firstUserId, "恭喜获得宠物排行榜第一名额外称号！");
+                                }
+                            } else {
+                                log.info("第一名用户{}已经拥有额外称号，无需重复添加", firstUserId);
+                            }
+                        }
+                    } catch (Exception e) {
+                        log.error("给第一名用户{}添加额外称号时发生异常", firstUserId, e);
+                    }
+                }
 
                 // 第二名额外称号
                 if (todayRankList.size() >= 2) {

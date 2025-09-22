@@ -30,28 +30,19 @@
         SET hunger = GREATEST(0, hunger - #{hungerDecrement}),
             mood = GREATEST(0, mood - #{moodDecrement}),
             updateTime = NOW()
-        WHERE isDelete = 0 AND level < 30
+        WHERE isDelete = 0
     </update>
     
     <update id="batchUpdateOnlineUserPetExp">
         <if test="userIds != null and userIds.size() > 0">
             UPDATE fish_pet
             SET level = CASE
-                    WHEN exp + 1 >= 100 THEN LEAST(level + 1, 30)
+                    WHEN exp + 1 >= 100 THEN level + 1
                     ELSE level
                 END,
                 exp = CASE
-                    WHEN exp + 1 >= 100 AND level + 1 >= 30 THEN 100
                     WHEN exp + 1 >= 100 THEN 0
                     ELSE exp + 1
-                END,
-                hunger = CASE
-                    WHEN exp + 1 >= 100 AND level + 1 >= 30 THEN 100
-                    ELSE hunger
-                END,
-                mood = CASE
-                    WHEN exp + 1 >= 100 AND level + 1 >= 30 THEN 100
-                    ELSE mood
                 END,
                 updateTime = NOW()
             WHERE isDelete = 0
@@ -59,7 +50,7 @@
             <foreach collection="userIds" item="userId" open="(" separator="," close=")">
                 #{userId}
             </foreach>
-            AND (hunger > 0 OR mood > 0) AND level < 30
+            AND hunger > 0 AND mood > 0
         </if>
     </update>
     
@@ -67,7 +58,7 @@
         SELECT petId, userId, level
         FROM fish_pet
         WHERE isDelete = 0
-        AND (hunger > 0 OR mood > 0)
+        AND hunger > 0 AND mood > 0
     </select>
     
     <select id="getPetRankList" resultType="com.cong.fishisland.model.vo.pet.PetRankVO">
