@@ -27,8 +27,14 @@
     
     <update id="batchUpdatePetStatus">
         UPDATE fish_pet
-        SET hunger = GREATEST(0, hunger - #{hungerDecrement}),
-            mood = GREATEST(0, mood - #{moodDecrement}),
+        SET hunger = CASE
+            WHEN level >= 30 THEN 100
+            ELSE GREATEST(0, hunger - #{hungerDecrement})
+            END,
+            mood = CASE
+            WHEN level >= 30 THEN 100
+            ELSE GREATEST(0, mood - #{moodDecrement})
+            END,
             updateTime = NOW()
         WHERE isDelete = 0
     </update>
@@ -37,14 +43,24 @@
         <if test="userIds != null and userIds.size() > 0">
             UPDATE fish_pet
             SET level = CASE
-                    WHEN exp + 1 >= 100 THEN level + 1
-                    ELSE level
-                END,
-                exp = CASE
-                    WHEN exp + 1 >= 100 THEN 0
-                    ELSE exp + 1
-                END,
-                updateTime = NOW()
+            WHEN level &lt; 30 AND exp + 1 >= 100 THEN level + 1
+            ELSE level
+            END,
+            exp = CASE
+            WHEN level &lt; 30 AND exp + 1 >= 100 AND level + 1 = 30 THEN 100
+            WHEN level &lt; 30 AND exp + 1 >= 100 THEN 0
+            WHEN level &lt; 30 THEN exp + 1
+            ELSE exp
+            END,
+            hunger = CASE
+            WHEN level &lt; 30 AND exp + 1 >= 100 AND level + 1 = 30 THEN 0
+            ELSE hunger
+            END,
+            mood = CASE
+            WHEN level &lt; 30 AND exp + 1 >= 100 AND level + 1 = 30 THEN 100
+            ELSE mood
+            END,
+            updateTime = NOW()
             WHERE isDelete = 0
             AND userId IN
             <foreach collection="userIds" item="userId" open="(" separator="," close=")">

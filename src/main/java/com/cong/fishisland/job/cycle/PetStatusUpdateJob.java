@@ -17,7 +17,7 @@ import java.util.stream.Collectors;
  *
  * @author cong
  */
-@Component
+//@Component
 @Slf4j
 @RequiredArgsConstructor
 public class PetStatusUpdateJob {
@@ -31,7 +31,7 @@ public class PetStatusUpdateJob {
     // 每小时心情值减少值
     private static final int MOOD_DECREMENT = 3;
     // 宠物产出积分的最大值
-    private static final int MAX_PET_POINTS = 50;
+    private static final int MAX_PET_POINTS = 30;
 
 
     /**

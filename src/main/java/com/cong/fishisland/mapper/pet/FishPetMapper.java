@@ -18,6 +18,7 @@ public interface FishPetMapper extends BaseMapper<FishPet> {
     
     /**
      * 批量更新宠物状态
+     * 30级宠物会保持饥饿度为100和心情值为100（满心情）
      * 
      * @param hungerDecrement 饥饿度减少值
      * @param moodDecrement 心情值减少值
@@ -28,6 +29,7 @@ public interface FishPetMapper extends BaseMapper<FishPet> {
     /**
      * 批量更新在线用户宠物经验
      * 经验值满100时，等级加1，经验值清零
+     * 当宠物升级到30级时，经验值、饥饿度和心情值会自动回满
      *
      * @param userIds 在线用户ID列表
      * @return 更新的记录数

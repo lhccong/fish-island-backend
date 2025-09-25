@@ -68,7 +68,7 @@ public class PetSkinServiceImpl extends ServiceImpl<PetSkinMapper, PetSkin> impl
         }
         
         // 转换为VO
-        Page<PetSkinVO> petSkinVOPage = new Page<>(petSkinPage.getCurrent(), petSkinPage.getSize(), petSkinPage.getTotal());
+        Page<PetSkinVO> petSkinVoPage = new Page<>(petSkinPage.getCurrent(), petSkinPage.getSize(), petSkinPage.getTotal());
         List<PetSkinVO> petSkinVOList = petSkinPage.getRecords().stream().map(petSkin -> {
             PetSkinVO petSkinVO = new PetSkinVO();
             BeanUtils.copyProperties(petSkin, petSkinVO);
@@ -77,8 +77,8 @@ public class PetSkinServiceImpl extends ServiceImpl<PetSkinMapper, PetSkin> impl
             return petSkinVO;
         }).collect(Collectors.toList());
         
-        petSkinVOPage.setRecords(petSkinVOList);
-        return petSkinVOPage;
+        petSkinVoPage.setRecords(petSkinVOList);
+        return petSkinVoPage;
     }
     
     @Override
