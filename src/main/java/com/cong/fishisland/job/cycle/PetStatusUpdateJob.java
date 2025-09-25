@@ -38,7 +38,7 @@ public class PetStatusUpdateJob {
      * 每小时更新宠物经验
      * 注意：只有当饥饿度和心情值都大于0时，宠物才会获得经验
      */
-    @Scheduled(fixedRate = 3600000) // 3600000毫秒 = 1小时
+    @Scheduled(fixedRate = 3600000)
     public void updatePetLevel() {
         List<UserChatResponse> onlineUserList = webSocketService.getOnlineUserList();
         if (onlineUserList.isEmpty()) {
@@ -68,7 +68,7 @@ public class PetStatusUpdateJob {
      * 每小时扣除5点饥饿度、3点心情值
      * 注意：饥饿度和心情值为0的宠物无法获得经验
      */
-    @Scheduled(fixedRate = 3600000) // 3600000毫秒 = 1小时
+    @Scheduled(fixedRate = 3600000)
     public void updatePetStatus() {
         log.info("开始执行宠物状态更新任务");
 
@@ -94,7 +94,7 @@ public class PetStatusUpdateJob {
      * 产出积分 = 宠物等级（最高10积分）
      * 注意：只有当饥饿度和心情值都大于0时，宠物才会产出积分
      */
-    @Scheduled(cron = "0 0 0 * * ?") // 每天0点执行
+    @Scheduled(cron = "0 0 0 * * ?")
     public void dailyPetPointsGeneration() {
         log.info("开始执行宠物每日积分产出任务");
         
@@ -118,7 +118,7 @@ public class PetStatusUpdateJob {
      * 排行榜数据存入Redis，缓存24小时
      * 移除昨天排行榜用户的宠物称号，给今天排行榜用户添加宠物称号
      */
-    @Scheduled(cron = "0 5 0 * * ?") // 每天0点5分执行
+    @Scheduled(cron = "0 5 0 * * ?")
     public void generatePetRankList() {
         log.info("开始执行宠物排行榜生成任务");
         

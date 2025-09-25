@@ -1,4 +1,4 @@
-package com.cong.fishisland.controller;
+package com.cong.fishisland.controller.chat;
 
 import com.cong.fishisland.common.BaseResponse;
 import com.cong.fishisland.common.ResultUtils;

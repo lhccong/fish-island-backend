@@ -127,6 +127,9 @@ public class EventRemindHandler {
         event.setSourceContent(content);
         event.setRecipientId(recipientId);
         event.setRemindTime(new Date());
+        event.setUrl("");
+        event.setSourceId(-1L);
+        event.setSenderId(-1L);
         eventRemindService.save(event);
 
         log.info("保存系统消息事件: recipientId={}", recipientId);
