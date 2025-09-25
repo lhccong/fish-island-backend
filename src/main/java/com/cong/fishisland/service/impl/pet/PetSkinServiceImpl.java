@@ -1,4 +1,4 @@
-package com.cong.fishisland.service.impl;
+package com.cong.fishisland.service.impl.pet;
 
 import com.alibaba.fastjson.JSON;
 import com.alibaba.fastjson.JSONObject;
@@ -14,10 +14,8 @@ import com.cong.fishisland.model.dto.pet.PetSkinQueryRequest;
 import com.cong.fishisland.model.dto.pet.PetSkinSetRequest;
 import com.cong.fishisland.model.entity.pet.FishPet;
 import com.cong.fishisland.model.entity.pet.PetSkin;
-import com.cong.fishisland.model.entity.user.UserPoints;
 import com.cong.fishisland.model.vo.pet.PetSkinVO;
 import com.cong.fishisland.model.vo.pet.PetVO;
-import com.cong.fishisland.service.FishPetService;
 import com.cong.fishisland.service.PetSkinService;
 import com.cong.fishisland.service.UserPointsService;
 import org.apache.commons.lang3.StringUtils;

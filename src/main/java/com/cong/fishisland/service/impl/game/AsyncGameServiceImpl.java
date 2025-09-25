@@ -1,4 +1,4 @@
-package com.cong.fishisland.service.impl;
+package com.cong.fishisland.service.impl.game;
 
 import com.cong.fishisland.common.ErrorCode;
 import com.cong.fishisland.common.exception.BusinessException;

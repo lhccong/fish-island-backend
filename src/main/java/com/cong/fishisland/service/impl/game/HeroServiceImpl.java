@@ -1,4 +1,4 @@
-package com.cong.fishisland.service.impl;
+package com.cong.fishisland.service.impl.game;
 
 import cn.hutool.core.collection.CollUtil;
 import cn.hutool.core.date.DateUtil;

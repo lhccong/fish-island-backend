@@ -1,4 +1,4 @@
-package com.cong.fishisland.service.impl;
+package com.cong.fishisland.service.impl.chat;
 
 import com.alibaba.fastjson.JSON;
 import com.cong.fishisland.config.AIModelConfig;

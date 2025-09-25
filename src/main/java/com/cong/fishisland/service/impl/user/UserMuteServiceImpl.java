@@ -1,4 +1,4 @@
-package com.cong.fishisland.service.impl;
+package com.cong.fishisland.service.impl.user;
 
 import com.cong.fishisland.constant.RedisKey;
 import com.cong.fishisland.constant.UserConstant;

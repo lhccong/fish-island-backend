@@ -1,4 +1,4 @@
-package com.cong.fishisland.service.impl;
+package com.cong.fishisland.service.impl.chat;
 
 import com.cong.fishisland.model.vo.WebParseVO;
 import com.cong.fishisland.service.WebParserService;

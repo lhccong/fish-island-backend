@@ -3,7 +3,7 @@ package com.cong.fishisland.controller.chat;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.cong.fishisland.common.BaseResponse;
 import com.cong.fishisland.common.ResultUtils;
-import com.cong.fishisland.service.impl.FlexChatServiceDemo;
+import com.cong.fishisland.service.impl.chat.FlexChatServiceDemo;
 import com.cong.fishisland.model.dto.chat.MessageQueryRequest;
 import com.cong.fishisland.model.vo.chat.RoomMessageVo;
 import com.cong.fishisland.model.ws.response.UserChatResponse;

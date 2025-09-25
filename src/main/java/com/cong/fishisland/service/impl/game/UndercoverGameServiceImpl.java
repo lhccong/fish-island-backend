@@ -1,4 +1,4 @@
-package com.cong.fishisland.service.impl;
+package com.cong.fishisland.service.impl.game;
 
 import cn.dev33.satoken.stp.StpUtil;
 import com.cong.fishisland.common.ErrorCode;
