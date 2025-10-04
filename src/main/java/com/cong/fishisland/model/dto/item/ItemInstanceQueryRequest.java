@@ -1,4 +1,4 @@
-package com.cong.fishisland.model.dto.pet;
+package com.cong.fishisland.model.dto.item;
 
 import com.cong.fishisland.common.PageRequest;
 import io.swagger.annotations.ApiModel;
@@ -18,7 +18,6 @@ import java.io.Serializable;
 @Data
 @ApiModel("物品实例分页查询请求")
 public class ItemInstanceQueryRequest extends PageRequest implements Serializable {
-
 
     /**
      * 物品大类：equipment-装备类、consumable-消耗品、material-材料
