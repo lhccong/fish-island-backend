@@ -60,4 +60,18 @@ public interface ItemInstancesService extends IService<ItemInstances> {
      */
     Page<ItemInstanceVO> getItemInstancesVoPage(Page<ItemInstances> itemInstancesPage);
 
+    /**
+     * 分解物品实例，将物品的分解积分添加到用户积分中
+     * 两种使用方式：
+     * 1. 用户主动分解背包中的物品：传入 itemInstanceId，其他参数传 null
+     * 2. 系统自动分解（如添加重复物品）：传入 templateId、userId、quantity，itemInstanceId 传 null
+     *
+     * @param itemInstanceId 物品实例ID（场景1必传，场景2传null）
+     * @param templateId     物品模板ID（场景2必传，场景1传null）
+     * @param userId         用户ID（场景2必传，场景1传null）
+     * @param quantity       分解数量（场景2必传，场景1传null）
+     * @return 分解获得的积分数量
+     */
+    Long decomposeItemInstance(Long itemInstanceId, Long templateId, Long userId, Integer quantity);
+
 }

@@ -11,14 +11,10 @@ import com.cong.fishisland.model.dto.item.ItemTemplateEditRequest;
 import com.cong.fishisland.model.dto.item.ItemTemplateQueryRequest;
 import com.cong.fishisland.model.entity.pet.ItemTemplates;
 import com.cong.fishisland.model.vo.pet.ItemTemplateVO;
-import com.cong.fishisland.service.ItemInstancesService;
 import com.cong.fishisland.service.ItemTemplatesService;
-import com.cong.fishisland.service.UserPointsService;
 import org.apache.commons.lang3.StringUtils;
 import org.springframework.beans.BeanUtils;
 import org.springframework.stereotype.Service;
-
-import javax.annotation.Resource;
 
 import java.util.Collections;
 import java.util.List;
@@ -32,12 +28,6 @@ import java.util.stream.Collectors;
  */
 @Service
 public class ItemTemplatesServiceImpl extends ServiceImpl<ItemTemplatesMapper, ItemTemplates> implements ItemTemplatesService {
-
-    @Resource
-    private ItemInstancesService itemInstancesService;
-
-    @Resource
-    private UserPointsService userPointsService;
 
     @Override
     public Long addItemTemplate(ItemTemplateAddRequest itemTemplateAddRequest) {
