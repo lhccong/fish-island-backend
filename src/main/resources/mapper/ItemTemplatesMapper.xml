@@ -1,0 +1,36 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper
+        PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.cong.fishisland.mapper.pet.ItemTemplatesMapper">
+
+    <resultMap id="BaseResultMap" type="com.cong.fishisland.model.entity.pet.ItemTemplates">
+        <id property="id" column="id"/>
+        <result property="code" column="code"/>
+        <result property="name" column="name"/>
+        <result property="category" column="category"/>
+        <result property="subType" column="sub_type"/>
+        <result property="equipSlot" column="equip_slot"/>
+        <result property="rarity" column="rarity"/>
+        <result property="levelReq" column="levelReq"/>
+        <result property="baseAttack" column="baseAttack"/>
+        <result property="baseDefense" column="baseDefense"/>
+        <result property="baseHp" column="baseHp"/>
+        <result property="mainAttr" column="mainAttr"/>
+        <result property="icon" column="icon"/>
+        <result property="description" column="description"/>
+        <result property="stackable" column="stackable"/>
+        <result property="removePoint" column="removePoint"/>
+        <result property="createTime" column="createTime"/>
+        <result property="updateTime" column="updateTime"/>
+        <result property="isDelete" column="isDelete"/>
+    </resultMap>
+
+    <sql id="Base_Column_List">
+        id
+        ,code,name,category,sub_type,equip_slot,
+        rarity,levelReq,baseAttack,baseDefense,baseHp,
+        mainAttr,icon,description,stackable,removePoint,
+        createTime,updateTime,isDelete
+    </sql>
+</mapper>
