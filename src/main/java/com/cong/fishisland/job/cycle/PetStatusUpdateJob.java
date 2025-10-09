@@ -66,6 +66,7 @@ public class PetStatusUpdateJob {
     /**
      * 每小时更新宠物状态
      * 每小时扣除5点饥饿度、3点心情值
+     * 注意：30级宠物不会扣除饥饿度和心情值，会自动保持满值
      * 注意：饥饿度和心情值为0的宠物无法获得经验
      */
     @Scheduled(fixedRate = 3600000)
@@ -78,6 +79,7 @@ public class PetStatusUpdateJob {
 
             if (updatedCount > 0) {
                 log.info("宠物状态批量更新成功，共更新{}个宠物", updatedCount);
+                log.info("提醒：30级宠物状态保持满值，其他宠物扣除饥饿度和心情值");
                 log.info("提醒：饥饿度和心情值为0的宠物将无法获得经验和升级");
             } else {
                 log.info("没有宠物需要更新状态");

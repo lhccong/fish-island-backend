@@ -53,6 +53,12 @@ public interface RedisKey {
      * 用户禁言 user:mute:{userId}
      */
     String USER_MUTE = "user:mute:%d";
+    
+    /**
+     * 管理员撤回消息记录 admin:revoke:records
+     */
+    String ADMIN_REVOKE_RECORDS = "admin:revoke:records";
+    
     String NO_REPEAT_SUBMIT_PREFIX = "noRepeatSubmit:%s:%s";
 
     static String getKey(String key, Object... objects) {

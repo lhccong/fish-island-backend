@@ -25,6 +25,7 @@
         createTime,updateTime,isDelete
     </sql>
     
+    <!-- 批量更新宠物状态：30级宠物保持满状态（饥饿度100，心情值100），其他宠物扣除相应数值 -->
     <update id="batchUpdatePetStatus">
         UPDATE fish_pet
         SET hunger = CASE
@@ -43,21 +44,22 @@
         <if test="userIds != null and userIds.size() > 0">
             UPDATE fish_pet
             SET level = CASE
-            WHEN level &lt; 30 AND exp + 1 >= 100 THEN level + 1
+            WHEN level &lt; 29 AND exp + 1 >= 100 THEN level + 1
+            WHEN level = 29 AND exp + 1 >= 100 THEN 30
             ELSE level
             END,
             exp = CASE
-            WHEN level &lt; 30 AND exp + 1 >= 100 AND level + 1 = 30 THEN 100
-            WHEN level &lt; 30 AND exp + 1 >= 100 THEN 0
+            WHEN level = 29 AND exp + 1 >= 100 THEN 0
+            WHEN level &lt; 29 AND exp + 1 >= 100 THEN 0
             WHEN level &lt; 30 THEN exp + 1
-            ELSE exp
+            ELSE 100
             END,
             hunger = CASE
-            WHEN level &lt; 30 AND exp + 1 >= 100 AND level + 1 = 30 THEN 0
+            WHEN level = 29 AND exp + 1 >= 100 THEN 100
             ELSE hunger
             END,
             mood = CASE
-            WHEN level &lt; 30 AND exp + 1 >= 100 AND level + 1 = 30 THEN 100
+            WHEN level = 29 AND exp + 1 >= 100 THEN 100
             ELSE mood
             END,
             updateTime = NOW()

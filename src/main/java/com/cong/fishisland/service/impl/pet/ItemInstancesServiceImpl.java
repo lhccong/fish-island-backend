@@ -22,6 +22,7 @@ import com.cong.fishisland.service.UserPointsService;
 import com.cong.fishisland.service.UserService;
 import com.cong.fishisland.utils.SqlUtils;
 import org.apache.commons.lang3.StringUtils;
+import org.jetbrains.annotations.NotNull;
 import org.springframework.beans.BeanUtils;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Propagation;
@@ -50,6 +51,7 @@ public class ItemInstancesServiceImpl extends ServiceImpl<ItemInstancesMapper, I
     UserPointsService userPointsService;
 
     @Override
+    @Transactional(rollbackFor = Exception.class)
     public Long addItemInstance(ItemInstanceAddRequest itemInstanceAddRequest) {
         // 1. 参数校验
         if (itemInstanceAddRequest == null || itemInstanceAddRequest.getTemplateId() == null) {
@@ -58,18 +60,7 @@ public class ItemInstancesServiceImpl extends ServiceImpl<ItemInstancesMapper, I
 
         // 2. 获取物品模板并校验
         ItemTemplates template = itemTemplatesService.getById(itemInstanceAddRequest.getTemplateId());
-        if (template == null || template.getIsDelete() == 1) {
-            throw new BusinessException(ErrorCode.PARAMS_ERROR, "物品模板不存在或已删除");
-        }
-
-        // 3. 确定持有者ID
-        User loginUser = userService.getLoginUser();
-        Long loginUserId = loginUser == null ? null : loginUser.getId();
-        Long ownerUserId = (itemInstanceAddRequest.getOwnerUserId() != null && itemInstanceAddRequest.getOwnerUserId() > 0)
-                ? itemInstanceAddRequest.getOwnerUserId() : loginUserId;
-        if (ownerUserId == null || ownerUserId <= 0) {
-            throw new BusinessException(ErrorCode.PARAMS_ERROR, "目标持有者ID非法");
-        }
+        Long ownerUserId = getOwnerUserId(itemInstanceAddRequest, template);
 
         // 4. 确定添加数量（默认1）
         int addQuantity = (itemInstanceAddRequest.getQuantity() == null || itemInstanceAddRequest.getQuantity() <= 0)
@@ -130,6 +121,23 @@ public class ItemInstancesServiceImpl extends ServiceImpl<ItemInstancesMapper, I
 
             return newItem.getId();
         }
+    }
+
+    @NotNull
+    private Long getOwnerUserId(ItemInstanceAddRequest itemInstanceAddRequest, ItemTemplates template) {
+        if (template == null || template.getIsDelete() == 1) {
+            throw new BusinessException(ErrorCode.PARAMS_ERROR, "物品模板不存在或已删除");
+        }
+
+        // 3. 确定持有者ID
+        User loginUser = userService.getLoginUser();
+        Long loginUserId = loginUser == null ? null : loginUser.getId();
+        Long ownerUserId = (itemInstanceAddRequest.getOwnerUserId() != null && itemInstanceAddRequest.getOwnerUserId() > 0)
+                ? itemInstanceAddRequest.getOwnerUserId() : loginUserId;
+        if (ownerUserId == null || ownerUserId <= 0) {
+            throw new BusinessException(ErrorCode.PARAMS_ERROR, "目标持有者ID非法");
+        }
+        return ownerUserId;
     }
 
     /**
@@ -249,13 +257,13 @@ public class ItemInstancesServiceImpl extends ServiceImpl<ItemInstancesMapper, I
                 .collect(Collectors.toList());
 
         // 2. 批量查询模板并转 Map
-        Map<Long, ItemTemplateVO> templateVOMap = itemTemplatesService.getTemplateVOMapByIds(templateIds);
+        Map<Long, ItemTemplateVO> templateVoMap = itemTemplatesService.getTemplateVOMapByIds(templateIds);
 
         // 3. 构建 VO 列表
         List<ItemInstanceVO> voList = records.stream().map(item -> {
             ItemInstanceVO vo = new ItemInstanceVO();
             BeanUtils.copyProperties(item, vo);
-            vo.setTemplate(templateVOMap.get(item.getTemplateId()));
+            vo.setTemplate(templateVoMap.get(item.getTemplateId()));
             return vo;
         }).collect(Collectors.toList());
 
@@ -326,7 +334,7 @@ public class ItemInstancesServiceImpl extends ServiceImpl<ItemInstancesMapper, I
         }
 
         // 2. 校验是否可分解
-        Long removePoint = template.getRemovePoint() == null ? 0L : template.getRemovePoint().longValue();
+        long removePoint = template.getRemovePoint() == null ? 0L : template.getRemovePoint().longValue();
         if (removePoint <= 0) {
             throw new BusinessException(ErrorCode.OPERATION_ERROR, "该物品无法分解（分解积分为0）");
         }
@@ -335,7 +343,7 @@ public class ItemInstancesServiceImpl extends ServiceImpl<ItemInstancesMapper, I
         Long totalPoints = removePoint * quantity;
 
         // 4. 发放积分
-        userPointsService.updatePoints(userId, totalPoints.intValue(), false);
+        userPointsService.updateUsedPoints(userId, -totalPoints.intValue());
 
         // 5. 场景1需要删除物品实例
         if (itemInstanceId != null && itemInstanceId > 0) {

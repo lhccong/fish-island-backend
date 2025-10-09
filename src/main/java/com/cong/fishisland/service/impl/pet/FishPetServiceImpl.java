@@ -311,6 +311,7 @@ public class FishPetServiceImpl extends ServiceImpl<FishPetMapper, FishPet> impl
 
     @Override
     public int batchUpdatePetStatus(int hungerDecrement, int moodDecrement) {
+        // 批量更新宠物状态：30级宠物保持满状态，其他宠物扣除相应数值
         return baseMapper.batchUpdatePetStatus(hungerDecrement, moodDecrement);
     }
 
@@ -320,10 +321,36 @@ public class FishPetServiceImpl extends ServiceImpl<FishPetMapper, FishPet> impl
             return 0;
         }
 
+        // 在更新之前，查询哪些宠物会升到30级
+        List<FishPet> petsToUpgrade = baseMapper.selectList(
+            new LambdaQueryWrapper<FishPet>()
+                .in(FishPet::getUserId, userIds)
+                .eq(FishPet::getLevel, 29)
+                .ge(FishPet::getExp, 99) // 经验值为99，+1后会达到100
+                .and(wrapper -> wrapper.gt(FishPet::getHunger, 0).or().gt(FishPet::getMood, 0))
+                .eq(FishPet::getIsDelete, 0)
+        );
+
         // 注意：在SQL实现中，只有当宠物的饥饿度(hunger)或心情值(mood)任意一个大于0时，
         // 宠物才会获得经验并可能升级。这确保了宠物得到基本照顾就能成长。
         // 当宠物升级到30级时，经验值会设为100，饥饿度设为0，心情值设为100。
-        return baseMapper.batchUpdateOnlineUserPetExp(userIds);
+        int updatedCount = baseMapper.batchUpdateOnlineUserPetExp(userIds);
+        
+        // 为升到30级的宠物记录时间到Redis
+        if (!petsToUpgrade.isEmpty()) {
+            String currentTime = String.valueOf(System.currentTimeMillis());
+            for (FishPet pet : petsToUpgrade) {
+                String petLevel30TimeKey = PetRedisKey.getKey(PetRedisKey.PET_LEVEL_30_TIME, pet.getUserId().toString());
+                // 只有当Redis中还没有记录时才设置（避免重复设置）
+                if (!RedisUtils.hasKey(petLevel30TimeKey)) {
+                    // 永久存储，用于排行榜排序
+                    RedisUtils.set(petLevel30TimeKey, currentTime, Duration.ofDays(365 * 10)); // 10年过期时间，基本等于永久
+                    log.info("用户{}的宠物达到30级，记录时间：{}", pet.getUserId(), currentTime);
+                }
+            }
+        }
+
+        return updatedCount;
     }
 
     @Override
@@ -405,6 +432,9 @@ public class FishPetServiceImpl extends ServiceImpl<FishPetMapper, FishPet> impl
                 return 0;
             }
 
+            // 对宠物进行排序（包括30级宠物的时间排序）
+            sortPetRankList(petRankList);
+
             // 设置排名
             for (int i = 0; i < petRankList.size(); i++) {
                 petRankList.get(i).setRank(i + 1);
@@ -454,6 +484,9 @@ public class FishPetServiceImpl extends ServiceImpl<FishPetMapper, FishPet> impl
             // 如果Redis中没有数据，从数据库获取并生成排行榜
             petRankList = baseMapper.getPetRankList(limit);
 
+            // 对宠物进行排序（包括30级宠物的时间排序）
+            sortPetRankList(petRankList);
+
             // 设置排名
             for (int i = 0; i < petRankList.size(); i++) {
                 petRankList.get(i).setRank(i + 1);
@@ -467,6 +500,56 @@ public class FishPetServiceImpl extends ServiceImpl<FishPetMapper, FishPet> impl
         }
 
         return petRankList;
+    }
+
+    /**
+     * 对宠物排行榜进行排序
+     * 优先按等级排序，30级宠物按到达30级时间排序
+     *
+     * @param petRankList 宠物排行榜列表
+     */
+    private void sortPetRankList(List<PetRankVO> petRankList) {
+        petRankList.sort((pet1, pet2) -> {
+            // 优先按等级排序（降序）
+            int levelCompare = Integer.compare(pet2.getLevel(), pet1.getLevel());
+            if (levelCompare != 0) {
+                return levelCompare;
+            }
+            
+            // 如果等级相同且都是30级，按到达30级的时间排序
+            if (pet1.getLevel() == 30 && pet2.getLevel() == 30) {
+                String pet1TimeKey = PetRedisKey.getKey(PetRedisKey.PET_LEVEL_30_TIME, pet1.getUserId().toString());
+                String pet2TimeKey = PetRedisKey.getKey(PetRedisKey.PET_LEVEL_30_TIME, pet2.getUserId().toString());
+                
+                String pet1Time = RedisUtils.get(pet1TimeKey);
+                String pet2Time = RedisUtils.get(pet2TimeKey);
+                
+                // 如果都有时间记录，按时间升序排序（早的在前）
+                if (pet1Time != null && pet2Time != null) {
+                    try {
+                        long time1 = Long.parseLong(pet1Time);
+                        long time2 = Long.parseLong(pet2Time);
+                        return Long.compare(time1, time2);
+                    } catch (NumberFormatException e) {
+                        log.warn("解析宠物30级时间失败，userId1: {}, userId2: {}", pet1.getUserId(), pet2.getUserId());
+                    }
+                }
+                
+                // 如果只有一个有时间记录，有记录的排前面
+                if (pet1Time != null && pet2Time == null) {
+                    return -1;
+                }
+                if (pet1Time == null && pet2Time != null) {
+                    return 1;
+                }
+                
+                // 如果都没有时间记录，按经验值排序
+                return Integer.compare(pet2.getExp(), pet1.getExp());
+            }
+            
+            // 如果不是30级，按经验值排序（降序）
+            return Integer.compare(pet2.getExp(), pet1.getExp());
+        });
     }
 
     /**
