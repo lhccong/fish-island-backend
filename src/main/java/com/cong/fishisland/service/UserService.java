@@ -166,6 +166,15 @@ public interface UserService extends IService<User> {
     TokenLoginUserVo userLoginByGithub(AuthCallback callback);
 
     /**
+     * 用户通过 Linux Do 登录
+     *
+     * @param code  授权码
+     * @param state 状态参数
+     * @return {@link TokenLoginUserVo}
+     */
+    TokenLoginUserVo userLoginByLinuxDo(String code, String state);
+
+    /**
      * 用户数据
      *
      * @return {@link UserDataWebVO}

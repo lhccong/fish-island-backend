@@ -10,26 +10,17 @@ import com.cong.fishisland.common.BaseResponse;
 import com.cong.fishisland.common.DeleteRequest;
 import com.cong.fishisland.common.ErrorCode;
 import com.cong.fishisland.common.ResultUtils;
+import com.cong.fishisland.common.exception.BusinessException;
+import com.cong.fishisland.common.exception.ThrowUtils;
 import com.cong.fishisland.constant.PointConstant;
 import com.cong.fishisland.constant.RedisKey;
 import com.cong.fishisland.constant.UserConstant;
-import com.cong.fishisland.common.exception.BusinessException;
-import com.cong.fishisland.common.exception.ThrowUtils;
 import com.cong.fishisland.model.dto.user.*;
 import com.cong.fishisland.model.entity.user.User;
 import com.cong.fishisland.model.vo.user.*;
+import com.cong.fishisland.service.LinuxDoOAuth2Service;
 import com.cong.fishisland.service.UserPointsService;
 import com.cong.fishisland.service.UserService;
-
-import java.time.Duration;
-import java.time.LocalDate;
-import java.time.LocalDateTime;
-import java.time.format.DateTimeFormatter;
-import java.time.temporal.TemporalAdjusters;
-import java.util.List;
-import javax.annotation.Resource;
-import javax.servlet.http.HttpServletRequest;
-
 import com.cong.fishisland.utils.RedisUtils;
 import io.swagger.annotations.ApiOperation;
 import lombok.extern.slf4j.Slf4j;
@@ -40,11 +31,17 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.transaction.support.TransactionSynchronization;
 import org.springframework.transaction.support.TransactionSynchronizationManager;
 import org.springframework.util.DigestUtils;
-import org.springframework.web.bind.annotation.GetMapping;
-import org.springframework.web.bind.annotation.PostMapping;
-import org.springframework.web.bind.annotation.RequestBody;
-import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.bind.annotation.*;
+
+import javax.annotation.Resource;
+import javax.servlet.http.HttpServletRequest;
+import java.time.Duration;
+import java.time.LocalDate;
+import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
+import java.time.temporal.TemporalAdjusters;
+import java.util.List;
+import java.util.UUID;
 
 import static com.cong.fishisland.constant.SystemConstants.SALT;
 
@@ -64,6 +61,8 @@ public class UserController {
     private CaptchaService captchaService;
     @Resource
     private UserPointsService userPointsService;
+    @Resource
+    private LinuxDoOAuth2Service linuxDoOAuth2Service;
 
     // region 登录相关
 
@@ -191,6 +190,39 @@ public class UserController {
     }
 
     /**
+     * 用户通过 Linux Do 登录 - 获取授权链接
+     * 4. Linux Do 自动重定向到回调地址（/login/linuxdo/callback），并带上 code 和 state 参数
+     *
+     * @return {@link BaseResponse}<{@link String}> 返回授权 URL
+     */
+    @GetMapping("/login/linuxdo")
+    @ApiOperation(value = "获取 Linux Do 授权链接")
+    public BaseResponse<String> getLinuxDoAuthUrl() {
+        // 生成随机 state 参数，用于防止 CSRF 攻击
+        String state = UUID.randomUUID().toString().replace("-", "");
+        // 生成授权链接，包含 client_id, redirect_uri, response_type=code, state 等参数
+        String authUrl = linuxDoOAuth2Service.getAuthorizationUrl(state);
+        return ResultUtils.success(authUrl);
+    }
+
+    /**
+     * Linux Do 授权回调接口
+     *
+     * @param code  授权码（Linux Do 自动带上）
+     * @param state 状态参数（防止 CSRF 攻击，Linux Do 自动带上）
+     * @return {@link BaseResponse}<{@link TokenLoginUserVo}> 返回登录用户信息和 Token
+     */
+    @GetMapping("/login/linuxdo/callback")
+    @ApiOperation(value = "Linux Do 授权回调")
+    public BaseResponse<TokenLoginUserVo> linuxDoCallback(String code, String state) {
+        if (StringUtils.isBlank(code)) {
+            throw new BusinessException(ErrorCode.PARAMS_ERROR, "Linux Do 登录失败，code 为空");
+        }
+        TokenLoginUserVo tokenLoginUserVo = userService.userLoginByLinuxDo(code, state);
+        return ResultUtils.success(tokenLoginUserVo);
+    }
+
+    /**
      * 用户注销
      *
      * @return {@link BaseResponse}<{@link Boolean}>
@@ -232,7 +264,7 @@ public class UserController {
         if (email == null) {
             throw new BusinessException(ErrorCode.PARAMS_ERROR);
         }
-        boolean result = userService.userEmailSend(email,request);
+        boolean result = userService.userEmailSend(email, request);
         return ResultUtils.success(result);
     }
 
@@ -418,25 +450,25 @@ public class UserController {
     @ApiOperation(value = "更新个人信息")
     @Transactional(rollbackFor = Exception.class) // 添加事务注解
     public BaseResponse<Boolean> updateMyUser(@RequestBody UserUpdateMyRequest userUpdateMyRequest) {
-        ThrowUtils.throwIf(userUpdateMyRequest== null, ErrorCode.PARAMS_ERROR);
+        ThrowUtils.throwIf(userUpdateMyRequest == null, ErrorCode.PARAMS_ERROR);
         String userName = userUpdateMyRequest.getUserName();
-        ThrowUtils.throwIf(StringUtils.isBlank(userName),  ErrorCode.PARAMS_ERROR, "请输入用户名");
+        ThrowUtils.throwIf(StringUtils.isBlank(userName), ErrorCode.PARAMS_ERROR, "请输入用户名");
         ThrowUtils.throwIf(userName.length() > 10, ErrorCode.PARAMS_ERROR, "用户名不能超过10个字符");
         String userProfile = userUpdateMyRequest.getUserProfile();
-        ThrowUtils.throwIf(StringUtils.isNotBlank(userProfile) && userProfile.length()  > 100,  ErrorCode.PARAMS_ERROR, "个人简介不能超过100个字符");
+        ThrowUtils.throwIf(StringUtils.isNotBlank(userProfile) && userProfile.length() > 100, ErrorCode.PARAMS_ERROR, "个人简介不能超过100个字符");
         User loginUser = userService.getLoginUser();
         String loginUserUserName = loginUser.getUserName();
         String userRole = loginUser.getUserRole();
         // ========== 先执行更新操作，除了用户名 ==========
         User user = new User();
         //新用户名为空或者是管理员时，设置用户名
-        if (StringUtils.isBlank(loginUserUserName)||UserConstant.ADMIN_ROLE.equals(userRole)){
+        if (StringUtils.isBlank(loginUserUserName) || UserConstant.ADMIN_ROLE.equals(userRole)) {
             user.setUserName(userName);
         }
         user.setUserAvatar(userUpdateMyRequest.getUserAvatar());
         user.setUserProfile(userProfile);
         user.setId(loginUser.getId());
-        if (!StringUtils.isAllBlank(user.getUserName(),user.getUserAvatar(), userProfile)){
+        if (!StringUtils.isAllBlank(user.getUserName(), user.getUserAvatar(), userProfile)) {
             boolean result = userService.updateById(user);
             ThrowUtils.throwIf(!result, ErrorCode.OPERATION_ERROR);
         }
@@ -456,7 +488,7 @@ public class UserController {
             user.setId(loginUser.getId());
             boolean updated = userService.updateById(user);
             // 扣除积分（在事务中执行）
-            if (updated){
+            if (updated) {
                 userPointsService.deductPoints(loginUser.getId(), PointConstant.RENAME_POINT);
             }
             // 设置限制（事务提交后执行）
@@ -489,24 +521,26 @@ public class UserController {
 
     /**
      * 用户数据（仅管理员）
+     *
      * @return 用户数据
      */
     @ApiOperation(value = "用户数据（仅管理员）")
     @SaCheckRole(UserConstant.ADMIN_ROLE)
     @PostMapping("/get/UserDataWebVO")
-    public BaseResponse<UserDataWebVO> getUserDataWebVO(){
+    public BaseResponse<UserDataWebVO> getUserDataWebVO() {
         return ResultUtils.success(userService.getUserDataWebVO());
     }
 
     /**
      * 新增用户走势图（仅管理员）
+     *
      * @param request 新增用户数据请求
      * @return 用户新增数据
      */
     @ApiOperation(value = "新增用户走势图（仅管理员）")
     @SaCheckRole(UserConstant.ADMIN_ROLE)
     @PostMapping("/get/NewUserDataWebVO")
-    public BaseResponse<List<NewUserDataWebVO>> getNewUserDataWebVO(@RequestBody NewUserDataWebRequest request){
+    public BaseResponse<List<NewUserDataWebVO>> getNewUserDataWebVO(@RequestBody NewUserDataWebRequest request) {
         return ResultUtils.success(userService.getNewUserDataWebVO(request));
     }
 }
