@@ -2,20 +2,19 @@ package com.cong.fishisland.service.impl.user;
 
 import com.cong.fishisland.common.ErrorCode;
 import com.cong.fishisland.common.exception.BusinessException;
+import com.cong.fishisland.config.LinuxDoConfig;
 import com.cong.fishisland.model.dto.oauth.LinuxDoTokenResponse;
 import com.cong.fishisland.model.dto.oauth.LinuxDoUserInfo;
 import com.cong.fishisland.service.LinuxDoOAuth2Service;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.beans.factory.annotation.Value;
+import okhttp3.HttpUrl;
 import org.springframework.http.*;
 import org.springframework.stereotype.Service;
 import org.springframework.util.LinkedMultiValueMap;
 import org.springframework.util.MultiValueMap;
 import org.springframework.web.client.RestTemplate;
-import org.springframework.web.util.UriComponentsBuilder;
 
 import javax.annotation.Resource;
-import java.net.URI;
 
 /**
  * Linux Do OAuth2 服务实现
@@ -34,54 +33,48 @@ public class LinuxDoOAuth2ServiceImpl implements LinuxDoOAuth2Service {
     @Resource
     private RestTemplate restTemplate;
 
-    @Value("${linux-do.client-id}")
-    private String clientId;
-
-    @Value("${linux-do.client-secret}")
-    private String clientSecret;
-
-    @Value("${linux-do.redirect-uri}")
-    private String redirectUri;
-
-    @Value("${linux-do.auth-url}")
-    private String authUrl;
-
-    @Value("${linux-do.token-url}")
-    private String tokenUrl;
-
-    @Value("${linux-do.user-info-url}")
-    private String userInfoUrl;
+    @Resource
+    private LinuxDoConfig linuxDoConfig;
 
     /**
      * 第一步：生成授权链接
-     * 对应 Python 代码的 get_auth_url()
+     * get_auth_url()
+     * 使用 OkHttp HttpUrl 构建 URL
      */
     @Override
     public String getAuthorizationUrl(String state) {
-        URI uri = UriComponentsBuilder.fromHttpUrl(authUrl)
-                .queryParam("client_id", clientId)
-                .queryParam("redirect_uri", redirectUri)
-                .queryParam("response_type", "code")
-                .queryParam("scope", "user")
-                .queryParam("state", state)
-                .build()
-                .toUri();
-        return uri.toString();
+        // 使用 OkHttp 的 HttpUrl 构建 URL
+        HttpUrl httpUrl = HttpUrl.parse(linuxDoConfig.getAuthUrl());
+
+        if (httpUrl == null) {
+            log.error("无效的授权 URL: {}", linuxDoConfig.getAuthUrl());
+            throw new BusinessException(ErrorCode.SYSTEM_ERROR, "OAuth2 配置错误：授权 URL 格式不正确");
+        }
+
+        HttpUrl url = httpUrl.newBuilder()
+                .addQueryParameter("client_id", linuxDoConfig.getClientId())
+                .addQueryParameter("redirect_uri", linuxDoConfig.getRedirectUri())
+                .addQueryParameter("response_type", "code")
+                .addQueryParameter("scope", "user")
+                .addQueryParameter("state", state)
+                .build();
+
+        return url.toString();
     }
 
     /**
      * 第二步：使用授权码获取访问令牌
-     * 对应 Python 代码的 get_access_token(code)
+     * get_access_token(code)
      */
     @Override
     public LinuxDoTokenResponse getAccessToken(String code) {
         try {
             // 构建请求参数（根据 Python 代码，参数放在请求体中）
             MultiValueMap<String, String> params = new LinkedMultiValueMap<>();
-            params.add("client_id", clientId);
-            params.add("client_secret", clientSecret);
+            params.add("client_id", linuxDoConfig.getClientId());
+            params.add("client_secret", linuxDoConfig.getClientSecret());
             params.add("code", code);
-            params.add("redirect_uri", redirectUri);
+            params.add("redirect_uri", linuxDoConfig.getRedirectUri());
             params.add("grant_type", "authorization_code");
 
             // 设置请求头
@@ -93,7 +86,7 @@ public class LinuxDoOAuth2ServiceImpl implements LinuxDoOAuth2Service {
 
             // 发送 POST 请求
             ResponseEntity<LinuxDoTokenResponse> response = restTemplate.exchange(
-                    tokenUrl,
+                    linuxDoConfig.getTokenUrl(),
                     HttpMethod.POST,
                     requestEntity,
                     LinuxDoTokenResponse.class
@@ -114,7 +107,7 @@ public class LinuxDoOAuth2ServiceImpl implements LinuxDoOAuth2Service {
 
     /**
      * 第三步：使用访问令牌获取用户信息
-     * 对应 Python 代码的 get_user_info(access_token)
+     * get_user_info(access_token)
      */
     @Override
     public LinuxDoUserInfo getUserInfo(String accessToken) {
@@ -128,7 +121,7 @@ public class LinuxDoOAuth2ServiceImpl implements LinuxDoOAuth2Service {
 
             // 发送 GET 请求获取用户信息
             ResponseEntity<LinuxDoUserInfo> response = restTemplate.exchange(
-                    userInfoUrl,
+                    linuxDoConfig.getUserInfoUrl(),
                     HttpMethod.GET,
                     requestEntity,
                     LinuxDoUserInfo.class
@@ -157,8 +150,8 @@ public class LinuxDoOAuth2ServiceImpl implements LinuxDoOAuth2Service {
         try {
             // 构建请求参数
             MultiValueMap<String, String> params = new LinkedMultiValueMap<>();
-            params.add("client_id", clientId);
-            params.add("client_secret", clientSecret);
+            params.add("client_id", linuxDoConfig.getClientId());
+            params.add("client_secret", linuxDoConfig.getClientSecret());
             params.add("refresh_token", refreshToken);
             params.add("grant_type", "refresh_token");
 
@@ -170,7 +163,7 @@ public class LinuxDoOAuth2ServiceImpl implements LinuxDoOAuth2Service {
 
             // 发送 POST 请求
             ResponseEntity<LinuxDoTokenResponse> response = restTemplate.exchange(
-                    tokenUrl,
+                    linuxDoConfig.getTokenUrl(),
                     HttpMethod.POST,
                     requestEntity,
                     LinuxDoTokenResponse.class
