@@ -71,6 +71,14 @@ gitee:
   client-id: xxx
   client-secret: xxx
   redirect-uri: http://localhost:8123/api/oauth/callback/gitee
+############### Linux Do 配置 ##############
+linux-do:
+  client-id: xxx  # 替换为你的 Client ID
+  client-secret: xxx  # 替换为你的 Client Secret
+  redirect-uri: http://localhost:8123/api/user/login/linuxdo/callback  # 回调地址
+  auth-url: https://connect.linux.do/oauth2/authorize
+  token-url: https://connect.linux.do/oauth2/token
+  user-info-url: https://connect.linux.do/api/user
 ############### Sa-Token 配置 (文档: https://sa-token.cc) ##############
 sa-token:
   # token 名称（同时也是 cookie 名称）

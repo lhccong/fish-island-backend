@@ -23,6 +23,8 @@ import com.cong.fishisland.manager.EmailManager;
 import com.cong.fishisland.mapper.user.UserMapper;
 import com.cong.fishisland.mapper.user.UserThirdAuthMapper;
 import com.cong.fishisland.mapper.user.UserVipMapper;
+import com.cong.fishisland.model.dto.oauth.LinuxDoTokenResponse;
+import com.cong.fishisland.model.dto.oauth.LinuxDoUserInfo;
 import com.cong.fishisland.model.dto.user.NewUserDataWebRequest;
 import com.cong.fishisland.model.dto.user.UserQueryRequest;
 import com.cong.fishisland.model.entity.user.*;
@@ -30,9 +32,9 @@ import com.cong.fishisland.model.enums.DeleteStatusEnum;
 import com.cong.fishisland.model.enums.UserRoleEnum;
 import com.cong.fishisland.model.vo.user.*;
 import com.cong.fishisland.service.EmailBanService;
+import com.cong.fishisland.service.LinuxDoOAuth2Service;
 import com.cong.fishisland.service.UserPointsService;
 import com.cong.fishisland.service.UserService;
-import com.cong.fishisland.service.UserVipService;
 import com.cong.fishisland.utils.SqlUtils;
 import lombok.extern.slf4j.Slf4j;
 import me.zhyd.oauth.model.AuthCallback;
@@ -53,7 +55,10 @@ import org.springframework.util.DigestUtils;
 import javax.annotation.Resource;
 import javax.servlet.http.HttpServletRequest;
 import java.time.Duration;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Date;
+import java.util.List;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.locks.ReentrantLock;
@@ -105,6 +110,9 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements Us
 
     @Resource
     private UserVipMapper userVipMapper;
+
+    @Resource
+    private LinuxDoOAuth2Service linuxDoOAuth2Service;
 
     private static final ConcurrentHashMap<String, ReentrantLock> LOCK_MAP = new ConcurrentHashMap<>();
 
@@ -787,6 +795,141 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements Us
         return this.userLogin(userAccount, authUser.getUuid() + authUser.getUsername());
     }
 
+    /**
+     * 用户通过 Linux Do 登录（推荐方案：使用 user_third_auth 表）
+     * <p>
+     * 设计理念：
+     * 1. 使用 user_third_auth 表关联第三方账号和本地用户
+     * 2. 通过 platform='linuxdo' + openid=用户ID 唯一确定用户
+     * 3. 支持一个用户绑定多个第三方平台
+     * 4. 即使用户在第三方平台修改了用户名、昵称，也能准确识别
+     * <p>
+     * 使用标准 OAuth2 流程：
+     * 第二步：使用授权码获取访问令牌
+     * 第三步：使用访问令牌获取用户信息
+     *
+     * @param code  授权码
+     * @param state 状态参数
+     * @return {@link TokenLoginUserVo}
+     */
+    @Override
+    public TokenLoginUserVo userLoginByLinuxDo(String code, String state) {
+
+        // 第二步：使用授权码获取访问令牌
+        LinuxDoTokenResponse tokenResponse = linuxDoOAuth2Service.getAccessToken(code);
+        if (tokenResponse == null || StringUtils.isBlank(tokenResponse.getAccessToken())) {
+            throw new BusinessException(ErrorCode.SYSTEM_ERROR, "Linux Do 登录失败，获取访问令牌失败");
+        }
+
+        // 第三步：使用访问令牌获取用户信息
+        LinuxDoUserInfo userInfo = linuxDoOAuth2Service.getUserInfo(tokenResponse.getAccessToken());
+        if (userInfo == null || userInfo.getId() == null) {
+            throw new BusinessException(ErrorCode.SYSTEM_ERROR, "Linux Do 登录失败，获取用户信息失败");
+        }
+
+        // 核心逻辑：使用 user_third_auth 表查找或创建用户
+        String platform = "linuxdo";
+        String openid = String.valueOf(userInfo.getId());
+
+        // 1. 查找第三方账号绑定记录
+        UserThirdAuth thirdAuth = userThirdAuthMapper.selectOne(
+                new LambdaQueryWrapper<UserThirdAuth>()
+                        .eq(UserThirdAuth::getPlatform, platform)
+                        .eq(UserThirdAuth::getOpenid, openid)
+        );
+
+        User user;
+        if (thirdAuth == null) {
+            // 2. 第三方账号未绑定，创建新用户并绑定
+            log.info("Linux Do 账号未绑定，创建新用户: openid={}", openid);
+            user = createUserWithLinuxDo(userInfo);
+
+            // 创建第三方账号绑定记录
+            saveThirdAuthBinding(user.getId(), platform, openid, userInfo, tokenResponse);
+        } else {
+            // 3. 第三方账号已绑定，直接获取用户
+            log.info("Linux Do 账号已绑定，用户ID: {}", thirdAuth.getUserId());
+            user = this.getById(thirdAuth.getUserId());
+
+            if (user == null) {
+                throw new BusinessException(ErrorCode.SYSTEM_ERROR, "用户不存在");
+            }
+        }
+
+        // 4. 登录用户
+        StpUtil.login(user.getId());
+        StpUtil.getTokenSession().set(SystemConstants.USER_LOGIN_STATE, user);
+
+        log.info("========== Linux Do 登录流程完成 ==========");
+        return this.getTokenLoginUserVO(user);
+    }
+
+    /**
+     * 创建 Linux Do 新用户
+     *
+     * @param userInfo Linux Do 用户信息
+     * @return 创建的用户对象
+     */
+    private User createUserWithLinuxDo(LinuxDoUserInfo userInfo) {
+        User user = new User();
+
+        // 生成唯一账号：linuxdo_ + MD5(id + salt) 的前8位
+        String uniqueId = DigestUtils.md5DigestAsHex((SALT + userInfo.getId()).getBytes());
+        String userAccount = "linuxdo_" + uniqueId.substring(0, 8);
+
+        // 默认密码 12345678
+        String defaultPassword = "12345678";
+        String encryptPassword = DigestUtils.md5DigestAsHex((SALT + defaultPassword).getBytes());
+
+        user.setUserAccount(userAccount);
+        user.setUserPassword(encryptPassword);
+        user.setUserName(StringUtils.isNotBlank(userInfo.getName()) ? userInfo.getName() : userInfo.getUsername());
+        user.setUserAvatar(userInfo.getAvatarTemplate());
+        user.setUserRole(UserRoleEnum.USER.getValue());
+
+        boolean saveResult = this.save(user);
+        if (!saveResult) {
+            throw new BusinessException(ErrorCode.SYSTEM_ERROR, "注册失败");
+        }
+
+        // 保存积分
+        savePoints(user);
+
+        return user;
+    }
+
+    /**
+     * 保存第三方账号绑定记录
+     *
+     * @param userId        本地用户 ID
+     * @param platform      平台名称
+     * @param openid        第三方平台用户 ID（不可变）
+     * @param userInfo      用户信息
+     * @param tokenResponse Token 响应
+     */
+    private void saveThirdAuthBinding(Long userId, String platform, String openid, LinuxDoUserInfo userInfo, LinuxDoTokenResponse tokenResponse) {
+        UserThirdAuth thirdAuth = new UserThirdAuth();
+        thirdAuth.setUserId(userId);
+        thirdAuth.setPlatform(platform);
+        thirdAuth.setOpenid(openid);  // 关键：使用不可变的 ID
+        thirdAuth.setNickname(userInfo.getName());
+        thirdAuth.setAvatar(userInfo.getAvatarTemplate());
+        thirdAuth.setAccessToken(tokenResponse.getAccessToken());
+        thirdAuth.setRefreshToken(tokenResponse.getRefreshToken());
+
+        // 计算过期时间
+        if (tokenResponse.getExpiresIn() != null) {
+            thirdAuth.setExpireTime(new Date(System.currentTimeMillis() + tokenResponse.getExpiresIn() * 1000L));
+        }
+
+        // 保存原始数据（可选）
+        // thirdAuth.setRawData(...);  // 如果需要保存完整的 JSON
+
+        int result = userThirdAuthMapper.insert(thirdAuth);
+        if (result <= 0) {
+            throw new BusinessException(ErrorCode.SYSTEM_ERROR, "保存第三方账号绑定失败");
+        }
+    }
 
     @Override
     public UserDataWebVO getUserDataWebVO() {
