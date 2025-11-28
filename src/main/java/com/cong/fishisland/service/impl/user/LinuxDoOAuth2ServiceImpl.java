@@ -53,7 +53,7 @@ public class LinuxDoOAuth2ServiceImpl implements LinuxDoOAuth2Service {
 
         HttpUrl url = httpUrl.newBuilder()
                 .addQueryParameter("client_id", linuxDoConfig.getClientId())
-                .addQueryParameter("redirect_uri", linuxDoConfig.getRedirectUri())
+//                .addQueryParameter("redirect_uri", linuxDoConfig.getRedirectUri())
                 .addQueryParameter("response_type", "code")
                 .addQueryParameter("scope", "user")
                 .addQueryParameter("state", state)

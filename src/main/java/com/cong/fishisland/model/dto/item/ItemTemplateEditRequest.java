@@ -13,7 +13,7 @@ import java.io.Serializable;
  * date 28/9/2025 星期日
  */
 @Data
-@ApiModel("编辑物品模板请求（管理员专用）")
+//@ApiModel("编辑物品模板请求（管理员专用）")
 public class ItemTemplateEditRequest implements Serializable {
 
     /**

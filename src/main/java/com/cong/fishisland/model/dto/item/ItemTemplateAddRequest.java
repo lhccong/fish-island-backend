@@ -14,7 +14,7 @@ import java.io.Serializable;
  * date 27/9/2025 星期六
  */
 @Data
-@ApiModel("添加物品模板请求")
+//@ApiModel("添加物品模板请求")
 public class ItemTemplateAddRequest implements Serializable {
     /**
      * 模板唯一码，例如 sword_iron_01

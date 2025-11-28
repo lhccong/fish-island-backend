@@ -113,7 +113,7 @@ public class FishPetServiceImpl extends ServiceImpl<FishPetMapper, FishPet> impl
 
         // 如果没有提供宠物图片，设置默认图片
         if (fishPet.getPetUrl() == null || fishPet.getPetUrl().isEmpty()) {
-            fishPet.setPetUrl("https://api.oss.cqbo.com/moyu/pet/超级玛丽马里奥 (73)_爱给网_aigei_com.png");
+            fishPet.setPetUrl("https://oss.cqbo.com/moyu/pet/超级玛丽马里奥 (73)_爱给网_aigei_com.png");
         }
 
         boolean result = this.save(fishPet);

@@ -13,7 +13,7 @@ import java.io.Serializable;
  * date 27/9/2025 星期六
  */
 @Data
-@ApiModel("添加物品请求")
+//@ApiModel("添加物品请求")
 public class ItemInstanceAddRequest implements Serializable {
 
     /**

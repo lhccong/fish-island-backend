@@ -153,7 +153,7 @@ public class AIPuzzleAnswerListener {
                 .name("摸鱼助手")
                 .isAdmin(false)
                 .points(-999)
-                .avatar("https://api.oss.cqbo.com/moyu/user_avatar/1/hYskW0jH-34eaba5c-3809-45ef-a3bd-dd01cf97881b_478ce06b6d869a5a11148cf3ee119bac.gif")
+                .avatar("https://oss.cqbo.com/moyu/user_avatar/1/hYskW0jH-34eaba5c-3809-45ef-a3bd-dd01cf97881b_478ce06b6d869a5a11148cf3ee119bac.gif")
                 .build();
         aiMessage.setSender(aiSender);
         aiMessage.setTimestamp(String.valueOf(System.currentTimeMillis()));

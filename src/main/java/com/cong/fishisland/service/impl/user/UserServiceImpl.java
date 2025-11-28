@@ -911,7 +911,7 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements Us
         UserThirdAuth thirdAuth = new UserThirdAuth();
         thirdAuth.setUserId(userId);
         thirdAuth.setPlatform(platform);
-        thirdAuth.setOpenid(openid);  // 关键：使用不可变的 ID
+        thirdAuth.setOpenid(openid);
         thirdAuth.setNickname(userInfo.getName());
         thirdAuth.setAvatar(userInfo.getAvatarTemplate());
         thirdAuth.setAccessToken(tokenResponse.getAccessToken());

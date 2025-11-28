@@ -11,7 +11,7 @@ import java.io.Serializable;
  * date 27/9/2025 星期六
  */
 @Data
-@ApiModel("物品实例编辑请求（管理员用）")
+//@ApiModel("物品实例编辑请求（管理员用）")
 public class ItemInstanceEditRequest implements Serializable {
 
     private static final long serialVersionUID = 1L;

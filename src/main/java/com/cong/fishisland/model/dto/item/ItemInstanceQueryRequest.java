@@ -16,7 +16,7 @@ import java.io.Serializable;
  */
 @EqualsAndHashCode(callSuper = true)
 @Data
-@ApiModel("物品实例分页查询请求")
+//@ApiModel("物品实例分页查询请求")
 public class ItemInstanceQueryRequest extends PageRequest implements Serializable {
 
     /**
