@@ -187,4 +187,12 @@ public interface UserService extends IService<User> {
      * @return {@link NewUserDataWebVO}
      */
     List<NewUserDataWebVO> getNewUserDataWebVO(NewUserDataWebRequest request);
+
+    /**
+     * 生成用户年度总结报告
+     *
+     * @return 年度总结 HTML 内容
+     */
+    String generateUserAnnualReport();
+
 }
