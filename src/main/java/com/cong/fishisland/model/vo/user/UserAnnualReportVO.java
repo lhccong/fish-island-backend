@@ -145,6 +145,10 @@ public class UserAnnualReportVO implements Serializable {
         private String topPetName;
         private Integer topPetLevel;
         private Date firstPetCreateTime;
+        /**
+         * 最高等级宠物当前使用的皮肤/形象地址
+         */
+        private String topPetSkinUrl;
     }
 
     @Data

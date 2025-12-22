@@ -177,6 +177,7 @@ public class AnnualReportDataAssembler {
                         .petTotal(petTotal)
                         .topPetName(topPet == null ? null : topPet.getName())
                         .topPetLevel(topPet == null ? null : topPet.getLevel())
+                        .topPetSkinUrl(topPet == null ? null : topPet.getPetUrl())
                         .firstPetCreateTime(firstPetCreateTime)
                         .build())
                 .donationStats(UserAnnualReportVO.DonationStats.builder()

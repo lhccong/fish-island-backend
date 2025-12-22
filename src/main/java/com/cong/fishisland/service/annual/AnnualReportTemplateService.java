@@ -27,6 +27,9 @@ public class AnnualReportTemplateService {
     @Resource
     private Configuration freeMarkerConfiguration;
 
+    @Resource
+    private AnnualReportAiService annualReportAiService;
+
     /**
      * 渲染年度报告 HTML 内容
      *
@@ -65,6 +68,9 @@ public class AnnualReportTemplateService {
         long petCount = Optional.ofNullable(petStats == null ? null : petStats.getPetTotal()).orElse(0L);
         String topPetName = petStats == null ? null : petStats.getTopPetName();
         Integer topPetLevel = petStats == null ? null : petStats.getTopPetLevel();
+        String petSkinUrl = petStats != null && CharSequenceUtil.isNotBlank(petStats.getTopPetSkinUrl())
+                ? petStats.getTopPetSkinUrl()
+                : "https://oss.cqbo.com/moyu/moyu.png";
 
         UserAnnualReportVO.PostBrief topPost = contentStats == null ? null : contentStats.getTopPost();
         String bestPostTitle = topPost == null ? null
@@ -92,11 +98,14 @@ public class AnnualReportTemplateService {
         }
 
         // 计算年度关键字（根据数据特征）
-        String annualKeyword = calculateAnnualKeyword(postCount, postThumbs, postFavours, activeDays);
+        String annualKeyword = calculateAnnualKeyword(postCount, postThumbs, postFavours, activeDays, accompanyDays);
         
         // 计算总字数（从当年帖子内容统计）
         // 注意：由于性能考虑，这里不查询完整内容，如果需要精确统计，可以在 DataAssembler 中计算
         long totalWords = 0L; // 暂时设为0，如果需要显示，需要在 DataAssembler 中查询 content 字段并统计
+
+        // 生成内容发布统计的 AI 总结
+        String contentSummary = annualReportAiService.generateContentSummary(reportData, postCount, totalWords);
 
         // 构造模板数据模型
         Map<String, Object> model = new HashMap<>();
@@ -114,6 +123,7 @@ public class AnnualReportTemplateService {
         model.put("petCount", petCount);
         model.put("topPetName", topPetName);
         model.put("topPetLevel", topPetLevel);
+        model.put("petSkinUrl", petSkinUrl);
         model.put("donationText", donationText);
 
         model.put("bestPostTitle", bestPostTitle);
@@ -128,6 +138,8 @@ public class AnnualReportTemplateService {
         model.put("totalWords", totalWords);
         // 教程数量（暂时设为0，后续如果有教程数据可以统计）
         model.put("tutorialCount", 0);
+        // AI 生成的内容发布统计总结
+        model.put("contentSummary", contentSummary);
 
         try {
             Template template = freeMarkerConfiguration.getTemplate("UserAnnualReportTemplate.ftl", "UTF-8");
@@ -150,23 +162,24 @@ public class AnnualReportTemplateService {
      * 根据用户数据计算年度关键字
      *
      * @param postCount  发帖数
-     * @param postThumbs 获赞数
-     * @param postFavours 收藏数
-     * @param activeDays 活跃天数
+     * @param postThumbs   获赞数
+     * @param postFavours  收藏数
+     * @param activeDays   活跃天数
+     * @param accompanyDays 注册天数
      * @return 年度关键字
      */
-    private String calculateAnnualKeyword(long postCount, long postThumbs, long postFavours, int activeDays) {
+    private String calculateAnnualKeyword(long postCount, long postThumbs, long postFavours, int activeDays, long accompanyDays) {
         // 根据数据特征判断用户类型
-        if (postCount >= 50) {
-            return "内容创作者";
-        } else if (postThumbs >= 1000) {
-            return "社区贡献者";
-        } else if (postFavours >= 100) {
-            return "收藏达人";
-        } else if (activeDays >= 200) {
-            return "活跃用户";
-        } else if (postCount >= 20) {
-            return "摸鱼达人";
+        if (accompanyDays > 180) {
+            return "摸鱼元老💕";
+        } else if (postCount >= 5) {
+            return "摸鱼内容创作者摸🐟";
+        } else if (postThumbs >= 10) {
+            return "摸鱼帖子点赞达人❤";
+        } else if (postFavours >= 15) {
+            return "摸鱼收藏达人⭐";
+        } else if (activeDays >= 20) {
+            return "活跃用户🔥";
         } else {
             return "摸鱼新手";
         }

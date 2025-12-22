@@ -61,6 +61,11 @@ public interface RedisKey {
     
     String NO_REPEAT_SUBMIT_PREFIX = "noRepeatSubmit:%s:%s";
 
+    /**
+     * 用户年度报告内容摘要缓存 annual:report:content:summary:{userId}:{year}
+     */
+    String ANNUAL_REPORT_CONTENT_SUMMARY = "annual:report:content:summary:%d:%d";
+
     static String getKey(String key, Object... objects) {
         return BASE_KEY + String.format(key, objects);
     }

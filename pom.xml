@@ -190,6 +190,12 @@
             <artifactId>spring-boot-starter-test</artifactId>
             <scope>test</scope>
         </dependency>
+        <!-- Rome RSS/Atom parsing library -->
+        <dependency>
+            <groupId>com.rometools</groupId>
+            <artifactId>rome</artifactId>
+            <version>1.18.0</version>
+        </dependency>
         <!-- OkHttp 用于HTTP请求 -->
         <dependency>
             <groupId>com.squareup.okhttp3</groupId>

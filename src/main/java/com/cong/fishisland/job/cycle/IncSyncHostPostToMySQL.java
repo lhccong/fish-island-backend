@@ -19,7 +19,7 @@ import java.util.Date;
  * 自动同步热榜数据
  * # @author <a href="https://github.com/lhccong">程序员聪</a>
  */
-@Component
+//@Component
 @Slf4j
 @RequiredArgsConstructor
 public class IncSyncHostPostToMySQL {

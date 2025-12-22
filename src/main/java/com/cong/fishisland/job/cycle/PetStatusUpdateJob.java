@@ -17,7 +17,7 @@ import java.util.stream.Collectors;
  *
  * @author cong
  */
-@Component
+//@Component
 @Slf4j
 @RequiredArgsConstructor
 public class PetStatusUpdateJob {
