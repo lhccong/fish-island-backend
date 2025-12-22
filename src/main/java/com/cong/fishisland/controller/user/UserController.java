@@ -543,4 +543,16 @@ public class UserController {
     public BaseResponse<List<NewUserDataWebVO>> getNewUserDataWebVO(@RequestBody NewUserDataWebRequest request) {
         return ResultUtils.success(userService.getNewUserDataWebVO(request));
     }
+
+    /**
+     * 生成用户年度报告
+     *
+     * @return 用户年度报告
+     */
+    @ApiOperation(value = "生成用户年度报告")
+    @GetMapping(value = "/get/annualReport", produces = "text/html;charset=UTF-8")
+    public String generateAnnualReport() {
+        return userService.generateUserAnnualReport();
+    }
+
 }

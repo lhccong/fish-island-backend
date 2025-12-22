@@ -19,6 +19,7 @@ import com.cong.fishisland.constant.CommonConstant;
 import com.cong.fishisland.constant.NewUserDataTypeWebConstant;
 import com.cong.fishisland.constant.SystemConstants;
 import com.cong.fishisland.constant.VipTypeConstant;
+import com.cong.fishisland.manager.AiManager;
 import com.cong.fishisland.manager.EmailManager;
 import com.cong.fishisland.mapper.user.UserMapper;
 import com.cong.fishisland.mapper.user.UserThirdAuthMapper;
@@ -35,6 +36,9 @@ import com.cong.fishisland.service.EmailBanService;
 import com.cong.fishisland.service.LinuxDoOAuth2Service;
 import com.cong.fishisland.service.UserPointsService;
 import com.cong.fishisland.service.UserService;
+import com.cong.fishisland.service.annual.AnnualReportAiService;
+import com.cong.fishisland.service.annual.AnnualReportDataAssembler;
+import com.cong.fishisland.service.annual.AnnualReportTemplateService;
 import com.cong.fishisland.utils.SqlUtils;
 import lombok.extern.slf4j.Slf4j;
 import me.zhyd.oauth.model.AuthCallback;
@@ -113,6 +117,18 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements Us
 
     @Resource
     private LinuxDoOAuth2Service linuxDoOAuth2Service;
+
+    @Resource
+    private AiManager aiManager;
+
+    @Resource
+    private AnnualReportDataAssembler annualReportDataAssembler;
+
+    @Resource
+    private AnnualReportAiService annualReportAiService;
+
+    @Resource
+    private AnnualReportTemplateService annualReportTemplateService;
 
     private static final ConcurrentHashMap<String, ReentrantLock> LOCK_MAP = new ConcurrentHashMap<>();
 
@@ -970,6 +986,32 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements Us
             return userMapper.getNewUserDataWebVOByTime(beginTime, endTime);
         }
         return CollUtil.newArrayList();
+    }
+
+    /**
+     * 生成当前登录用户的当年年度报告
+     *
+     * @return 年度总结 HTML 内容
+     */
+    @Override
+    public String generateUserAnnualReport() {
+        // 1. 获取当前登录用户
+        User currentUser = getLoginUser();
+        Long userId = currentUser.getId();
+        ThrowUtils.throwIf(userId == null || userId <= 0, ErrorCode.PARAMS_ERROR, "用户ID不合法");
+
+        // 2. 计算当前年份并做简单校验
+        int year = DateUtil.year(new Date());
+        ThrowUtils.throwIf(year < 2000 || year > 3000, ErrorCode.PARAMS_ERROR, "年度参数不合法");
+
+        // 3. 聚合年度数据
+        UserAnnualReportVO reportData = annualReportDataAssembler.assemble(currentUser, year);
+
+        // 4. 生成年度总结文案（预留 AI 能力）
+        String summary = annualReportAiService.generateSummary(reportData);
+
+        // 5. 使用 FreeMarker 模板渲染 HTML
+        return annualReportTemplateService.render(reportData, summary);
     }
 
     /**
