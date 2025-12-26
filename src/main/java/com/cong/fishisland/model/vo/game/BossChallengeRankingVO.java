@@ -52,3 +52,4 @@ public class BossChallengeRankingVO implements Serializable {
 
 
 
+

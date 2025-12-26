@@ -147,13 +147,19 @@ public class BossServiceImpl implements BossService {
         
         // 累计用户造成的总伤害
         int totalDamage = 0;
-        
-        // 执行10个回合的对战
-        for (int round = 1; round <= 10; round++) {
-            // 如果宠物或Boss血量已为0，提前结束
-            if (currentPetHealth <= 0 || currentBossHealth <= 0) {
-                break;
-            }
+
+        // 统计双方各自已出手的有效回合数（连击不计入回合数）
+        int petRounds = 0;
+        int bossRounds = 0;
+
+        // 为防止极端情况下无限连击导致死循环，增加一个最大行动次数保护
+        int maxActions = 100;
+
+        // 宠物和Boss各自最多出手5回合（连击不算回合）
+        while ((petRounds < 5 || bossRounds < 5)
+                && currentPetHealth > 0
+                && currentBossHealth > 0
+                && maxActions-- > 0) {
 
             // 创建当前回合的对战结果对象
             BattleResultVO result = new BattleResultVO();
@@ -163,10 +169,10 @@ public class BossServiceImpl implements BossService {
             result.setAttackerType(attackerType);
 
             // 执行一次攻击
-            int damage = 0;
-            boolean isDodge = false;
-            boolean isCritical = false;
-            boolean isCombo = false;
+            int damage;
+            boolean isDodge;
+            boolean isCritical;
+            boolean isCombo;
 
             if (petTurn) {
                 // 宠物攻击Boss
@@ -203,12 +209,18 @@ public class BossServiceImpl implements BossService {
             battleResults.add(result);
 
             // 只有当Boss被攻击时，才更新Redis中的Boss血量
-            if (petTurn) {
+            if ("PET".equals(attackerType)) {
                 updateBossHealthToRedis(bossId, currentBossHealth);
             }
-            
-            // 如果没有连击，切换到另一方；如果有连击，保持当前攻击者不变
+
+            // 如果不是连击，本次攻击计为一回合，并切换到另一方
+            // 连击则仅追加伤害，不增加回合数，攻击方保持不变
             if (!isCombo) {
+                if ("PET".equals(attackerType)) {
+                    petRounds++;
+                } else {
+                    bossRounds++;
+                }
                 petTurn = !petTurn;
             }
         }
@@ -256,8 +268,8 @@ public class BossServiceImpl implements BossService {
             damageMultiplier *= COMBO_DAMAGE_MULTIPLIER;
         }
 
-        // 伤害有10%的浮动
-        double damageVariation = 0.9 + random.nextDouble() * 0.2; // 0.9-1.1
+        // 伤害有10%的浮动 // 0.9-1.1
+        double damageVariation = 0.9 + random.nextDouble() * 0.2;
         int damage = (int) (attackPower * damageMultiplier * damageVariation);
 
         // 确保伤害不超过目标当前血量
