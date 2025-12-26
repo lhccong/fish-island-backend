@@ -66,6 +66,26 @@ public interface RedisKey {
      */
     String ANNUAL_REPORT_CONTENT_SUMMARY = "annual:report:content:summary:%d:%d";
 
+    /**
+     * Boss列表缓存
+     */
+    String BOSS_LIST_CACHE_KEY = "boss:list";
+
+    /**
+     * Boss当前血量缓存 boss:health:{bossId}
+     */
+    String BOSS_HEALTH_CACHE_KEY = "boss:health:%d";
+
+    /**
+     * 用户每日Boss挑战记录 boss:battle:user:{userId}:boss:{bossId}:{date}
+     */
+    String BOSS_BATTLE_USER_DAILY_KEY = "boss:battle:user:%d:boss:%d:%s";
+
+    /**
+     * Boss挑战排行榜 boss:ranking:{bossId}
+     */
+    String BOSS_CHALLENGE_RANKING_KEY = "boss:ranking:%d";
+
     static String getKey(String key, Object... objects) {
         return BASE_KEY + String.format(key, objects);
     }
