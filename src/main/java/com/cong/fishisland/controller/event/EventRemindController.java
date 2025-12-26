@@ -43,6 +43,17 @@ public class EventRemindController {
         return ResultUtils.success(eventRemindService.batchSetRead(request));
     }
 
+    /**
+     * 批量删除事件提醒（仅接收者可删除）
+     *
+     * @param request 批量操作DTO
+     * @return 操作结果
+     */
+    @PostMapping("/batch/delete")
+    @ApiOperation(value = "批量删除事件提醒（仅接收者可删除）")
+    public BaseResponse<Boolean> batchDelete(@RequestBody EventRemindStateRequest request) {
+        return ResultUtils.success(eventRemindService.batchDelete(request));
+    }
 
     /**
      * 分页获取当前用户的事件提醒列表

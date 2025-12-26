@@ -21,6 +21,11 @@ public interface EventRemindService extends IService<EventRemind> {
     Boolean batchSetRead(EventRemindStateRequest request);
 
     /**
+     * 批量删除事件提醒（仅接收者可删除）
+     */
+    Boolean batchDelete(EventRemindStateRequest request);
+
+    /**
      * 检查是否已存在相同事件
      */
     boolean existsEvent(String action, Long sourceId, Integer sourceType,

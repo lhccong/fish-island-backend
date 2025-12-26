@@ -63,6 +63,23 @@ public class EventRemindServiceImpl extends ServiceImpl<EventRemindMapper, Event
     }
 
     @Override
+    public Boolean batchDelete(EventRemindStateRequest request) {
+        // 参数校验
+        validEventRemindStateRequest(request);
+        List<Long> ids = request.getIds();
+        User loginUser = userService.getLoginUser();
+        Long userId = loginUser.getId();
+        QueryWrapper<EventRemind> queryWrapper = new QueryWrapper<>();
+        queryWrapper.in("id", request.getIds());
+        queryWrapper.eq("recipientId", userId);
+        long count = this.count(queryWrapper);
+        // 校验权限：只有接收者才能删除自己的提醒
+        ThrowUtils.throwIf(count != (long) ids.size(), ErrorCode.NO_AUTH_ERROR);
+        // 删除数据
+        return this.removeByIds(ids);
+    }
+
+    @Override
     public boolean existsEvent(String action, Long sourceId, Integer sourceType,
                                Long senderId, Long recipientId) {
         QueryWrapper<EventRemind> queryWrapper = new QueryWrapper<>();
