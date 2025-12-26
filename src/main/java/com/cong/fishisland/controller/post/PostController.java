@@ -13,7 +13,9 @@ import com.cong.fishisland.common.exception.ThrowUtils;
 import com.cong.fishisland.model.dto.post.*;
 import com.cong.fishisland.model.entity.post.Post;
 import com.cong.fishisland.model.entity.user.User;
+import com.cong.fishisland.model.vo.post.PostRewardTokenVO;
 import com.cong.fishisland.model.vo.post.PostVO;
+import com.cong.fishisland.model.vo.user.UserRewardVO;
 import com.cong.fishisland.service.PostService;
 import com.cong.fishisland.service.UserService;
 
@@ -279,6 +281,63 @@ public class PostController {
         User loginUser = userService.getLoginUser();
         Page<PostVO> postVoPage = postService.listFavourPostByPage(postQueryRequest, loginUser.getId());
         return ResultUtils.success(postVoPage);
+    }
+
+    /**
+     * 从帖子点赞列表中随机抽取一个用户（仅帖子创建用户可使用）
+     *
+     * @param request 随机点赞请求
+     * @return {@link BaseResponse}<{@link UserRewardVO}>
+     */
+    @PostMapping("/random/thumb/user")
+    @ApiOperation(value = "从帖子点赞列表中随机抽取一个用户（仅帖子创建用户可使用）")
+    public BaseResponse<UserRewardVO> randomThumbUser(@RequestBody PostRandomThumbRequest request) {
+        if (request == null) {
+            throw new BusinessException(ErrorCode.PARAMS_ERROR);
+        }
+        // 获取当前登录用户
+        User loginUser = userService.getLoginUser();
+        // 检查帖子是否存在并验证权限（仅帖子创建用户可使用）
+        Post post = postService.getById(request.getPostId());
+        ThrowUtils.throwIf(post == null, ErrorCode.NOT_FOUND_ERROR, "帖子不存在");
+        ThrowUtils.throwIf(!post.getUserId().equals(loginUser.getId()), ErrorCode.NO_AUTH_ERROR, "仅帖子创建用户可使用此功能");
+        // 调用服务方法
+        UserRewardVO userRewardVO = postService.randomThumbUser(request);
+        return ResultUtils.success(userRewardVO);
+    }
+
+    /**
+     * 获取帖子兑奖加密token
+     *
+     * @param postId 帖子id
+     * @return {@link BaseResponse}<{@link PostRewardTokenVO}>
+     */
+    @GetMapping("/reward/token")
+    @ApiOperation(value = "获取帖子兑奖加密token")
+    public BaseResponse<PostRewardTokenVO> getPostRewardToken(long postId) {
+        if (postId <= 0) {
+            throw new BusinessException(ErrorCode.PARAMS_ERROR, "帖子ID不合法");
+        }
+        // 获取当前登录用户
+        User loginUser = userService.getLoginUser();
+        PostRewardTokenVO postRewardTokenVO = postService.getPostRewardToken(postId, loginUser.getId());
+        return ResultUtils.success(postRewardTokenVO);
+    }
+
+    /**
+     * 获取当前中奖用户
+     *
+     * @param postId 帖子id
+     * @return {@link BaseResponse}<{@link UserRewardVO}>
+     */
+    @GetMapping("/reward/user")
+    @ApiOperation(value = "获取当前中奖用户")
+    public BaseResponse<UserRewardVO> getCurrentRewardUser(long postId) {
+        if (postId <= 0) {
+            throw new BusinessException(ErrorCode.PARAMS_ERROR, "帖子ID不合法");
+        }
+        UserRewardVO userRewardVO = postService.getCurrentRewardUser(postId);
+        return ResultUtils.success(userRewardVO);
     }
 
 }

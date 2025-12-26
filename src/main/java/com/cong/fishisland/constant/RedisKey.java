@@ -86,6 +86,11 @@ public interface RedisKey {
      */
     String BOSS_CHALLENGE_RANKING_KEY = "boss:ranking:%d";
 
+    /**
+     * 帖子中奖用户缓存 post:reward:{postId}:{yyyyMMdd}
+     */
+    String POST_REWARD_USER_KEY = "post:reward:%d:%s";
+
     static String getKey(String key, Object... objects) {
         return BASE_KEY + String.format(key, objects);
     }
