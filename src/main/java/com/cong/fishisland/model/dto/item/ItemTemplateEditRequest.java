@@ -85,8 +85,8 @@ public class ItemTemplateEditRequest implements Serializable {
     /**
      * 非常规属性/词缀(JSON)，格式: [{k,v},...]
      */
-    @ApiModelProperty(value = "非常规属性/词缀(JSON)", example = "[{\"lifeSteal\":5}]")
-    private String mainAttr;
+    @ApiModelProperty(value = "非常规属性/词缀(JSON)")
+    private Object mainAttr;
 
     /**
      * 物品图标地址
