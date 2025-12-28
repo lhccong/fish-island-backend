@@ -44,7 +44,7 @@ public class ItemTemplatesController {
      * 添加物品
      */
     @PostMapping("/add")
-    @SaCheckLogin
+    @SaCheckRole(UserConstant.ADMIN_ROLE)
     @ApiOperation("添加物品")
     public BaseResponse<Long> addItemTemplate(@RequestBody ItemTemplateAddRequest itemTemplateAddRequest) {
         if (itemTemplateAddRequest == null) {

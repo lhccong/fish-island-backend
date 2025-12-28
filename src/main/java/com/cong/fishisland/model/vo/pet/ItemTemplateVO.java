@@ -69,6 +69,11 @@ public class ItemTemplateVO implements Serializable {
     private Integer baseHp;
 
     /**
+     * 非常规属性/词缀(JSON)，格式: [{k,v},...]
+     */
+    private Object mainAttr;
+
+    /**
      * 物品图标地址
      */
     private String icon;

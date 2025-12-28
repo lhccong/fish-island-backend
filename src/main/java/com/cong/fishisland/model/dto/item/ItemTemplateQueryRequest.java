@@ -53,6 +53,18 @@ public class ItemTemplateQueryRequest extends PageRequest implements Serializabl
     @ApiModelProperty(value = "是否可叠加（0-不可叠加，1-可叠加）", example = "1")
     private Integer stackable;
 
+    /**
+     * 使用等级需求
+     */
+    @ApiModelProperty(value = "使用等级需求", example = "10")
+    private Integer levelReq;
+
+    /**
+     * 稀有度等级（1-8，数字越高越稀有）
+     */
+    @ApiModelProperty(value = "稀有度等级（1-8，数字越高越稀有）", example = "5")
+    private Integer rarity;
+
     private static final long serialVersionUID = 1L;
 
 }

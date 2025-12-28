@@ -15,7 +15,7 @@ import java.util.concurrent.TimeUnit;
 
 /**
  * Boss数据缓存定时任务
- * 每天凌晨12点将Boss数据写入Redis缓存
+ * 每天凌晨12点将Boss数据写入Redis缓存，并重置Boss血量和排行榜
  *
  * @author cong
  */
@@ -53,6 +53,7 @@ public class BossCacheJob {
             redisTemplate.opsForValue().set(cacheKey, bossListJson, 24, TimeUnit.HOURS);
 
             // 4. 初始化每个Boss的血量到Redis（每天重置Boss血量）
+            // 5. 重置每个Boss的挑战排行榜（删除排行榜数据）
             for (BossVO boss : bossList) {
                 String healthKey = RedisKey.getKey(RedisKey.BOSS_HEALTH_CACHE_KEY, boss.getId());
                 redisTemplate.opsForValue().set(
@@ -61,9 +62,14 @@ public class BossCacheJob {
                         24,
                         TimeUnit.HOURS
                 );
+                
+                // 删除排行榜数据，实现每天重置
+                String rankingKey = RedisKey.getKey(RedisKey.BOSS_CHALLENGE_RANKING_KEY, boss.getId());
+                redisTemplate.delete(rankingKey);
+                log.debug("已重置Boss排行榜，bossId: {}, rankingKey: {}", boss.getId(), rankingKey);
             }
 
-            log.info("Boss数据缓存成功，共缓存{}个Boss，缓存key: {}", bossList.size(), cacheKey);
+            log.info("Boss数据缓存成功，共缓存{}个Boss，缓存key: {}，已重置所有Boss排行榜", bossList.size(), cacheKey);
         } catch (Exception e) {
             log.error("Boss数据缓存任务执行异常", e);
         }

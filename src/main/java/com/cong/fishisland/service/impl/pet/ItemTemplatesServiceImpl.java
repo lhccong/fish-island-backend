@@ -12,10 +12,12 @@ import com.cong.fishisland.model.dto.item.ItemTemplateQueryRequest;
 import com.cong.fishisland.model.entity.pet.ItemTemplates;
 import com.cong.fishisland.model.vo.pet.ItemTemplateVO;
 import com.cong.fishisland.service.ItemTemplatesService;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import org.apache.commons.lang3.StringUtils;
 import org.springframework.beans.BeanUtils;
 import org.springframework.stereotype.Service;
 
+import javax.annotation.Resource;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
@@ -28,6 +30,9 @@ import java.util.stream.Collectors;
  */
 @Service
 public class ItemTemplatesServiceImpl extends ServiceImpl<ItemTemplatesMapper, ItemTemplates> implements ItemTemplatesService {
+
+    @Resource
+    private ObjectMapper objectMapper;
 
     @Override
     public Long addItemTemplate(ItemTemplateAddRequest itemTemplateAddRequest) {
@@ -84,6 +89,8 @@ public class ItemTemplatesServiceImpl extends ServiceImpl<ItemTemplatesMapper, I
         
         ItemTemplateVO itemTemplateVO = new ItemTemplateVO();
         BeanUtils.copyProperties(itemTemplates, itemTemplateVO);
+        // 将 mainAttr JSON 字符串解析为对象
+        parseMainAttrToObject(itemTemplateVO, itemTemplates.getMainAttr());
         return itemTemplateVO;
     }
 
@@ -128,6 +135,8 @@ public class ItemTemplatesServiceImpl extends ServiceImpl<ItemTemplatesMapper, I
 
         ItemTemplateVO itemTemplateVO = new ItemTemplateVO();
         BeanUtils.copyProperties(itemTemplates, itemTemplateVO);
+        // 将 mainAttr JSON 字符串解析为对象
+        parseMainAttrToObject(itemTemplateVO, itemTemplates.getMainAttr());
         return itemTemplateVO;
     }
 
@@ -144,6 +153,8 @@ public class ItemTemplatesServiceImpl extends ServiceImpl<ItemTemplatesMapper, I
         String category = itemTemplateQueryRequest.getCategory();
         String subType = itemTemplateQueryRequest.getSubType();
         Integer stackable = itemTemplateQueryRequest.getStackable();
+        Integer levelReq = itemTemplateQueryRequest.getLevelReq();
+        Integer rarity = itemTemplateQueryRequest.getRarity();
 
         // 精确匹配
         if (id != null && id > 0) {
@@ -160,6 +171,12 @@ public class ItemTemplatesServiceImpl extends ServiceImpl<ItemTemplatesMapper, I
         }
         if (stackable != null) {
             queryWrapper.eq("stackable", stackable);
+        }
+        if (levelReq != null && levelReq > 0) {
+            queryWrapper.eq("levelReq", levelReq);
+        }
+        if (rarity != null && rarity > 0) {
+            queryWrapper.eq("rarity", rarity);
         }
 
         // 模糊查询
@@ -185,6 +202,8 @@ public class ItemTemplatesServiceImpl extends ServiceImpl<ItemTemplatesMapper, I
         List<ItemTemplateVO> voList = itemTemplatesPage.getRecords().stream().map(item -> {
             ItemTemplateVO vo = new ItemTemplateVO();
             BeanUtils.copyProperties(item, vo);
+            // 将 mainAttr JSON 字符串解析为对象
+            parseMainAttrToObject(vo, item.getMainAttr());
             return vo;
         }).collect(Collectors.toList());
 
@@ -207,8 +226,29 @@ public class ItemTemplatesServiceImpl extends ServiceImpl<ItemTemplatesMapper, I
                 template -> {
                     ItemTemplateVO itemTemplateVO = new ItemTemplateVO();
                     BeanUtils.copyProperties(template, itemTemplateVO);
+                    // 将 mainAttr JSON 字符串解析为对象
+                    parseMainAttrToObject(itemTemplateVO, template.getMainAttr());
                     return itemTemplateVO;
                 }
         ));
+    }
+
+    /**
+     * 将 mainAttr JSON 字符串解析为对象
+     *
+     * @param vo        VO 对象
+     * @param mainAttr  JSON 字符串
+     */
+    private void parseMainAttrToObject(ItemTemplateVO vo, String mainAttr) {
+        if (StringUtils.isNotBlank(mainAttr)) {
+            try {
+                vo.setMainAttr(objectMapper.readValue(mainAttr, Object.class));
+            } catch (Exception e) {
+                // 如果解析失败，保持为 null 或原字符串
+                vo.setMainAttr(null);
+            }
+        } else {
+            vo.setMainAttr(null);
+        }
     }
 }
