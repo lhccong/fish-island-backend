@@ -1,5 +1,6 @@
 package com.cong.fishisland.service.impl.pet;
 
+import com.alibaba.fastjson.JSONObject;
 import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
@@ -68,6 +69,7 @@ public class ItemTemplatesServiceImpl extends ServiceImpl<ItemTemplatesMapper, I
         }
         itemTemplates.setIsDelete(0);
         // 保存到数据库
+        itemTemplates.setMainAttr(JSONObject.toJSONString(itemTemplateAddRequest.getMainAttr()));
         boolean saveResult = this.save(itemTemplates);
         if (!saveResult || itemTemplates.getId() == null) {
             throw new BusinessException(ErrorCode.OPERATION_ERROR, "新增物品模板失败");
@@ -126,7 +128,8 @@ public class ItemTemplatesServiceImpl extends ServiceImpl<ItemTemplatesMapper, I
 
         // 复制前端传来的数据到数据库对象
         BeanUtils.copyProperties(itemTemplateEditRequest, itemTemplates);
-        
+        itemTemplates.setMainAttr(JSONObject.toJSONString(itemTemplateEditRequest.getMainAttr()));
+
         // 执行数据库更新操作
         boolean result = this.updateById(itemTemplates);
         if (!result) {

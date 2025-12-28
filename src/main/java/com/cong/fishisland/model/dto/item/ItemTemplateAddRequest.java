@@ -80,7 +80,7 @@ public class ItemTemplateAddRequest implements Serializable {
      * 非常规属性/词缀(JSON)，格式: [{k,v},...]
      */
     @ApiModelProperty(value = "非常规属性/词缀(JSON)，格式: [{k,v},...]")
-    private String mainAttr;
+    private Object mainAttr;
 
     /**
      * 物品图标地址
