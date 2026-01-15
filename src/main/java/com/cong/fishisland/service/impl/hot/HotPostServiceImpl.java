@@ -49,7 +49,9 @@ public class HotPostServiceImpl extends ServiceImpl<HotPostMapper, HotPost>
 
         // 2. 如果 Redis 没有数据，则查询数据库
         List<HotPostVO> hotPostList = this.list(new LambdaQueryWrapper<HotPost>().orderByAsc(HotPost::getSort))
-                .stream().map(HotPostVO::objToVo).collect(Collectors.toList());
+                .stream().map(HotPostVO::objToVo)
+                .filter(vo -> vo != null) // 过滤掉转换失败的null值
+                .collect(Collectors.toList());
 
         // 3. 将查询结果存入 Redis，并设置过期时间
         try {
