@@ -180,7 +180,7 @@ public class LinuxDoDataSource implements DataSource {
                 .category(CategoryTypeEnum.TECH_PROGRAMMING.getValue())
                 .name("LinuxDo热榜")
                 .updateInterval(UpdateIntervalEnum.HALF_HOUR.getValue())
-                .iconUrl("🐧")
+                .iconUrl("https://linux.do/uploads/default/original/4X/c/c/d/ccd8c210609d498cbeb3d5201d4c259348447562.png")
                 .hostJson(JSON.toJSONString(dataList))
                 .typeName("LinuxDo")
                 .build();
