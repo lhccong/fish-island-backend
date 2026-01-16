@@ -65,19 +65,11 @@ public class V2exDataSource implements DataSource {
                 String url = topic.getString("url");
                 Integer replies = topic.getInteger("replies");
                 
-                // 提取节点信息作为摘要
-                String nodeName = "";
-                if (topic.containsKey("node")) {
-                    JSONObject node = topic.getJSONObject("node");
-                    nodeName = node.getString("title");
-                }
-                
                 // 构建热榜数据
                 dataList.add(HotPostDataVO.builder()
                         .title(title)
                         .url(url)
                         .followerCount(replies != null ? replies : 0)
-                        .excerpt(nodeName) // 节点名称作为摘要
                         .build());
             }
             
