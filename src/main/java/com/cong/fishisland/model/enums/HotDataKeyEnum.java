@@ -29,7 +29,8 @@ public enum HotDataKeyEnum {
     ZHI_BO_8("直播吧", "ZhiBo8"),
     TIE_BA("贴吧", "TieBa"),
     QQ_MUSIC("QQ音乐", "QQMusic"),
-    LINUX_DO("LinuxDo", "LinuxDo");
+    LINUX_DO("LinuxDo", "LinuxDo"),
+    V2EX("V2EX", "V2EX");
 
 
     private final String text;
