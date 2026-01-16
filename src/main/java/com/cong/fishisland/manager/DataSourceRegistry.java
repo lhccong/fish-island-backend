@@ -36,6 +36,7 @@ public class DataSourceRegistry {
     private final TieBaDataSource tieBaDataSource;
     private final QQMusicDataSource qqMusicDataSource;
     private final LinuxDoDataSource linuxDoDataSource;
+    private final V2exDataSource v2exDataSource;
 
 
     @PostConstruct
@@ -55,6 +56,7 @@ public class DataSourceRegistry {
             put(HotDataKeyEnum.TIE_BA.getValue(), tieBaDataSource);
             put(HotDataKeyEnum.QQ_MUSIC.getValue(), qqMusicDataSource);
             put(HotDataKeyEnum.LINUX_DO.getValue(), linuxDoDataSource);
+            put(HotDataKeyEnum.V2EX.getValue(), v2exDataSource);
         }};
     }
 
