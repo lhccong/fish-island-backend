@@ -16,6 +16,7 @@ import org.springframework.util.StopWatch;
 
 import java.math.BigDecimal;
 import java.util.Date;
+import java.util.Objects;
 
 /**
  * 自动同步热榜数据
@@ -73,6 +74,11 @@ public class IncSyncHostPostToMySQL {
             }
         }
         HotPost hotPost = dataSourceRegistry.getDataSourceByType(key).getHotPost();
+
+        if (hotPost == null|| Objects.equals(hotPost.getHostJson(), "[]")) {
+            return;
+        }
+        
         hotPost.setType(key);
         if (oldHotPost != null) {
             hotPost.setId(oldHotPost.getId());
