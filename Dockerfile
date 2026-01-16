@@ -1,4 +1,4 @@
-FROM openjdk:8
+FROM openjdk:17
 ENV workdir=/cong/fish
 COPY target/fish-island-backend-0.0.1-SNAPSHOT.jar ${workdir}/fish-island-backend-0.0.1-SNAPSHOT.jar
 WORKDIR ${workdir}
