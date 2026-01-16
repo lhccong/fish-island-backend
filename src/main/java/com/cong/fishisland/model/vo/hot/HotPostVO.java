@@ -6,6 +6,7 @@ import com.baomidou.mybatisplus.annotation.TableField;
 import com.cong.fishisland.model.entity.hot.HotPost;
 import com.cong.fishisland.model.enums.CategoryTypeEnum;
 import lombok.Data;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.BeanUtils;
 
 import java.io.Serializable;
@@ -16,6 +17,7 @@ import java.util.List;
  * 热榜视图
  * # @author <a href="https://github.com/lhccong">程序员聪</a>
  */
+@Slf4j
 @Data
 public class HotPostVO implements Serializable {
 
@@ -75,16 +77,22 @@ public class HotPostVO implements Serializable {
             return null;
         }
         HotPostVO hotPostVO = new HotPostVO();
-        hotPostVO.setId(hotPost.getId());
-        hotPostVO.setName(hotPost.getName());
-        hotPostVO.setType(hotPost.getType());
-        hotPostVO.setTypeName(hotPost.getTypeName());
-        hotPostVO.setIconUrl(hotPost.getIconUrl());
-        hotPostVO.setUpdateTime(hotPost.getUpdateTime());
-        hotPostVO.setCategory(hotPost.getCategory());
-        hotPostVO.setCategoryName(CategoryTypeEnum.getEnumByValue(hotPost.getCategory()).getText());
-        hotPostVO.setData(JSON.parseArray(hotPost.getHostJson(), HotPostDataVO.class));
-        return hotPostVO;
+        try {
+            hotPostVO.setId(hotPost.getId());
+            hotPostVO.setName(hotPost.getName());
+            hotPostVO.setType(hotPost.getType());
+            hotPostVO.setTypeName(hotPost.getTypeName());
+            hotPostVO.setIconUrl(hotPost.getIconUrl());
+            hotPostVO.setUpdateTime(hotPost.getUpdateTime());
+            hotPostVO.setCategory(hotPost.getCategory());
+            hotPostVO.setCategoryName(CategoryTypeEnum.getEnumByValue(hotPost.getCategory()).getText());
+            hotPostVO.setData(JSON.parseArray(hotPost.getHostJson(), HotPostDataVO.class));
+            return hotPostVO;
+        } catch (Exception e) {
+            log.error("转换HotPost到HotPostVO失败，type={}, name={}, error={}", 
+                hotPost.getType(), hotPost.getName(), e.getMessage());
+            return null;
+        }
     }
 
 }
