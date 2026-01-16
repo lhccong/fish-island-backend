@@ -114,7 +114,7 @@ public class LinuxDoDataSource implements DataSource {
             log.error("获取LinuxDo热榜失败", e);
             return buildEmptyHotPost();
         }
-        
+        dataList.sort((o1, o2) -> o2.getFollowerCount() - o1.getFollowerCount());
         return buildHotPost(dataList);
     }
     
@@ -181,7 +181,8 @@ public class LinuxDoDataSource implements DataSource {
                 .name("LinuxDo热榜")
                 .updateInterval(UpdateIntervalEnum.HALF_HOUR.getValue())
                 .iconUrl("https://linux.do/uploads/default/original/4X/c/c/d/ccd8c210609d498cbeb3d5201d4c259348447562.png")
-                .hostJson(JSON.toJSONString(dataList))
+                .hostJson(JSON
+                        .toJSONString(dataList))
                 .typeName("LinuxDo")
                 .build();
     }
