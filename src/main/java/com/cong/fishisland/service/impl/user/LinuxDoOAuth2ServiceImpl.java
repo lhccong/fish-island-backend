@@ -9,12 +9,18 @@ import com.cong.fishisland.service.LinuxDoOAuth2Service;
 import lombok.extern.slf4j.Slf4j;
 import okhttp3.HttpUrl;
 import org.springframework.http.*;
+import org.springframework.http.client.SimpleClientHttpRequestFactory;
 import org.springframework.stereotype.Service;
 import org.springframework.util.LinkedMultiValueMap;
 import org.springframework.util.MultiValueMap;
 import org.springframework.web.client.RestTemplate;
 
+import javax.annotation.PostConstruct;
 import javax.annotation.Resource;
+import java.net.Authenticator;
+import java.net.InetSocketAddress;
+import java.net.PasswordAuthentication;
+import java.net.Proxy;
 
 /**
  * Linux Do OAuth2 服务实现
@@ -35,6 +41,57 @@ public class LinuxDoOAuth2ServiceImpl implements LinuxDoOAuth2Service {
 
     @Resource
     private LinuxDoConfig linuxDoConfig;
+
+    /**
+     * 用于 LinuxDo 请求的 RestTemplate（可能带代理）
+     */
+    private RestTemplate linuxDoRestTemplate;
+
+    /**
+     * 初始化 RestTemplate，根据配置决定是否使用代理
+     */
+    @PostConstruct
+    private void init() {
+        if (linuxDoConfig.hasProxy()) {
+            log.info("初始化 LinuxDo 代理 RestTemplate: {}:{}", 
+                    linuxDoConfig.getProxyHost(), linuxDoConfig.getProxyPort());
+            
+            // 如果代理需要认证，设置全局认证器
+            if (linuxDoConfig.hasProxyAuth()) {
+                log.info("代理需要认证，用户名: {}", linuxDoConfig.getProxyUsername());
+                Authenticator.setDefault(new Authenticator() {
+                    @Override
+                    protected PasswordAuthentication getPasswordAuthentication() {
+                        if (getRequestorType() == RequestorType.PROXY) {
+                            return new PasswordAuthentication(
+                                    linuxDoConfig.getProxyUsername(),
+                                    linuxDoConfig.getProxyPassword().toCharArray()
+                            );
+                        }
+                        return null;
+                    }
+                });
+            }
+            
+            SimpleClientHttpRequestFactory factory = new SimpleClientHttpRequestFactory();
+            factory.setConnectTimeout(5000);
+            factory.setReadTimeout(10000);
+            Proxy proxy = new Proxy(Proxy.Type.HTTP, 
+                    new InetSocketAddress(linuxDoConfig.getProxyHost(), linuxDoConfig.getProxyPort()));
+            factory.setProxy(proxy);
+            linuxDoRestTemplate = new RestTemplate(factory);
+        } else {
+            log.info("LinuxDo 使用默认 RestTemplate（无代理）");
+            linuxDoRestTemplate = restTemplate;
+        }
+    }
+
+    /**
+     * 获取用于 LinuxDo 请求的 RestTemplate
+     */
+    private RestTemplate getRestTemplate() {
+        return linuxDoRestTemplate;
+    }
 
     /**
      * 第一步：生成授权链接
@@ -84,8 +141,8 @@ public class LinuxDoOAuth2ServiceImpl implements LinuxDoOAuth2Service {
             headers.set("Accept", "application/json");
             HttpEntity<MultiValueMap<String, String>> requestEntity = new HttpEntity<>(params, headers);
 
-            // 发送 POST 请求
-            ResponseEntity<LinuxDoTokenResponse> response = restTemplate.exchange(
+            // 发送 POST 请求（使用可能带代理的 RestTemplate）
+            ResponseEntity<LinuxDoTokenResponse> response = getRestTemplate().exchange(
                     linuxDoConfig.getTokenUrl(),
                     HttpMethod.POST,
                     requestEntity,
@@ -119,8 +176,8 @@ public class LinuxDoOAuth2ServiceImpl implements LinuxDoOAuth2Service {
 
             HttpEntity<String> requestEntity = new HttpEntity<>(headers);
 
-            // 发送 GET 请求获取用户信息
-            ResponseEntity<LinuxDoUserInfo> response = restTemplate.exchange(
+            // 发送 GET 请求获取用户信息（使用可能带代理的 RestTemplate）
+            ResponseEntity<LinuxDoUserInfo> response = getRestTemplate().exchange(
                     linuxDoConfig.getUserInfoUrl(),
                     HttpMethod.GET,
                     requestEntity,
@@ -161,8 +218,8 @@ public class LinuxDoOAuth2ServiceImpl implements LinuxDoOAuth2Service {
 
             HttpEntity<MultiValueMap<String, String>> requestEntity = new HttpEntity<>(params, headers);
 
-            // 发送 POST 请求
-            ResponseEntity<LinuxDoTokenResponse> response = restTemplate.exchange(
+            // 发送 POST 请求（使用可能带代理的 RestTemplate）
+            ResponseEntity<LinuxDoTokenResponse> response = getRestTemplate().exchange(
                     linuxDoConfig.getTokenUrl(),
                     HttpMethod.POST,
                     requestEntity,
