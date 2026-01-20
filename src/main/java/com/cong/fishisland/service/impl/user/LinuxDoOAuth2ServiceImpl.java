@@ -15,6 +15,7 @@ import org.springframework.util.LinkedMultiValueMap;
 import org.springframework.util.MultiValueMap;
 import org.springframework.web.client.RestTemplate;
 
+import javax.annotation.PostConstruct;
 import javax.annotation.Resource;
 import java.net.Authenticator;
 import java.net.InetSocketAddress;
@@ -42,13 +43,18 @@ public class LinuxDoOAuth2ServiceImpl implements LinuxDoOAuth2Service {
     private LinuxDoConfig linuxDoConfig;
 
     /**
-     * 获取 RestTemplate，如果配置了代理则使用代理
-     *
-     * @return RestTemplate 实例
+     * 用于 LinuxDo 请求的 RestTemplate（可能带代理）
      */
-    private RestTemplate getRestTemplate() {
+    private RestTemplate linuxDoRestTemplate;
+
+    /**
+     * 初始化 RestTemplate，根据配置决定是否使用代理
+     */
+    @PostConstruct
+    private void init() {
         if (linuxDoConfig.hasProxy()) {
-            log.info("使用代理访问 LinuxDo: {}:{}", linuxDoConfig.getProxyHost(), linuxDoConfig.getProxyPort());
+            log.info("初始化 LinuxDo 代理 RestTemplate: {}:{}", 
+                    linuxDoConfig.getProxyHost(), linuxDoConfig.getProxyPort());
             
             // 如果代理需要认证，设置全局认证器
             if (linuxDoConfig.hasProxyAuth()) {
@@ -73,9 +79,18 @@ public class LinuxDoOAuth2ServiceImpl implements LinuxDoOAuth2Service {
             Proxy proxy = new Proxy(Proxy.Type.HTTP, 
                     new InetSocketAddress(linuxDoConfig.getProxyHost(), linuxDoConfig.getProxyPort()));
             factory.setProxy(proxy);
-            return new RestTemplate(factory);
+            linuxDoRestTemplate = new RestTemplate(factory);
+        } else {
+            log.info("LinuxDo 使用默认 RestTemplate（无代理）");
+            linuxDoRestTemplate = restTemplate;
         }
-        return restTemplate;
+    }
+
+    /**
+     * 获取用于 LinuxDo 请求的 RestTemplate
+     */
+    private RestTemplate getRestTemplate() {
+        return linuxDoRestTemplate;
     }
 
     /**
