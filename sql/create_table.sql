@@ -196,6 +196,18 @@ create table if not exists todo
     isDelete   tinyint  default 0                 not null comment '是否删除'
 ) comment '待办表' collate = utf8mb4_unicode_ci;
 
+-- 基金持仓表
+create table if not exists fund
+(
+    id         bigint auto_increment comment 'id' primary key,
+    userId     bigint                             not null comment '用户 id',
+    fundJson   mediumtext                         null comment '基金持仓数据（json数组，包含code、name、shares、cost等字段）',
+    createTime datetime default CURRENT_TIMESTAMP not null comment '创建时间',
+    updateTime datetime default CURRENT_TIMESTAMP not null on update CURRENT_TIMESTAMP comment '更新时间',
+    isDelete   tinyint  default 0                 not null comment '是否删除',
+    index idx_userId (userId)
+) comment '基金持仓表' collate = utf8mb4_unicode_ci;
+
 -- 房间消息表
 create table if not exists room_message
 (
