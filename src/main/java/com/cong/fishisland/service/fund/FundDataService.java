@@ -212,6 +212,59 @@ public class FundDataService {
     }
 
     /**
+     * 从新浪财经获取指数数据
+     *
+     * @param code 指数代码（如：sh000001）
+     * @return 指数数据，包含 name(指数名称), current(当前点位), change(涨跌点数), changePct(涨跌幅)；失败返回空Map
+     */
+    public JSONObject fetchIndexData(String code) {
+        HttpResponse httpResponse = null;
+        try {
+            String url = "http://hq.sinajs.cn/list=" + code;
+
+            httpResponse = HttpRequest.get(url)
+                    .header("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36")
+                    .header("Referer", "http://finance.sina.com.cn/")
+                    .timeout(3000)
+                    .execute();
+
+            byte[] responseBytes = httpResponse.bodyBytes();
+            String content = new String(responseBytes, Charset.forName("GBK"));
+
+            // 解析数据：var hq_str_sh000001="上证指数,3000.00,10.00,2990.00,..."
+            Pattern pattern = Pattern.compile("=\"(.*?)\"");
+            Matcher matcher = pattern.matcher(content);
+
+            if (matcher.find()) {
+                String dataStr = matcher.group(1);
+                String[] data = dataStr.split(",");
+
+                if (data.length > 3) {
+                    String name = data[0];
+                    double current = Double.parseDouble(data[3]);      // 当前点位
+                    double prevClose = Double.parseDouble(data[2]);    // 昨收
+                    double change = current - prevClose;                // 涨跌点数
+                    double changePct = prevClose > 0 ? (change / prevClose * 100) : 0;  // 涨跌幅
+
+                    JSONObject result = new JSONObject();
+                    result.put("name", name);
+                    result.put("current", current);
+                    result.put("change", change);
+                    result.put("changePct", changePct);
+                    return result;
+                }
+            }
+        } catch (Exception e) {
+            log.warn("获取指数数据失败 - 指数代码: {}, 错误: {}", code, e.getMessage());
+        } finally {
+            if (httpResponse != null) {
+                httpResponse.close();
+            }
+        }
+        return new JSONObject(Collections.emptyMap());
+    }
+
+    /**
      * 判断当前是否为基金交易时间
      * 基金交易时间：周一至周五 9:30-11:30, 13:00-15:00
      *

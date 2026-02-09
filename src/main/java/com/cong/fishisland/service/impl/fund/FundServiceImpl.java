@@ -15,6 +15,7 @@ import com.cong.fishisland.model.dto.fund.UpdateFundRequest;
 import com.cong.fishisland.model.entity.fund.Fund;
 import com.cong.fishisland.model.vo.fund.FundItemVO;
 import com.cong.fishisland.model.vo.fund.FundListVO;
+import com.cong.fishisland.model.vo.fund.MarketIndexVO;
 import com.cong.fishisland.service.fund.FundDataService;
 import com.cong.fishisland.service.FundService;
 import lombok.extern.slf4j.Slf4j;
@@ -430,6 +431,60 @@ public class FundServiceImpl extends ServiceImpl<FundMapper, Fund> implements Fu
         result.setTotalProfit(totalProfit.setScale(2, RoundingMode.HALF_UP));
         result.setTodayUpCount(todayUpCount);
         result.setTodayDownCount(todayDownCount);
+
+        return result;
+    }
+
+    /**
+     * 国内核心指数配置
+     */
+    private static final String[][] MAJOR_INDICES = {
+            {"sh000001", "上证指数"},
+            {"sz399001", "深证成指"},
+            {"sz399006", "创业板指"},
+            {"sh000300", "沪深300"},
+            {"sh000016", "上证50"}
+    };
+
+    @Override
+    public List<MarketIndexVO> getMajorIndices() {
+        List<MarketIndexVO> result = new ArrayList<>();
+
+        for (String[] index : MAJOR_INDICES) {
+            String code = index[0];
+            String defaultName = index[1];
+
+            try {
+                // 调用数据源获取指数数据
+                JSONObject indexData = fundDataService.fetchIndexData(code);
+
+                if (indexData != null && !indexData.isEmpty()) {
+                    MarketIndexVO vo = new MarketIndexVO();
+                    vo.setIndexCode(code);
+                    vo.setIndexName(indexData.getString("name") != null ? indexData.getString("name") : defaultName);
+                    vo.setCurrentValue(BigDecimal.valueOf(indexData.getDoubleValue("current")).setScale(2, RoundingMode.HALF_UP));
+                    vo.setChangeValue(BigDecimal.valueOf(indexData.getDoubleValue("change")).setScale(2, RoundingMode.HALF_UP));
+
+                    // 格式化涨跌幅，带上%符号
+                    BigDecimal changePct = BigDecimal.valueOf(indexData.getDoubleValue("changePct")).setScale(2, RoundingMode.HALF_UP);
+                    vo.setChangePercent(changePct.toPlainString() + "%");
+
+                    result.add(vo);
+                } else {
+                    log.warn("获取指数数据失败，使用默认值 - 指数: {}", defaultName);
+                    // 失败时也添加一个默认VO，避免前端显示不完整
+                    MarketIndexVO vo = new MarketIndexVO();
+                    vo.setIndexCode(code);
+                    vo.setIndexName(defaultName);
+                    vo.setCurrentValue(BigDecimal.ZERO);
+                    vo.setChangeValue(BigDecimal.ZERO);
+                    vo.setChangePercent("0.00%");
+                    result.add(vo);
+                }
+            } catch (Exception e) {
+                log.error("处理指数数据异常 - 指数: {}, 错误: {}", defaultName, e.getMessage());
+            }
+        }
 
         return result;
     }
