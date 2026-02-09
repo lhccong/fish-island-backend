@@ -266,7 +266,7 @@ public class FundDataService {
 
     /**
      * 判断当前是否为基金交易时间
-     * 基金交易时间：周一至周五 9:30-11:30, 13:00-15:00
+     * 基金交易时间：周一至周五 09:00-15:00
      *
      * @return true=交易时间, false=非交易时间
      */
@@ -279,78 +279,77 @@ public class FundDataService {
             return false;
         }
 
-        // 工作日交易时间段判断
-        LocalTime morningStart = LocalTime.of(9, 30);   // 9:30
-        LocalTime morningEnd = LocalTime.of(11, 30);    // 11:30
-        LocalTime afternoonStart = LocalTime.of(13, 0); // 13:00
-        LocalTime afternoonEnd = LocalTime.of(15, 0);   // 15:00
+        // 工作日交易时间段判断：09:00-15:00
+        LocalTime tradingStart = LocalTime.of(9, 0);   // 09:00
+        LocalTime tradingEnd = LocalTime.of(15, 0);    // 15:00
 
-        // 上午交易时间：9:30-11:30
-        boolean isMorningTrading = now.isAfter(morningStart) && now.isBefore(morningEnd);
-        // 下午交易时间：13:00-15:00
-        boolean isAfternoonTrading = now.isAfter(afternoonStart) && now.isBefore(afternoonEnd);
-
-        return isMorningTrading || isAfternoonTrading;
+        return now.isAfter(tradingStart) && now.isBefore(tradingEnd);
     }
 
     /**
      * 获取最佳基金数据（智能选择数据源）
-     * 智能决策逻辑：
-     * 1. 优先尝试L2实时行情（如果支持）
-     * 2. 基金交易时间内：优先天天基金实时估算
-     * 3. 基金非交易时间：优先新浪财经官方净值
+     * 数据源选择策略：
+     * 1️ 交易时间（09:00-15:00）：
+     * - 优先：L2 实时行情数据（如果支持）
+     * - 辅助：天天基金实时估算数据
+     * 2️ 交易结束后（15:00之后）：
+     * - 统一：新浪财经数据源（官方净值）
      *
      * @param code 基金代码
      * @return 基金数据；所有数据源均失败时返回空Map
      */
     public JSONObject getBestFundData(String code) {
-        // 1. 尝试 L2 实时行情（优先级最高）
-        JSONObject l2Data = fetchL2Market(code);
-
-        // 2. 尝试 新浪 和 天天基金
-        JSONObject sinaData = fetchFromSina(code);
-        JSONObject eastData = fetchEastMoneyEstimate(code);
-
-        // 补全名字逻辑
-        String name = "基金" + code;
-        if (sinaData != null && !sinaData.isEmpty() && sinaData.getString("name") != null) {
-            name = sinaData.getString("name");
-        } else if (eastData != null && !eastData.isEmpty() && eastData.getString("name") != null) {
-            name = eastData.getString("name");
-        }
-
-        // 如果有L2数据，补全名称后返回
-        if (l2Data != null && !l2Data.isEmpty()) {
-            l2Data.put("name", name);
-            log.debug("使用L2实时行情数据 - 基金代码: {}", code);
-            return l2Data;
-        }
-
-        // 3. 智能决策：根据基金交易时间选择数据源
         boolean isTradingTime = isFundTradingTime();
-
         if (isTradingTime) {
-            // 基金交易时间内：优先天天基金实时估算
+            // ========== 交易时间（09:00-15:00）==========
+
+            // 1. 优先尝试 L2 实时行情（如果支持）
+            JSONObject l2Data = fetchL2Market(code);
+            if (l2Data != null && !l2Data.isEmpty()) {
+                // 补全基金名称
+                JSONObject sinaData = fetchFromSina(code);
+                JSONObject eastData = fetchEastMoneyEstimate(code);
+                String name = "基金" + code;
+                if (sinaData != null && !sinaData.isEmpty() && sinaData.getString("name") != null) {
+                    name = sinaData.getString("name");
+                } else if (eastData != null && !eastData.isEmpty() && eastData.getString("name") != null) {
+                    name = eastData.getString("name");
+                }
+                l2Data.put("name", name);
+                log.debug("交易时间，使用L2实时行情数据 - 基金代码: {}", code);
+                return l2Data;
+            }
+
+            // 2. 辅助使用天天基金实时估算
+            JSONObject eastData = fetchEastMoneyEstimate(code);
             if (eastData != null && !eastData.isEmpty()) {
-                log.debug("交易时间内，使用天天基金实时估算 - 基金代码: {}", code);
+                log.debug("交易时间，使用天天基金实时估算 - 基金代码: {}", code);
                 return eastData;
             }
+
+            // 3. 降级：如果以上都失败，使用新浪财经
+            JSONObject sinaData = fetchFromSina(code);
             if (sinaData != null && !sinaData.isEmpty()) {
-                log.debug("交易时间内，天天基金失败，降级使用新浪财经 - 基金代码: {}", code);
+                log.debug("交易时间，L2和天天基金均失败，降级使用新浪财经 - 基金代码: {}", code);
                 return sinaData;
             }
         } else {
-            // 基金非交易时间：优先新浪财经官方净值
+            // ========== 交易结束后（15:00之后）==========
+
+            // 统一使用新浪财经数据源（官方净值）
+            JSONObject sinaData = fetchFromSina(code);
             if (sinaData != null && !sinaData.isEmpty()) {
                 log.debug("非交易时间，使用新浪财经官方净值 - 基金代码: {}", code);
                 return sinaData;
             }
+
+            // 降级：如果新浪失败，尝试天天基金
+            JSONObject eastData = fetchEastMoneyEstimate(code);
             if (eastData != null && !eastData.isEmpty()) {
                 log.debug("非交易时间，新浪财经失败，降级使用天天基金 - 基金代码: {}", code);
                 return eastData;
             }
         }
-
         log.warn("所有数据源均失败 - 基金代码: {}", code);
         return new JSONObject(Collections.emptyMap());
     }
