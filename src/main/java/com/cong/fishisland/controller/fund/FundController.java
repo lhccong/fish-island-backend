@@ -10,6 +10,7 @@ import com.cong.fishisland.model.dto.fund.DeleteFundRequest;
 import com.cong.fishisland.model.dto.fund.EditFundRequest;
 import com.cong.fishisland.model.dto.fund.UpdateFundRequest;
 import com.cong.fishisland.model.vo.fund.FundListVO;
+import com.cong.fishisland.model.vo.fund.MarketIndexVO;
 import com.cong.fishisland.service.FundService;
 import com.cong.fishisland.service.UserService;
 import io.swagger.annotations.ApiOperation;
@@ -17,6 +18,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.web.bind.annotation.*;
 
 import javax.annotation.Resource;
+import java.util.List;
 
 /**
  * 基金持仓接口
@@ -105,6 +107,19 @@ public class FundController {
         Long userId = userService.getLoginUser().getId();
         FundListVO fundList = fundService.getFundList(userId);
         return ResultUtils.success(fundList);
+    }
+
+    /**
+     * 获取国内主要指数行情
+     *
+     * @return 指数行情列表
+     */
+    @GetMapping("/indices")
+    @ApiOperation(value = "获取国内主要指数行情")
+    @SaCheckLogin
+    public BaseResponse<List<MarketIndexVO>> getMajorIndices() {
+        List<MarketIndexVO> indices = fundService.getMajorIndices();
+        return ResultUtils.success(indices);
     }
 }
 
