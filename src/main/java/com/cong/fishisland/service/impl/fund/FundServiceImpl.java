@@ -64,7 +64,7 @@ public class FundServiceImpl extends ServiceImpl<FundMapper, Fund> implements Fu
         // 获取基金实时数据用于计算份额和成本
         JSONObject fundData = null;
         try {
-            fundData = fundDataService.getBestFundData(code);
+            fundData = fundDataService.fetchFromSina(code);
         } catch (Exception e) {
             // 行情失败不影响录入，降级为本地计算
             log.warn("获取基金实时数据失败, code: {}, error: {}", code, e.getMessage());
@@ -107,8 +107,8 @@ public class FundServiceImpl extends ServiceImpl<FundMapper, Fund> implements Fu
         } else {
             // 解析现有的 fundJson
             String fundJson = fund.getFundJson();
-            fundList = StringUtils.isNotBlank(fundJson) 
-                    ? JSON.parseArray(fundJson) 
+            fundList = StringUtils.isNotBlank(fundJson)
+                    ? JSON.parseArray(fundJson)
                     : new JSONArray();
         }
 
@@ -202,7 +202,7 @@ public class FundServiceImpl extends ServiceImpl<FundMapper, Fund> implements Fu
         // 获取用户的基金记录
         Fund fund = this.getOne(new LambdaQueryWrapper<Fund>()
                 .eq(Fund::getUserId, userId));
-        
+
         if (fund == null || StringUtils.isBlank(fund.getFundJson())) {
             throw new BusinessException(ErrorCode.NOT_FOUND_ERROR, "未找到基金持仓记录");
         }
@@ -217,21 +217,21 @@ public class FundServiceImpl extends ServiceImpl<FundMapper, Fund> implements Fu
                 // 获取基金实时数据重新计算份额和成本
                 JSONObject fundData = null;
                 try {
-                    fundData = fundDataService.getBestFundData(code);
+                    fundData = fundDataService.fetchFromSina(code);
                 } catch (Exception e) {
                     log.warn("获取基金实时数据失败, code: {}, error: {}", code, e.getMessage());
                 }
 
                 BigDecimal currentPrice = BigDecimal.ONE;
                 String name = item.getString("name");
-                
+
                 if (fundData != null && !fundData.isEmpty()) {
                     currentPrice = BigDecimal.valueOf(fundData.getDoubleValue("gsz"));
                     if (fundData.getString("name") != null) {
                         name = fundData.getString("name");
                     }
                 }
-                
+
                 if (currentPrice.compareTo(BigDecimal.ZERO) <= 0) {
                     currentPrice = BigDecimal.ONE;
                 }
@@ -283,7 +283,7 @@ public class FundServiceImpl extends ServiceImpl<FundMapper, Fund> implements Fu
         // 获取用户的基金记录（@TableLogic会自动过滤已删除数据）
         Fund fund = this.getOne(new LambdaQueryWrapper<Fund>()
                 .eq(Fund::getUserId, userId));
-        
+
         if (fund == null || StringUtils.isBlank(fund.getFundJson())) {
             throw new BusinessException(ErrorCode.NOT_FOUND_ERROR, "未找到基金持仓记录");
         }
@@ -324,15 +324,17 @@ public class FundServiceImpl extends ServiceImpl<FundMapper, Fund> implements Fu
         // 获取用户的基金持仓记录（fundJson 仅存储持仓事实）
         Fund fund = this.getOne(new LambdaQueryWrapper<Fund>()
                 .eq(Fund::getUserId, userId));
-        
+
         FundListVO result = new FundListVO();
         List<FundItemVO> fundItemList = new ArrayList<>();
-        
+
         if (fund == null || StringUtils.isBlank(fund.getFundJson())) {
             result.setFundList(fundItemList);
             result.setTotalMarketValue(BigDecimal.ZERO);
             result.setTotalDayProfit(BigDecimal.ZERO);
+            result.setTotalDayProfitRate(BigDecimal.ZERO);
             result.setTotalProfit(BigDecimal.ZERO);
+            result.setTotalProfitRate(BigDecimal.ZERO);
             result.setTodayUpCount(0);
             result.setTodayDownCount(0);
             return result;
@@ -342,8 +344,8 @@ public class FundServiceImpl extends ServiceImpl<FundMapper, Fund> implements Fu
         BigDecimal totalMarketValue = BigDecimal.ZERO;
         BigDecimal totalDayProfit = BigDecimal.ZERO;
         BigDecimal totalProfit = BigDecimal.ZERO;
-        int todayUpCount = 0;    // 今日上涨的基金数量
-        int todayDownCount = 0;  // 今日下跌的基金数量
+        int todayUpCount = 0;
+        int todayDownCount = 0;
 
         // 重要：所有估值数据基于实时行情动态计算，估值过程不修改 fundJson
         for (int i = 0; i < fundList.size(); i++) {
@@ -370,7 +372,7 @@ public class FundServiceImpl extends ServiceImpl<FundMapper, Fund> implements Fu
                 currentPrice = BigDecimal.valueOf(fundData.getDoubleValue("gsz"));
                 prevPrice = BigDecimal.valueOf(fundData.getDoubleValue("dwjz"));
                 changePercent = BigDecimal.valueOf(fundData.getDoubleValue("gszzl"));
-                
+
                 // 更新基金名称
                 if (fundData.getString("name") != null && StringUtils.isNotBlank(fundData.getString("name"))) {
                     name = fundData.getString("name");
@@ -386,12 +388,18 @@ public class FundServiceImpl extends ServiceImpl<FundMapper, Fund> implements Fu
             // 计算市值、盈亏（与 app.py 的 process_single_fund 计算公式完全一致）
             // 1. 持有市值 = shares * currentPrice
             BigDecimal marketValue = shares.multiply(currentPrice);
-            
+
             // 2. 今日盈亏 = (currentPrice - prevPrice) * shares
             BigDecimal dayProfit = currentPrice.subtract(prevPrice).multiply(shares);
-            
+
             // 3. 累计盈亏 = (currentPrice - cost) * shares
             BigDecimal totalProfitItem = currentPrice.subtract(cost).multiply(shares);
+
+            // 4. 持有收益率 = (currentPrice - cost) / cost * 100
+            BigDecimal profitRate = BigDecimal.ZERO;
+            if (cost.compareTo(BigDecimal.ZERO) > 0) {
+                profitRate = currentPrice.subtract(cost).divide(cost, 4, RoundingMode.HALF_UP).multiply(new BigDecimal("100"));
+            }
 
             totalMarketValue = totalMarketValue.add(marketValue);
             totalDayProfit = totalDayProfit.add(dayProfit);
@@ -408,7 +416,7 @@ public class FundServiceImpl extends ServiceImpl<FundMapper, Fund> implements Fu
             // 生成当前请求时间（HH:mm:ss格式）
             String currentTime = LocalDateTime.now().format(DateTimeFormatter.ofPattern("HH:mm:ss"));
 
-            // 构建 VO
+            // 构建 VO）
             FundItemVO fundItemVO = new FundItemVO();
             fundItemVO.setCode(code);
             fundItemVO.setName(name != null ? name : "未知");
@@ -416,19 +424,38 @@ public class FundServiceImpl extends ServiceImpl<FundMapper, Fund> implements Fu
             fundItemVO.setCost(cost);
             fundItemVO.setCurrentPrice(currentPrice);
             fundItemVO.setPrevPrice(prevPrice);
-            fundItemVO.setChangePercent(changePercent.setScale(3, RoundingMode.HALF_UP));
+            fundItemVO.setChangePercent(changePercent.setScale(2, RoundingMode.HALF_UP));
             fundItemVO.setMarketValue(marketValue.setScale(2, RoundingMode.HALF_UP));
             fundItemVO.setDayProfit(dayProfit.setScale(2, RoundingMode.HALF_UP));
             fundItemVO.setTotalProfit(totalProfitItem.setScale(2, RoundingMode.HALF_UP));
+            fundItemVO.setProfitRate(profitRate.setScale(2, RoundingMode.HALF_UP));
             fundItemVO.setUpdateTime(currentTime);
 
             fundItemList.add(fundItemVO);
         }
 
+        // 计算今日总收益率 = 今日总盈亏 / (总市值 - 今日总盈亏) * 100
+        // 昨日总市值 = 总市值 - 今日总盈亏
+        BigDecimal totalDayProfitRate = BigDecimal.ZERO;
+        BigDecimal yesterdayTotalMarketValue = totalMarketValue.subtract(totalDayProfit);
+        if (yesterdayTotalMarketValue.compareTo(BigDecimal.ZERO) > 0) {
+            totalDayProfitRate = totalDayProfit.divide(yesterdayTotalMarketValue, 4, RoundingMode.HALF_UP).multiply(new BigDecimal("100"));
+        }
+
+        // 计算总持有收益率 = 累计总盈亏 / 总成本 * 100
+        // 总成本 = 总市值 - 累计总盈亏
+        BigDecimal totalProfitRate = BigDecimal.ZERO;
+        BigDecimal totalCost = totalMarketValue.subtract(totalProfit);
+        if (totalCost.compareTo(BigDecimal.ZERO) > 0) {
+            totalProfitRate = totalProfit.divide(totalCost, 4, RoundingMode.HALF_UP).multiply(new BigDecimal("100"));
+        }
+
         result.setFundList(fundItemList);
         result.setTotalMarketValue(totalMarketValue.setScale(2, RoundingMode.HALF_UP));
         result.setTotalDayProfit(totalDayProfit.setScale(2, RoundingMode.HALF_UP));
+        result.setTotalDayProfitRate(totalDayProfitRate.setScale(2, RoundingMode.HALF_UP));
         result.setTotalProfit(totalProfit.setScale(2, RoundingMode.HALF_UP));
+        result.setTotalProfitRate(totalProfitRate.setScale(2, RoundingMode.HALF_UP));
         result.setTodayUpCount(todayUpCount);
         result.setTodayDownCount(todayDownCount);
 

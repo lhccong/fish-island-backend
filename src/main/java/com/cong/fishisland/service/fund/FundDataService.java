@@ -279,9 +279,9 @@ public class FundDataService {
             return false;
         }
 
-        // 工作日交易时间段判断：09:00-15:00
-        LocalTime tradingStart = LocalTime.of(9, 0);   // 09:00
-        LocalTime tradingEnd = LocalTime.of(15, 0);    // 15:00
+        // 工作日交易时间段判断：09:00-20:30
+        LocalTime tradingStart = LocalTime.of(9, 0);
+        LocalTime tradingEnd = LocalTime.of(20, 30);
 
         return now.isAfter(tradingStart) && now.isBefore(tradingEnd);
     }
