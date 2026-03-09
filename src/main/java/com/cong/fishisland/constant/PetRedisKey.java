@@ -18,9 +18,9 @@ public interface PetRedisKey {
     String PET_RANK = "rank";
     
     /**
-     * 宠物达到30级的时间记录
+     * 宠物达到60级的时间记录
      */
-    String PET_LEVEL_30_TIME = "level30time";
+    String PET_LEVEL_60_TIME = "level60time";
 
     /**
      * 获取完整的Redis键
