@@ -1,6 +1,5 @@
 package com.cong.fishisland.datasource.hostpost;
 
-import cn.hutool.http.HttpRequest;
 import com.alibaba.fastjson.JSON;
 import com.alibaba.fastjson.JSONArray;
 import com.alibaba.fastjson.JSONObject;
@@ -9,8 +8,11 @@ import com.cong.fishisland.model.enums.CategoryTypeEnum;
 import com.cong.fishisland.model.enums.UpdateIntervalEnum;
 import com.cong.fishisland.model.vo.hot.HotPostDataVO;
 import lombok.extern.slf4j.Slf4j;
+import org.jsoup.Jsoup;
+import org.jsoup.nodes.Document;
 import org.springframework.stereotype.Component;
 
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -44,14 +46,15 @@ public class V2exDataSource implements DataSource {
         List<HotPostDataVO> dataList = new ArrayList<>();
         
         try {
-            // 发送HTTP请求获取JSON数据
-            String jsonResult = HttpRequest.get(API_URL)
-                    .header("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36")
+            // 获取主页面内容
+            Document document = Jsoup.connect(API_URL)
+                    .userAgent("Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:66.0) Gecko/20100101 Firefox/66.0")
+                    .ignoreContentType(true)
                     .timeout(TIMEOUT)
-                    .execute()
-                    .body();
-
-            // 解析JSON数组
+                    .get();
+            
+            // 解析热门商品列表
+            String jsonResult = document.text();
             JSONArray topics = JSON.parseArray(jsonResult);
             
             // 只取前20条
@@ -75,7 +78,7 @@ public class V2exDataSource implements DataSource {
             
             log.info("成功获取V2EX热榜数据，共{}条", dataList.size());
             
-        } catch (Exception e) {
+        } catch (IOException e) {
             log.error("获取V2EX热榜失败: {}", e.getMessage(), e);
             // 抓取失败时返回空数据，不影响其他热榜
             return buildEmptyHotPost();

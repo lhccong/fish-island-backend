@@ -55,8 +55,8 @@ public class DataSourceRegistry {
             put(HotDataKeyEnum.ZHI_BO_8.getValue(), zhiBo8DataSource);
             put(HotDataKeyEnum.TIE_BA.getValue(), tieBaDataSource);
             put(HotDataKeyEnum.QQ_MUSIC.getValue(), qqMusicDataSource);
-            put(HotDataKeyEnum.LINUX_DO.getValue(), linuxDoDataSource);
-            put(HotDataKeyEnum.V2EX.getValue(), v2exDataSource);
+//            put(HotDataKeyEnum.LINUX_DO.getValue(), linuxDoDataSource);
+//            put(HotDataKeyEnum.V2EX.getValue(), v2exDataSource);
         }};
     }
 
