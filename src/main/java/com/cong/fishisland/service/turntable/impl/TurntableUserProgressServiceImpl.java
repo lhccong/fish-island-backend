@@ -1,9 +1,10 @@
 package com.cong.fishisland.service.turntable.impl;
 
-import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
+import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import com.cong.fishisland.mapper.turntable.TurntableUserProgressMapper;
 import com.cong.fishisland.model.entity.turntable.TurntableUserProgress;
+import com.cong.fishisland.model.enums.turntable.GuaranteeTypeEnum;
 import com.cong.fishisland.service.turntable.TurntableUserProgressService;
 import org.springframework.stereotype.Service;
 
@@ -28,10 +29,10 @@ public class TurntableUserProgressServiceImpl extends ServiceImpl<TurntableUserP
 
     @Override
     public TurntableUserProgress getOrCreateProgress(Long userId, Long turntableId, Integer guaranteeCount) {
-        QueryWrapper<TurntableUserProgress> queryWrapper = new QueryWrapper<>();
-        queryWrapper.eq("userId", userId);
-        queryWrapper.eq("turntableId", turntableId);
-        queryWrapper.eq("isDelete", 0);
+        LambdaQueryWrapper<TurntableUserProgress> queryWrapper = new LambdaQueryWrapper<>();
+        queryWrapper.eq(TurntableUserProgress::getUserId, userId)
+                .eq(TurntableUserProgress::getTurntableId, turntableId)
+                .eq(TurntableUserProgress::getIsDelete, 0);
         
         TurntableUserProgress progress = this.getOne(queryWrapper);
         
@@ -64,10 +65,10 @@ public class TurntableUserProgressServiceImpl extends ServiceImpl<TurntableUserP
         
         // 如果命中保底，重置相应计数
         if (isGuaranteeHit) {
-            if (guaranteeType == 1) {
+            if (guaranteeType == GuaranteeTypeEnum.SMALL.getValue()) {
                 // 小保底命中，清零小保底计数
                 progress.setSmallFailCount(0);
-            } else if (guaranteeType == 2) {
+            } else if (guaranteeType == GuaranteeTypeEnum.BIG.getValue()) {
                 // 大保底命中，重置或减300
                 progress.setTotalDrawCount(Math.max(0, progress.getTotalDrawCount() - BIG_GUARANTEE_COUNT));
                 progress.setSmallFailCount(0);

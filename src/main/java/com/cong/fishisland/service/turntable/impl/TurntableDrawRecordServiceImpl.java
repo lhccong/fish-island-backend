@@ -1,6 +1,6 @@
 package com.cong.fishisland.service.turntable.impl;
 
-import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
+import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import com.cong.fishisland.mapper.turntable.TurntableDrawRecordMapper;
 import com.cong.fishisland.model.entity.turntable.TurntableDrawRecord;
@@ -23,11 +23,11 @@ public class TurntableDrawRecordServiceImpl extends ServiceImpl<TurntableDrawRec
 
     @Override
     public List<TurntableDrawRecord> listByUserIdAndTurntableId(Long userId, Long turntableId) {
-        QueryWrapper<TurntableDrawRecord> queryWrapper = new QueryWrapper<>();
-        queryWrapper.eq("userId", userId);
-        queryWrapper.eq("turntableId", turntableId);
-        queryWrapper.eq("isDelete", 0);
-        queryWrapper.orderByDesc("createTime");
+        LambdaQueryWrapper<TurntableDrawRecord> queryWrapper = new LambdaQueryWrapper<>();
+        queryWrapper.eq(TurntableDrawRecord::getUserId, userId)
+                .eq(TurntableDrawRecord::getTurntableId, turntableId)
+                .eq(TurntableDrawRecord::getIsDelete, 0)
+                .orderByDesc(TurntableDrawRecord::getCreateTime);
         return this.list(queryWrapper);
     }
 }

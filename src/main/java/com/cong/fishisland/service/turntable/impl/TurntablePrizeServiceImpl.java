@@ -1,6 +1,6 @@
 package com.cong.fishisland.service.turntable.impl;
 
-import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
+import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import com.cong.fishisland.common.ErrorCode;
 import com.cong.fishisland.common.exception.BusinessException;
@@ -21,19 +21,19 @@ public class TurntablePrizeServiceImpl extends ServiceImpl<TurntablePrizeMapper,
 
     @Override
     public List<TurntablePrize> listByTurntableId(Long turntableId) {
-        QueryWrapper<TurntablePrize> queryWrapper = new QueryWrapper<>();
-        queryWrapper.eq("turntableId", turntableId);
-        queryWrapper.eq("isDelete", 0);
+        LambdaQueryWrapper<TurntablePrize> queryWrapper = new LambdaQueryWrapper<>();
+        queryWrapper.eq(TurntablePrize::getTurntableId, turntableId)
+                .eq(TurntablePrize::getIsDelete, 0);
         return this.list(queryWrapper);
     }
 
     @Override
     public List<TurntablePrize> listAvailableByTurntableId(Long turntableId) {
-        QueryWrapper<TurntablePrize> queryWrapper = new QueryWrapper<>();
-        queryWrapper.eq("turntableId", turntableId);
-        queryWrapper.eq("isDelete", 0);
-        // 库存大于0或者库存为-1（无限）
-        queryWrapper.and(wrapper -> wrapper.gt("stock", 0).or().eq("stock", -1));
+        LambdaQueryWrapper<TurntablePrize> queryWrapper = new LambdaQueryWrapper<>();
+        queryWrapper.eq(TurntablePrize::getTurntableId, turntableId)
+                .eq(TurntablePrize::getIsDelete, 0)
+                // 库存大于0或者库存为-1（无限）
+                .and(wrapper -> wrapper.gt(TurntablePrize::getStock, 0).or().eq(TurntablePrize::getStock, -1));
         return this.list(queryWrapper);
     }
 }

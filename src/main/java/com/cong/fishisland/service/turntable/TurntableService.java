@@ -1,5 +1,6 @@
 package com.cong.fishisland.service.turntable;
 
+import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.extension.service.IService;
 import com.cong.fishisland.model.dto.turntable.DrawRequest;
 import com.cong.fishisland.model.dto.turntable.TurntableDrawRecordQueryRequest;
@@ -50,5 +51,5 @@ public interface TurntableService extends IService<Turntable> {
      * @param turntableQueryRequest 查询请求
      * @return 查询条件
      */
-    com.baomidou.mybatisplus.core.conditions.query.QueryWrapper<Turntable> getQueryWrapper(TurntableQueryRequest turntableQueryRequest);
+    LambdaQueryWrapper<Turntable> getQueryWrapper(TurntableQueryRequest turntableQueryRequest);
 }

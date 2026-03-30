@@ -1,7 +1,7 @@
 package com.cong.fishisland.service.turntable.impl;
 
 import cn.dev33.satoken.stp.StpUtil;
-import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
+import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import com.cong.fishisland.common.ErrorCode;
 import com.cong.fishisland.common.exception.BusinessException;
@@ -16,6 +16,9 @@ import com.cong.fishisland.model.entity.turntable.Turntable;
 import com.cong.fishisland.model.entity.turntable.TurntableDrawRecord;
 import com.cong.fishisland.model.entity.turntable.TurntablePrize;
 import com.cong.fishisland.model.entity.turntable.TurntableUserProgress;
+import com.cong.fishisland.model.enums.turntable.GuaranteeTypeEnum;
+import com.cong.fishisland.model.enums.turntable.PrizeQualityEnum;
+import com.cong.fishisland.model.enums.turntable.PrizeTypeEnum;
 import com.cong.fishisland.model.entity.user.UserTitle;
 import com.cong.fishisland.model.vo.turntable.*;
 import com.cong.fishisland.service.ItemInstancesService;
@@ -82,9 +85,9 @@ public class TurntableServiceImpl extends ServiceImpl<TurntableMapper, Turntable
 
     @Override
     public List<TurntableVO> listActiveTurntables(TurntableQueryRequest turntableQueryRequest) {
-        QueryWrapper<Turntable> queryWrapper = getQueryWrapper(turntableQueryRequest);
-        queryWrapper.eq("status", 1);
-        queryWrapper.eq("isDelete", 0);
+        LambdaQueryWrapper<Turntable> queryWrapper = getQueryWrapper(turntableQueryRequest);
+        queryWrapper.eq(Turntable::getStatus, 1)
+                .eq(Turntable::getIsDelete, 0);
         List<Turntable> turntables = this.list(queryWrapper);
         
         return turntables.stream().map(this::convertToVO).collect(Collectors.toList());
@@ -201,13 +204,13 @@ public class TurntableServiceImpl extends ServiceImpl<TurntableMapper, Turntable
     public List<DrawRecordVO> listDrawRecords(TurntableDrawRecordQueryRequest queryRequest) {
         Long userId = Long.valueOf(StpUtil.getLoginId().toString());
         
-        QueryWrapper<TurntableDrawRecord> queryWrapper = new QueryWrapper<>();
-        queryWrapper.eq("userId", userId);
+        LambdaQueryWrapper<TurntableDrawRecord> queryWrapper = new LambdaQueryWrapper<>();
+        queryWrapper.eq(TurntableDrawRecord::getUserId, userId);
         if (queryRequest != null && queryRequest.getTurntableId() != null) {
-            queryWrapper.eq("turntableId", queryRequest.getTurntableId());
+            queryWrapper.eq(TurntableDrawRecord::getTurntableId, queryRequest.getTurntableId());
         }
-        queryWrapper.eq("isDelete", 0);
-        queryWrapper.orderByDesc("createTime");
+        queryWrapper.eq(TurntableDrawRecord::getIsDelete, 0)
+                .orderByDesc(TurntableDrawRecord::getCreateTime);
         
         List<TurntableDrawRecord> records = turntableDrawRecordService.list(queryWrapper);
         
@@ -215,14 +218,14 @@ public class TurntableServiceImpl extends ServiceImpl<TurntableMapper, Turntable
     }
 
     @Override
-    public QueryWrapper<Turntable> getQueryWrapper(TurntableQueryRequest turntableQueryRequest) {
-        QueryWrapper<Turntable> queryWrapper = new QueryWrapper<>();
+    public LambdaQueryWrapper<Turntable> getQueryWrapper(TurntableQueryRequest turntableQueryRequest) {
+        LambdaQueryWrapper<Turntable> queryWrapper = new LambdaQueryWrapper<>();
         if (turntableQueryRequest == null) {
             return queryWrapper;
         }
         
         if (turntableQueryRequest.getType() != null) {
-            queryWrapper.eq("type", turntableQueryRequest.getType());
+            queryWrapper.eq(Turntable::getType, turntableQueryRequest.getType());
         }
         
         String sortField = turntableQueryRequest.getSortField();
@@ -230,9 +233,10 @@ public class TurntableServiceImpl extends ServiceImpl<TurntableMapper, Turntable
         boolean asc = "asc".equalsIgnoreCase(sortOrder);
         
         if (StringUtils.isNotBlank(sortField) && SqlUtils.validSortField(sortField)) {
-            queryWrapper.orderBy(true, asc, sortField);
+            // 动态排序字段使用 last 拼接 SQL（已通过 validSortField 校验，防止注入）
+            queryWrapper.last("ORDER BY " + sortField + (asc ? " ASC" : " DESC"));
         } else {
-            queryWrapper.orderByDesc("createTime");
+            queryWrapper.orderByDesc(Turntable::getCreateTime);
         }
         
         return queryWrapper;
@@ -250,18 +254,18 @@ public class TurntableServiceImpl extends ServiceImpl<TurntableMapper, Turntable
         // 检查大保底（累计抽奖次数达到阈值）
         if (totalDrawCount + remainingDraws >= BIG_GUARANTEE_COUNT) {
             result.isTriggered = true;
-            result.guaranteeType = 2;
+            result.guaranteeType = GuaranteeTypeEnum.BIG.getValue();
             // 史诗及以上
-            result.minQuality = 3;
+            result.minQuality = PrizeQualityEnum.EPIC.getValue();
             return result;
         }
         
         // 检查小保底（连续未抽中高品质次数达到阈值）
         if (smallFailCount + remainingDraws >= SMALL_GUARANTEE_COUNT) {
             result.isTriggered = true;
-            result.guaranteeType = 1;
+            result.guaranteeType = GuaranteeTypeEnum.SMALL.getValue();
             // 稀有及以上
-            result.minQuality = 2;
+            result.minQuality = PrizeQualityEnum.RARE.getValue();
             return result;
         }
         
@@ -274,7 +278,7 @@ public class TurntableServiceImpl extends ServiceImpl<TurntableMapper, Turntable
      */
     private void updateProgressForDraw(TurntableUserProgress progress, TurntablePrize prize, boolean isGuarantee, int guaranteeType) {
         // 如果抽中高品质（稀有及以上），重置小保底计数
-        if (prize.getQuality() != null && prize.getQuality() >= 2) {
+        if (prize.getQuality() != null && prize.getQuality() >= PrizeQualityEnum.RARE.getValue()) {
             progress.setSmallFailCount(0);
         } else {
             progress.setSmallFailCount(progress.getSmallFailCount() + 1);
@@ -285,9 +289,9 @@ public class TurntableServiceImpl extends ServiceImpl<TurntableMapper, Turntable
         
         // 如果触发保底，重置相应计数
         if (isGuarantee) {
-            if (guaranteeType == 1) {
+            if (guaranteeType == GuaranteeTypeEnum.SMALL.getValue()) {
                 progress.setSmallFailCount(0);
-            } else if (guaranteeType == 2) {
+            } else if (guaranteeType == GuaranteeTypeEnum.BIG.getValue()) {
                 progress.setTotalDrawCount(Math.max(0, progress.getTotalDrawCount() - BIG_GUARANTEE_COUNT));
                 progress.setSmallFailCount(0);
             }
@@ -308,7 +312,7 @@ public class TurntableServiceImpl extends ServiceImpl<TurntableMapper, Turntable
         vo.setConvertedPoints(0);
 
         // 获取奖品名称和图片
-        if (prize.getPrizeType() == 1) {
+        if (prize.getPrizeType().equals(PrizeTypeEnum.EQUIPMENT.getValue())) {
             // 装备类型
             ItemTemplates template = itemTemplatesService.getById(prize.getPrizeId());
             if (template != null) {
@@ -316,7 +320,7 @@ public class TurntableServiceImpl extends ServiceImpl<TurntableMapper, Turntable
                 vo.setIcon(template.getIcon());
                 vo.setConvertedPoints(template.getRemovePoint());
             }
-        } else if (prize.getPrizeType() == 2) {
+        } else if (prize.getPrizeType().equals(PrizeTypeEnum.TITLE.getValue())) {
             // 称号类型
             UserTitle title = userTitleService.getById(prize.getPrizeId());
             if (title != null) {
@@ -342,7 +346,7 @@ public class TurntableServiceImpl extends ServiceImpl<TurntableMapper, Turntable
             record.setPrizeType(prize.getPrizeType());
             record.setQuality(prize.getQuality());
             record.setCostPoints(totalCostPoints / prizes.size());
-            record.setIsGuarantee(prize.getConvertedToPoints() ? 0 : (prize.getQuality() >= 2 ? 1 : 0));
+            record.setIsGuarantee(prize.getConvertedToPoints() ? GuaranteeTypeEnum.NONE.getValue() : (prize.getQuality() >= PrizeQualityEnum.RARE.getValue() ? GuaranteeTypeEnum.SMALL.getValue() : GuaranteeTypeEnum.NONE.getValue()));
             return record;
         }).collect(Collectors.toList());
 
@@ -355,7 +359,7 @@ public class TurntableServiceImpl extends ServiceImpl<TurntableMapper, Turntable
     private void deliverPrizes(Long userId, List<DrawPrizeVO> prizes) {
         for (DrawPrizeVO prize : prizes) {
             try {
-                if (prize.getPrizeType() == 1) {
+                if (prize.getPrizeType().equals(PrizeTypeEnum.EQUIPMENT.getValue())) {
                     // 装备类型 - 添加到用户背包
                     ItemInstances instance = new ItemInstances();
                     instance.setTemplateId(prize.getPrizeId());
@@ -363,7 +367,7 @@ public class TurntableServiceImpl extends ServiceImpl<TurntableMapper, Turntable
                     instance.setQuantity(1);
                     instance.setBound(1);
                     itemInstancesService.save(instance);
-                } else if (prize.getPrizeType() == 2) {
+                } else if (prize.getPrizeType().equals(PrizeTypeEnum.TITLE.getValue())) {
                     // 称号类型 - 添加到用户称号列表
                     userTitleService.addTitleToUser(userId, prize.getPrizeId());
                 }
@@ -395,13 +399,13 @@ public class TurntableServiceImpl extends ServiceImpl<TurntableMapper, Turntable
         vo.setQualityName(getQualityName(prize.getQuality()));
 
         // 获取奖品名称和图片
-        if (prize.getPrizeType() == 1) {
+        if (prize.getPrizeType().equals(PrizeTypeEnum.EQUIPMENT.getValue())) {
             ItemTemplates template = itemTemplatesService.getById(prize.getPrizeId());
             if (template != null) {
                 vo.setName(template.getName());
                 vo.setIcon(template.getIcon());
             }
-        } else if (prize.getPrizeType() == 2) {
+        } else if (prize.getPrizeType().equals(PrizeTypeEnum.TITLE.getValue())) {
             UserTitle title = userTitleService.getById(prize.getPrizeId());
             if (title != null) {
                 vo.setName(title.getName());
@@ -427,16 +431,16 @@ public class TurntableServiceImpl extends ServiceImpl<TurntableMapper, Turntable
     private DrawRecordVO convertRecordToVO(TurntableDrawRecord record) {
         DrawRecordVO vo = new DrawRecordVO();
         BeanUtils.copyProperties(record, vo);
-        vo.setIsGuarantee(record.getIsGuarantee() != null && record.getIsGuarantee() == 1);
+        vo.setIsGuarantee(record.getIsGuarantee() != null && record.getIsGuarantee().equals(GuaranteeTypeEnum.SMALL.getValue()));
         vo.setQualityName(getQualityName(record.getQuality()));
 
         // 获取奖品图片
-        if (record.getPrizeType() == 1) {
+        if (record.getPrizeType().equals(PrizeTypeEnum.EQUIPMENT.getValue())) {
             ItemTemplates template = itemTemplatesService.getById(record.getPrizeId());
             if (template != null) {
                 vo.setIcon(template.getIcon());
             }
-        } else if (record.getPrizeType() == 2) {
+        } else if (record.getPrizeType().equals(PrizeTypeEnum.TITLE.getValue())) {
             UserTitle title = userTitleService.getById(record.getPrizeId());
             if (title != null) {
                 vo.setIcon(title.getTitleImg());
@@ -450,21 +454,8 @@ public class TurntableServiceImpl extends ServiceImpl<TurntableMapper, Turntable
      * 获取品质名称
      */
     private String getQualityName(Integer quality) {
-        if (quality == null) {
-            return "普通";
-        }
-        switch (quality) {
-            case 1:
-                return "普通(N)";
-            case 2:
-                return "稀有(R)";
-            case 3:
-                return "史诗(SR)";
-            case 4:
-                return "传说(SSR)";
-            default:
-                return "普通";
-        }
+        PrizeQualityEnum qualityEnum = PrizeQualityEnum.getEnumByValue(quality);
+        return qualityEnum != null ? qualityEnum.getText() : PrizeQualityEnum.NORMAL.getText();
     }
 
     /**
