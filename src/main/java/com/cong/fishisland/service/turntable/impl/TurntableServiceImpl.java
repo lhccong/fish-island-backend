@@ -28,6 +28,8 @@ import com.cong.fishisland.service.UserTitleService;
 import com.cong.fishisland.service.turntable.*;
 import com.cong.fishisland.service.turntable.strategy.DrawStrategy;
 import com.cong.fishisland.service.turntable.strategy.impl.GuaranteeDrawStrategy;
+import static com.cong.fishisland.model.enums.user.PointsRecordSourceEnum.*;
+
 import com.cong.fishisland.service.turntable.strategy.impl.WeightRandomDrawStrategy;
 import com.cong.fishisland.utils.SqlUtils;
 import org.apache.commons.lang3.StringUtils;
@@ -133,7 +135,7 @@ public class TurntableServiceImpl extends ServiceImpl<TurntableMapper, Turntable
         int totalCostPoints = turntable.getCostPoints() * drawCount;
 
         // 扣除积分
-        userPointsService.deductPoints(userId, totalCostPoints);
+        userPointsService.deductPoints(userId, totalCostPoints, TURNTABLE.getValue(), turntableId.toString(), "转盘抽奖");
 
         // 获取奖品列表
         List<TurntablePrize> prizes = turntablePrizeService.listAvailableByTurntableId(turntableId);
@@ -379,7 +381,7 @@ public class TurntableServiceImpl extends ServiceImpl<TurntableMapper, Turntable
             } catch (Exception e) {
                 // 如果发放失败，转换为积分
                 if (prize.getConvertedPoints() != null && prize.getConvertedPoints() > 0) {
-                    userPointsService.updateUsedPoints(userId, -prize.getConvertedPoints());
+                    userPointsService.updateUsedPoints(userId, -prize.getConvertedPoints(), PRIZE_CONVERT.getValue(), null, "奖品转积分");
                     prize.setConvertedToPoints(true);
                 }
             }

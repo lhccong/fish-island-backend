@@ -16,6 +16,8 @@ import com.cong.fishisland.model.entity.props.Props;
 import com.cong.fishisland.model.entity.user.User;
 import com.cong.fishisland.model.entity.user.UserVip;
 import com.cong.fishisland.model.vo.props.PropsVO;
+import static com.cong.fishisland.model.enums.user.PointsRecordSourceEnum.*;
+
 import com.cong.fishisland.service.PropsService;
 import com.cong.fishisland.service.UserPointsService;
 import com.cong.fishisland.service.UserService;
@@ -111,7 +113,7 @@ public class PropsServiceImpl extends ServiceImpl<PropsMapper, Props> implements
         Long userId = loginUser.getId();
         
         // 3. 扣除用户积分
-        userPointsService.deductPoints(userId, props.getPoints());
+        userPointsService.deductPoints(userId, props.getPoints(), PROPS_PURCHASE.getValue(), propsId.toString(), "购买道具");
         
         // 4. 根据道具类型进行不同的处理
         String propsType = props.getType();

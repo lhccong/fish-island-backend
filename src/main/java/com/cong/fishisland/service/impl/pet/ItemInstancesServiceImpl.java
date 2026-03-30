@@ -16,6 +16,8 @@ import com.cong.fishisland.model.entity.pet.ItemTemplates;
 import com.cong.fishisland.model.entity.user.User;
 import com.cong.fishisland.model.vo.pet.ItemInstanceVO;
 import com.cong.fishisland.model.vo.pet.ItemTemplateVO;
+import static com.cong.fishisland.model.enums.user.PointsRecordSourceEnum.*;
+
 import com.cong.fishisland.service.ItemInstancesService;
 import com.cong.fishisland.service.ItemTemplatesService;
 import com.cong.fishisland.service.UserPointsService;
@@ -343,7 +345,7 @@ public class ItemInstancesServiceImpl extends ServiceImpl<ItemInstancesMapper, I
         Long totalPoints = removePoint * quantity;
 
         // 4. 发放积分
-        userPointsService.updateUsedPoints(userId, -totalPoints.intValue());
+        userPointsService.updateUsedPoints(userId, -totalPoints.intValue(), ITEM_DECOMPOSE.getValue(), templateId.toString(), "物品分解获得积分");
 
         // 5. 场景1需要删除物品实例
         if (itemInstanceId != null && itemInstanceId > 0) {

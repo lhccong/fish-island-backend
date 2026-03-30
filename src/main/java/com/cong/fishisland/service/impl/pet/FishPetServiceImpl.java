@@ -17,11 +17,10 @@ import com.cong.fishisland.model.vo.pet.PetRankVO;
 import com.cong.fishisland.model.vo.pet.PetSkinVO;
 import com.cong.fishisland.model.vo.pet.PetVO;
 import com.cong.fishisland.model.entity.user.User;
-import com.cong.fishisland.service.FishPetService;
-import com.cong.fishisland.service.PetSkinService;
-import com.cong.fishisland.service.UserPointsService;
-import com.cong.fishisland.service.UserTitleService;
-import com.cong.fishisland.service.UserService;
+import com.cong.fishisland.service.*;
+
+import static com.cong.fishisland.model.enums.user.PointsRecordSourceEnum.*;
+
 import com.cong.fishisland.service.event.EventRemindHandler;
 import com.cong.fishisland.utils.RedisUtils;
 import lombok.RequiredArgsConstructor;
@@ -188,7 +187,7 @@ public class FishPetServiceImpl extends ServiceImpl<FishPetMapper, FishPet> impl
         }
 
         // 扣除用户积分
-        userPointsService.deductPoints(userId, RENAME_POINT_COST);
+        userPointsService.deductPoints(userId, RENAME_POINT_COST, PET_RENAME.getValue(), null, "宠物改名");
 
         // 修改名称
         fishPet.setName(name);
@@ -239,7 +238,7 @@ public class FishPetServiceImpl extends ServiceImpl<FishPetMapper, FishPet> impl
         }
 
         // 扣除用户积分
-        userPointsService.deductPoints(userId, FEED_POINT_COST);
+        userPointsService.deductPoints(userId, FEED_POINT_COST, PET_FEED.getValue(), null, "宠物喂食");
 
         // 更新宠物饥饿度和心情值
         int newHunger = Math.min(100, fishPet.getHunger() + FEED_HUNGER_INCREASE);
@@ -282,7 +281,7 @@ public class FishPetServiceImpl extends ServiceImpl<FishPetMapper, FishPet> impl
         }
 
         // 扣除用户积分
-        userPointsService.deductPoints(userId, PAT_POINT_COST);
+        userPointsService.deductPoints(userId, PAT_POINT_COST, PET_PAT.getValue(), null, "宠物抚摸");
 
         // 更新宠物心情值
         int newMood = Math.min(100, fishPet.getMood() + PAT_MOOD_INCREASE);
@@ -376,7 +375,7 @@ public class FishPetServiceImpl extends ServiceImpl<FishPetMapper, FishPet> impl
                 int pointsToAdd = Math.min(level, maxPoints);
 
                 // 为用户增加积分（非签到积分）
-                userPointsService.updateUsedPoints(userId, -pointsToAdd);
+                userPointsService.updateUsedPoints(userId, -pointsToAdd, PET_DAILY.getValue(), null, "宠物每日产出积分");
 
                 log.info("宠物产出积分：用户ID={}, 宠物等级={}, 产出积分={}", userId, level, pointsToAdd);
                 count++;

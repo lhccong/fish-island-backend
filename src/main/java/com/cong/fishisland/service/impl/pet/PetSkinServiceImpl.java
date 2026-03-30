@@ -16,6 +16,8 @@ import com.cong.fishisland.model.entity.pet.FishPet;
 import com.cong.fishisland.model.entity.pet.PetSkin;
 import com.cong.fishisland.model.vo.pet.PetSkinVO;
 import com.cong.fishisland.model.vo.pet.PetVO;
+import static com.cong.fishisland.model.enums.user.PointsRecordSourceEnum.*;
+
 import com.cong.fishisland.service.PetSkinService;
 import com.cong.fishisland.service.UserPointsService;
 import org.apache.commons.lang3.StringUtils;
@@ -114,7 +116,7 @@ public class PetSkinServiceImpl extends ServiceImpl<PetSkinMapper, PetSkin> impl
         }
         
         // 扣除积分
-        userPointsService.deductPoints(userId, petSkin.getPoints());
+        userPointsService.deductPoints(userId, petSkin.getPoints(), SKIN_EXCHANGE.getValue(), skinId.toString(), "兑换宠物皮肤");
         
         // 更新宠物扩展数据，添加皮肤ID
         ownedSkinIds.add(skinId);

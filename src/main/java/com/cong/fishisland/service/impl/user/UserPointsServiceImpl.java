@@ -10,6 +10,7 @@ import com.cong.fishisland.constant.VipTypeConstant;
 import com.cong.fishisland.mapper.user.UserVipMapper;
 import com.cong.fishisland.model.entity.user.UserPoints;
 import com.cong.fishisland.model.entity.user.UserVip;
+import com.cong.fishisland.service.UserPointsRecordService;
 import com.cong.fishisland.service.UserPointsService;
 import com.cong.fishisland.mapper.user.UserPointsMapper;
 import com.cong.fishisland.service.UserVipService;
@@ -23,6 +24,8 @@ import java.time.LocalDateTime;
 import java.util.Date;
 import java.util.Optional;
 
+import static com.cong.fishisland.model.enums.user.PointsRecordSourceEnum.*;
+
 /**
  * @author cong
  * @description 针对表【user_points(用户积分)】的数据库操作Service实现
@@ -33,6 +36,9 @@ public class UserPointsServiceImpl extends ServiceImpl<UserPointsMapper, UserPoi
         implements UserPointsService {
     @Resource
     private UserVipMapper userVipMapper;
+
+    @Resource
+    private UserPointsRecordService userPointsRecordService;
 
     private static final String SIGN_IN_KEY_PREFIX = "user:signin:";
     private static final String SPEAK_KEY_PREFIX = "user:speak:";
@@ -61,8 +67,24 @@ public class UserPointsServiceImpl extends ServiceImpl<UserPointsMapper, UserPoi
         Long userId = Long.valueOf(loginUserId.toString());
         updatePoints(userId, PointConstant.SIGN_IN_POINT, true);
 
+        // 记录积分变动
+        UserPoints userPoints = this.getById(userId);
+        int beforePoints = userPoints.getPoints() - PointConstant.SIGN_IN_POINT;
+        int afterPoints = userPoints.getPoints();
+        int usedPoints = userPoints.getUsedPoints() == null ? 0 : userPoints.getUsedPoints();
+        userPointsRecordService.addPointsIncreaseRecord(userId, PointConstant.SIGN_IN_POINT, SIGN_IN.getValue(), "每日签到奖励",
+                beforePoints, afterPoints, usedPoints, usedPoints);
+
         if (isUserVip(userId)) {
             updateUsedPoints(userId, -PointConstant.SIGN_IN_POINT);
+            // VIP签到返还积分记录
+            UserPoints vipUserPoints = this.getById(userId);
+            int vipBeforePoints = vipUserPoints.getPoints() - PointConstant.SIGN_IN_POINT;
+            int vipAfterPoints = vipUserPoints.getPoints();
+            int vipBeforeUsedPoints = vipUserPoints.getUsedPoints() + PointConstant.SIGN_IN_POINT;
+            int vipAfterUsedPoints = vipUserPoints.getUsedPoints();
+            userPointsRecordService.addPointsIncreaseRecord(userId, PointConstant.SIGN_IN_POINT, SIGN_IN.getValue(), "VIP签到积分返还",
+                    vipBeforePoints, vipAfterPoints, vipBeforeUsedPoints, vipAfterUsedPoints);
         }
 
 
@@ -121,6 +143,14 @@ public class UserPointsServiceImpl extends ServiceImpl<UserPointsMapper, UserPoi
         // **数据库增加积分**
         updatePoints(userId, PointConstant.SPEAK_POINT, false);
 
+        // 记录积分变动
+        UserPoints speakUserPoints = this.getById(userId);
+        int speakBeforePoints = speakUserPoints.getPoints() - PointConstant.SPEAK_POINT;
+        int speakAfterPoints = speakUserPoints.getPoints();
+        int speakUsedPoints = speakUserPoints.getUsedPoints() == null ? 0 : speakUserPoints.getUsedPoints();
+        userPointsRecordService.addPointsIncreaseRecord(userId, PointConstant.SPEAK_POINT, SPEAK.getValue(), "房间发言奖励",
+                speakBeforePoints, speakAfterPoints, speakUsedPoints, speakUsedPoints);
+
         // **更新 Redis 计数**
         LocalDateTime now = LocalDateTime.now();
         LocalDateTime nextDayMidnight = now.plusDays(1).withHour(0).withMinute(0).withSecond(0).withNano(0);
@@ -143,8 +173,75 @@ public class UserPointsServiceImpl extends ServiceImpl<UserPointsMapper, UserPoi
         ThrowUtils.throwIf(userPoints == null, ErrorCode.NOT_FOUND_ERROR, "用户积分不存在");
         int availablePoints = userPoints.getPoints() - userPoints.getUsedPoints();
         ThrowUtils.throwIf(availablePoints < pointsToDeduct, ErrorCode.OPERATION_ERROR, "用户积分不足");
+        int beforeUsedPoints = userPoints.getUsedPoints();
         userPoints.setUsedPoints(userPoints.getUsedPoints() + pointsToDeduct);
         this.updateById(userPoints);
+
+        // 记录积分变动
+        userPointsRecordService.addPointsRecord(userId, 2, pointsToDeduct,
+                userPoints.getPoints(), userPoints.getPoints(),
+                beforeUsedPoints, userPoints.getUsedPoints(),
+                OTHER.getValue(), null, "积分扣除");
+    }
+
+    /**
+     * 扣除积分（带来源信息）
+     *
+     * @param userId         用户ID
+     * @param pointsToDeduct 要扣除的积分
+     * @param sourceType     来源类型
+     * @param sourceId       来源ID
+     * @param description    描述
+     */
+    public void deductPoints(Long userId, Integer pointsToDeduct, String sourceType, String sourceId, String description) {
+        // 检查用户积分是否足够
+        UserPoints userPoints = this.getById(userId);
+        ThrowUtils.throwIf(userPoints == null, ErrorCode.NOT_FOUND_ERROR, "用户积分不存在");
+        int availablePoints = userPoints.getPoints() - userPoints.getUsedPoints();
+
+        ThrowUtils.throwIf(availablePoints < pointsToDeduct, ErrorCode.OPERATION_ERROR, "用户积分不足");
+        int beforeUsedPoints = userPoints.getUsedPoints();
+
+        userPoints.setUsedPoints(userPoints.getUsedPoints() + pointsToDeduct);
+        this.updateById(userPoints);
+
+        // 记录积分变动
+        userPointsRecordService.addPointsRecord(userId, 2, pointsToDeduct,
+                userPoints.getPoints(), userPoints.getPoints(),
+                beforeUsedPoints, userPoints.getUsedPoints(),
+                sourceType, sourceId, description);
+    }
+
+    /**
+     * 更新已用积分（带来源信息）
+     *
+     * @param userId      用户ID
+     * @param points      积分变动（负数表示返还）
+     * @param sourceType  来源类型
+     * @param sourceId    来源ID
+     * @param description 描述
+     */
+    public void updateUsedPoints(Long userId, Integer points, String sourceType, String sourceId, String description) {
+        UserPoints userPoints = this.getById(userId);
+        int beforeUsedPoints = userPoints.getUsedPoints() == null ? 0 : userPoints.getUsedPoints();
+        int afterUsedPoints = beforeUsedPoints + points;
+        userPoints.setUsedPoints(afterUsedPoints);
+        this.updateById(userPoints);
+
+        // 记录积分变动
+        if (points < 0) {
+            // 积分返还
+            userPointsRecordService.addPointsRecord(userId, 1, -points,
+                    userPoints.getPoints(), userPoints.getPoints(),
+                    beforeUsedPoints, afterUsedPoints,
+                    sourceType, sourceId, description);
+        } else {
+            // 积分扣除
+            userPointsRecordService.addPointsRecord(userId, 2, points,
+                    userPoints.getPoints(), userPoints.getPoints(),
+                    beforeUsedPoints, afterUsedPoints,
+                    sourceType, sourceId, description);
+        }
     }
 
     public boolean isUserVip(Long userId) {

@@ -4,6 +4,8 @@ import com.alibaba.fastjson.JSON;
 import com.cong.fishisland.common.ErrorCode;
 import com.cong.fishisland.common.exception.BusinessException;
 import com.cong.fishisland.model.dto.redpacket.CreateRedPacketRequest;
+import static com.cong.fishisland.model.enums.user.PointsRecordSourceEnum.*;
+
 import com.cong.fishisland.model.entity.chat.RoomMessage;
 import com.cong.fishisland.model.entity.redpacket.RedPacket;
 import com.cong.fishisland.model.entity.redpacket.RedPacketRecord;
@@ -243,7 +245,7 @@ public class RedPacketServiceImpl implements RedPacketService {
         if (!Objects.equals(loginUser.getUserRole(), UserRoleEnum.ADMIN.getValue())) {
             // VIP用户每日第一个红包不需要花积分
             if (!(userVip && dailyCount == 0)) {
-                userPointsService.updateUsedPoints(loginUser.getId(), request.getTotalAmount());
+                userPointsService.updateUsedPoints(loginUser.getId(), request.getTotalAmount(), RED_PACKET_SEND.getValue(), redPacketId, "发送红包");
             }
         }
 
@@ -361,7 +363,7 @@ public class RedPacketServiceImpl implements RedPacketService {
             redisTemplate.opsForSet().add(redPacketRecordKey, record);
 
             //增加用户积分
-            userPointsService.updateUsedPoints(userId, -amount);
+            userPointsService.updateUsedPoints(userId, -amount, RED_PACKET_GRAB.getValue(), redPacketId, "抢红包获得积分");
 
             return amount;
         } finally {
