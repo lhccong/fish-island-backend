@@ -17,16 +17,6 @@ import java.util.Date;
 @Service
 public class TurntableUserProgressServiceImpl extends ServiceImpl<TurntableUserProgressMapper, TurntableUserProgress> implements TurntableUserProgressService {
 
-    /**
-     * 小保底触发次数
-     */
-    private static final int SMALL_GUARANTEE_COUNT = 10;
-
-    /**
-     * 大保底触发次数
-     */
-    private static final int BIG_GUARANTEE_COUNT = 300;
-
     @Override
     public TurntableUserProgress getOrCreateProgress(Long userId, Long turntableId, Integer guaranteeCount) {
         LambdaQueryWrapper<TurntableUserProgress> queryWrapper = new LambdaQueryWrapper<>();
@@ -42,7 +32,7 @@ public class TurntableUserProgressServiceImpl extends ServiceImpl<TurntableUserP
             progress.setTurntableId(turntableId);
             progress.setSmallFailCount(0);
             progress.setTotalDrawCount(0);
-            progress.setGuaranteeCount(guaranteeCount != null ? guaranteeCount : BIG_GUARANTEE_COUNT);
+            progress.setGuaranteeCount(guaranteeCount != null ? guaranteeCount : 300);
             progress.setLastDrawTime(new Date());
             this.save(progress);
         }
@@ -52,7 +42,11 @@ public class TurntableUserProgressServiceImpl extends ServiceImpl<TurntableUserP
 
     @Override
     public void updateProgress(Long userId, Long turntableId, boolean isGuaranteeHit, int guaranteeType, int drawCount) {
-        TurntableUserProgress progress = this.getOrCreateProgress(userId, turntableId, BIG_GUARANTEE_COUNT);
+        // 传入 0 表示获取已有进度，不创建新进度
+        TurntableUserProgress progress = this.getOrCreateProgress(userId, turntableId, 0);
+        
+        // 获取保底次数配置
+        int guaranteeCount = progress.getGuaranteeCount() != null ? progress.getGuaranteeCount() : 0;
         
         // 更新累计抽奖次数
         progress.setTotalDrawCount(progress.getTotalDrawCount() + drawCount);
@@ -69,8 +63,8 @@ public class TurntableUserProgressServiceImpl extends ServiceImpl<TurntableUserP
                 // 小保底命中，清零小保底计数
                 progress.setSmallFailCount(0);
             } else if (guaranteeType == GuaranteeTypeEnum.BIG.getValue()) {
-                // 大保底命中，重置或减300
-                progress.setTotalDrawCount(Math.max(0, progress.getTotalDrawCount() - BIG_GUARANTEE_COUNT));
+                // 大保底命中，重置或减保底次数
+                progress.setTotalDrawCount(Math.max(0, progress.getTotalDrawCount() - guaranteeCount));
                 progress.setSmallFailCount(0);
             }
         }

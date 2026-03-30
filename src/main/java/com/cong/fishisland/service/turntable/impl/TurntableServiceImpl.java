@@ -74,14 +74,9 @@ public class TurntableServiceImpl extends ServiceImpl<TurntableMapper, Turntable
     private GuaranteeDrawStrategy guaranteeDrawStrategy;
 
     /**
-     * 小保底触发次数
+     * 小保底触发次数比例（大保底次数 / 30）
      */
-    private static final int SMALL_GUARANTEE_COUNT = 10;
-
-    /**
-     * 大保底触发次数
-     */
-    private static final int BIG_GUARANTEE_COUNT = 300;
+    private static final int SMALL_GUARANTEE_RATIO = 30;
 
     @Override
     public List<TurntableVO> listActiveTurntables(TurntableQueryRequest turntableQueryRequest) {
@@ -248,11 +243,20 @@ public class TurntableServiceImpl extends ServiceImpl<TurntableMapper, Turntable
     private GuaranteeCheckResult checkGuarantee(TurntableUserProgress progress, int remainingDraws) {
         GuaranteeCheckResult result = new GuaranteeCheckResult();
         
+        // 获取保底次数配置，0 表示无保底
+        int guaranteeCount = progress.getGuaranteeCount() != null ? progress.getGuaranteeCount() : 0;
+        if (guaranteeCount <= 0) {
+            result.isTriggered = false;
+            return result;
+        }
+        
         int totalDrawCount = progress.getTotalDrawCount() + (progress.getTotalDrawCount() > 0 ? 1 : 0);
         int smallFailCount = progress.getSmallFailCount();
+        // 小保底次数 = 大保底次数 / 30
+        int smallGuaranteeCount = Math.max(1, guaranteeCount / SMALL_GUARANTEE_RATIO);
         
         // 检查大保底（累计抽奖次数达到阈值）
-        if (totalDrawCount + remainingDraws >= BIG_GUARANTEE_COUNT) {
+        if (totalDrawCount + remainingDraws >= guaranteeCount) {
             result.isTriggered = true;
             result.guaranteeType = GuaranteeTypeEnum.BIG.getValue();
             // 史诗及以上
@@ -261,7 +265,7 @@ public class TurntableServiceImpl extends ServiceImpl<TurntableMapper, Turntable
         }
         
         // 检查小保底（连续未抽中高品质次数达到阈值）
-        if (smallFailCount + remainingDraws >= SMALL_GUARANTEE_COUNT) {
+        if (smallFailCount + remainingDraws >= smallGuaranteeCount) {
             result.isTriggered = true;
             result.guaranteeType = GuaranteeTypeEnum.SMALL.getValue();
             // 稀有及以上
@@ -289,10 +293,11 @@ public class TurntableServiceImpl extends ServiceImpl<TurntableMapper, Turntable
         
         // 如果触发保底，重置相应计数
         if (isGuarantee) {
+            int guaranteeCount = progress.getGuaranteeCount() != null ? progress.getGuaranteeCount() : 0;
             if (guaranteeType == GuaranteeTypeEnum.SMALL.getValue()) {
                 progress.setSmallFailCount(0);
             } else if (guaranteeType == GuaranteeTypeEnum.BIG.getValue()) {
-                progress.setTotalDrawCount(Math.max(0, progress.getTotalDrawCount() - BIG_GUARANTEE_COUNT));
+                progress.setTotalDrawCount(Math.max(0, progress.getTotalDrawCount() - guaranteeCount));
                 progress.setSmallFailCount(0);
             }
         }
@@ -434,16 +439,22 @@ public class TurntableServiceImpl extends ServiceImpl<TurntableMapper, Turntable
         vo.setIsGuarantee(record.getIsGuarantee() != null && record.getIsGuarantee().equals(GuaranteeTypeEnum.SMALL.getValue()));
         vo.setQualityName(getQualityName(record.getQuality()));
 
-        // 获取奖品图片
-        if (record.getPrizeType().equals(PrizeTypeEnum.EQUIPMENT.getValue())) {
+        // 获取奖品图片和名称（如果记录中没有）
+        if (record.getPrizeType() != null && record.getPrizeType().equals(PrizeTypeEnum.EQUIPMENT.getValue())) {
             ItemTemplates template = itemTemplatesService.getById(record.getPrizeId());
             if (template != null) {
                 vo.setIcon(template.getIcon());
+                if (vo.getName() == null) {
+                    vo.setName(template.getName());
+                }
             }
-        } else if (record.getPrizeType().equals(PrizeTypeEnum.TITLE.getValue())) {
+        } else if (record.getPrizeType() != null && record.getPrizeType().equals(PrizeTypeEnum.TITLE.getValue())) {
             UserTitle title = userTitleService.getById(record.getPrizeId());
             if (title != null) {
                 vo.setIcon(title.getTitleImg());
+                if (vo.getName() == null) {
+                    vo.setName(title.getName());
+                }
             }
         }
 

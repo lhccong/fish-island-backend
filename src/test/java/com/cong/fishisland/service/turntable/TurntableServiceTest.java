@@ -1,5 +1,6 @@
 package com.cong.fishisland.service.turntable;
 
+import com.cong.fishisland.common.TestBaseByLogin;
 import com.cong.fishisland.model.dto.turntable.DrawRequest;
 import com.cong.fishisland.model.dto.turntable.TurntableDrawRecordQueryRequest;
 import com.cong.fishisland.model.dto.turntable.TurntableQueryRequest;
@@ -21,7 +22,7 @@ import static org.junit.jupiter.api.Assertions.*;
  */
 @Slf4j
 @SpringBootTest
-public class TurntableServiceTest {
+public class TurntableServiceTest extends TestBaseByLogin {
 
     @Resource
     private TurntableService turntableService;
