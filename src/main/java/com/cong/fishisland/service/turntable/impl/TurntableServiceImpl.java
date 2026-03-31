@@ -76,9 +76,9 @@ public class TurntableServiceImpl extends ServiceImpl<TurntableMapper, Turntable
     private GuaranteeDrawStrategy guaranteeDrawStrategy;
 
     /**
-     * 小保底触发次数比例（大保底次数 / 30）
+     * 小保底触发次数比例（大保底次数 / 10）
      */
-    private static final int SMALL_GUARANTEE_RATIO = 30;
+    private static final int SMALL_GUARANTEE_RATIO = 10;
 
     @Override
     public List<TurntableVO> listActiveTurntables(TurntableQueryRequest turntableQueryRequest) {
@@ -262,7 +262,7 @@ public class TurntableServiceImpl extends ServiceImpl<TurntableMapper, Turntable
             result.isTriggered = true;
             result.guaranteeType = GuaranteeTypeEnum.BIG.getValue();
             // 史诗及以上
-            result.minQuality = PrizeQualityEnum.EPIC.getValue();
+            result.minQuality = PrizeQualityEnum.LEGENDARY.getValue();
             return result;
         }
         

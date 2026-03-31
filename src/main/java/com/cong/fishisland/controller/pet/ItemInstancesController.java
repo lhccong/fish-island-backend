@@ -11,10 +11,13 @@ import com.cong.fishisland.common.ResultUtils;
 import com.cong.fishisland.common.exception.BusinessException;
 import com.cong.fishisland.common.exception.ThrowUtils;
 import com.cong.fishisland.constant.UserConstant;
+import com.cong.fishisland.model.dto.item.ItemEquipRequest;
 import com.cong.fishisland.model.dto.item.ItemInstanceAddRequest;
+import com.cong.fishisland.model.dto.item.ItemInstanceDecomposeRequest;
 import com.cong.fishisland.model.dto.item.ItemInstanceEditRequest;
 import com.cong.fishisland.model.dto.item.ItemInstanceQueryRequest;
 import com.cong.fishisland.model.dto.item.ItemInstanceUpdateRequest;
+import com.cong.fishisland.model.dto.item.ItemUnequipRequest;
 import com.cong.fishisland.model.entity.pet.ItemInstances;
 import com.cong.fishisland.model.entity.user.User;
 import com.cong.fishisland.model.vo.pet.ItemInstanceVO;
@@ -97,6 +100,50 @@ public class ItemInstancesController {
     }
 
     /**
+     * 分解物品实例，获得积分
+     */
+    @PostMapping("/decompose")
+    @SaCheckLogin
+    @ApiOperation("分解物品")
+    public BaseResponse<Long> decomposeItemInstance(@RequestBody @Validated ItemInstanceDecomposeRequest decomposeRequest) {
+        if (decomposeRequest == null || decomposeRequest.getItemInstanceId() == null || decomposeRequest.getItemInstanceId() <= 0) {
+            throw new BusinessException(ErrorCode.PARAMS_ERROR, "物品实例ID不能为空");
+        }
+        Long totalPoints = itemInstancesService.decomposeItemInstance(decomposeRequest.getItemInstanceId(), null, null, null);
+        return ResultUtils.success(totalPoints);
+    }
+
+    /**
+     * 穿戴装备
+     */
+    @PostMapping("/equip")
+    @SaCheckLogin
+    @ApiOperation("穿戴装备")
+    public BaseResponse<Boolean> equipItem(@RequestBody @Validated ItemEquipRequest equipRequest) {
+        if (equipRequest == null || equipRequest.getItemInstanceId() == null || equipRequest.getItemInstanceId() <= 0) {
+            throw new BusinessException(ErrorCode.PARAMS_ERROR, "物品实例ID不能为空");
+        }
+        User loginUser = userService.getLoginUser();
+        boolean result = itemInstancesService.equipItem(equipRequest.getItemInstanceId(), loginUser.getId());
+        return ResultUtils.success(result);
+    }
+
+    /**
+     * 卸下装备
+     */
+    @PostMapping("/unequip")
+    @SaCheckLogin
+    @ApiOperation("卸下装备")
+    public BaseResponse<Boolean> unequipItem(@RequestBody @Validated ItemUnequipRequest unequipRequest) {
+        if (unequipRequest == null || unequipRequest.getEquipSlot() == null || unequipRequest.getEquipSlot().isEmpty()) {
+            throw new BusinessException(ErrorCode.PARAMS_ERROR, "装备槽位不能为空");
+        }
+        User loginUser = userService.getLoginUser();
+        boolean result = itemInstancesService.unequipItem(unequipRequest.getEquipSlot(), loginUser.getId());
+        return ResultUtils.success(result);
+    }
+
+    /**
      * 管理员编辑物品实例信息（可查看模板信息）
      */
     @PostMapping("/edit")
@@ -135,6 +182,7 @@ public class ItemInstancesController {
      */
     @PostMapping("/list/page")
     @ApiOperation(value = "分页获取物品列表")
+    @SaCheckRole(UserConstant.ADMIN_ROLE)
     @SaCheckLogin
     public BaseResponse<Page<ItemInstances>> listItemInstancesByPage(@RequestBody ItemInstanceQueryRequest itemInstanceQueryRequest) {
         if (itemInstanceQueryRequest == null || itemInstanceQueryRequest.getCurrent() <= 0) {

@@ -74,4 +74,33 @@ public interface ItemInstancesService extends IService<ItemInstances> {
      */
     Long decomposeItemInstance(Long itemInstanceId, Long templateId, Long userId, Integer quantity);
 
+    /**
+     * 穿戴装备
+     * 将装备穿戴到宠物身上，存储到pet表的extendData中
+     * 槽位由物品模板的equipSlot字段决定
+     *
+     * @param itemInstanceId 物品实例ID
+     * @param userId         用户ID
+     * @return 是否成功
+     */
+    boolean equipItem(Long itemInstanceId, Long userId);
+
+    /**
+     * 卸下装备
+     * 将装备从宠物身上卸下
+     *
+     * @param equipSlot 装备槽位
+     * @param userId    用户ID
+     * @return 是否成功
+     */
+    boolean unequipItem(String equipSlot, Long userId);
+
+    /**
+     * 根据物品实例ID获取物品VO
+     *
+     * @param itemInstanceId 物品实例ID
+     * @return 物品VO
+     */
+    ItemInstanceVO getItemInstanceById(Long itemInstanceId);
+
 }

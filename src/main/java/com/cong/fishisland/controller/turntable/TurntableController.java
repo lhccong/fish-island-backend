@@ -24,7 +24,7 @@ import java.util.List;
 @Slf4j
 @RestController
 @RequestMapping("/turntable")
-@Api(tags = "转盘抽奖接口")
+//@Api(tags = "转盘抽奖接口")
 public class TurntableController {
 
     @Resource

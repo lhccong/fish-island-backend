@@ -4,6 +4,7 @@ import lombok.Data;
 import java.io.Serializable;
 import java.util.Date;
 import java.util.List;
+import java.util.Map;
 
 /**
  * 宠物视图对象
@@ -62,6 +63,11 @@ public class PetVO implements Serializable {
      * 宠物拥有的皮肤列表
      */
     private List<PetSkinVO> skins;
+
+    /**
+     * 已穿戴的装备列表（按槽位分类，key为槽位名称如head/hand/foot/weapon）
+     */
+    private Map<String, ItemInstanceVO> equippedItems;
 
     private static final long serialVersionUID = 1L;
 } 

@@ -10,9 +10,11 @@ import com.cong.fishisland.model.enums.user.PointsRecordSourceEnum;
 import com.cong.fishisland.model.vo.vote.VoteOptionVO;
 import com.cong.fishisland.model.vo.vote.VoteVO;
 import com.cong.fishisland.service.UserPointsService;
+import com.cong.fishisland.service.UserService;
 import com.cong.fishisland.service.VoteService;
 import com.cong.fishisland.utils.RedisUtils;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Service;
 
@@ -47,6 +49,8 @@ public class VoteServiceImpl implements VoteService {
 
     // 创建投票所需积分
     private static final int CREATE_VOTE_POINTS = 100;
+    @Autowired
+    private UserService userService;
 
     @Override
     public String createVote(VoteAddRequest voteAddRequest, Long userId) {
@@ -59,10 +63,12 @@ public class VoteServiceImpl implements VoteService {
         }
 
         // 扣除积分
-        userPointsService.deductPoints(userId, CREATE_VOTE_POINTS, 
-                PointsRecordSourceEnum.VOTE_CREATE.getValue(), 
-                null, 
-                "创建投票");
+        if (!userService.isAdmin()){
+            userPointsService.deductPoints(userId, CREATE_VOTE_POINTS,
+                    PointsRecordSourceEnum.VOTE_CREATE.getValue(),
+                    null,
+                    "创建投票");
+        }
 
         // 生成投票ID
         String voteId = IdUtil.fastSimpleUUID();
@@ -264,10 +270,10 @@ public class VoteServiceImpl implements VoteService {
         }
 
         Map metaData = JSONUtil.toBean(metaJson, Map.class);
-        Long creatorId = (Long) metaData.get("creatorId");
+        Long creatorId = Long.valueOf(metaData.get("creatorId").toString());
 
         // 只有创建者或管理员可以删除（简化处理，实际可扩展）
-        if (!userId.equals(creatorId)) {
+        if (!userId.equals(creatorId)||!userService.isAdmin()) {
             throw new BusinessException(ErrorCode.NO_AUTH_ERROR, "只有创建者可以删除投票");
         }
 

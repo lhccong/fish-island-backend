@@ -12,6 +12,7 @@ import com.cong.fishisland.mapper.pet.FishPetMapper;
 import com.cong.fishisland.model.dto.pet.CreatePetRequest;
 import com.cong.fishisland.model.dto.pet.UpdatePetNameRequest;
 import com.cong.fishisland.model.entity.pet.FishPet;
+import com.cong.fishisland.model.vo.pet.ItemInstanceVO;
 import com.cong.fishisland.model.vo.pet.OtherUserPetVO;
 import com.cong.fishisland.model.vo.pet.PetRankVO;
 import com.cong.fishisland.model.vo.pet.PetSkinVO;
@@ -52,6 +53,7 @@ public class FishPetServiceImpl extends ServiceImpl<FishPetMapper, FishPet> impl
     private final UserTitleService userTitleService;
     private final UserService userService;
     private final EventRemindHandler eventRemindHandler;
+    private final ItemInstancesService itemInstancesService;
 
 
     // 每次喂食增加的饥饿度
@@ -153,7 +155,48 @@ public class FishPetServiceImpl extends ServiceImpl<FishPetMapper, FishPet> impl
         List<PetSkinVO> petSkins = this.getPetSkins(fishPet.getPetId());
         petVO.setSkins(petSkins);
 
+        // 获取已穿戴的装备列表
+        Map<String, ItemInstanceVO> equippedItems = getEquippedItems(fishPet);
+        petVO.setEquippedItems(equippedItems);
+
         return petVO;
+    }
+
+    /**
+     * 从宠物扩展数据中获取已穿戴的装备列表
+     *
+     * @param fishPet 宠物实体
+     * @return 槽位 -> 装备VO 的映射
+     */
+    private Map<String, ItemInstanceVO> getEquippedItems(FishPet fishPet) {
+        Map<String, ItemInstanceVO> result = new HashMap<>();
+        
+        if (fishPet.getExtendData() == null || fishPet.getExtendData().isEmpty()) {
+            return result;
+        }
+
+        JSONObject extendData = JSON.parseObject(fishPet.getExtendData());
+        if (!extendData.containsKey("equippedItems")) {
+            return result;
+        }
+
+        JSONObject equippedItemsJson = extendData.getJSONObject("equippedItems");
+        if (equippedItemsJson == null || equippedItemsJson.isEmpty()) {
+            return result;
+        }
+
+        // 遍历所有槽位，获取装备详情
+        for (String slot : equippedItemsJson.keySet()) {
+            Long itemInstanceId = equippedItemsJson.getLong(slot);
+            if (itemInstanceId != null) {
+                ItemInstanceVO itemInstanceVO = itemInstancesService.getItemInstanceById(itemInstanceId);
+                if (itemInstanceVO != null) {
+                    result.put(slot, itemInstanceVO);
+                }
+            }
+        }
+
+        return result;
     }
 
     @Override

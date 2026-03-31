@@ -1,16 +1,20 @@
 package com.cong.fishisland.service.impl.pet;
 
+import com.alibaba.fastjson.JSON;
+import com.alibaba.fastjson.JSONObject;
 import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
 import com.baomidou.mybatisplus.core.toolkit.CollectionUtils;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import com.cong.fishisland.common.ErrorCode;
 import com.cong.fishisland.common.exception.BusinessException;
+import com.cong.fishisland.mapper.pet.FishPetMapper;
 import com.cong.fishisland.mapper.pet.ItemInstancesMapper;
 import com.cong.fishisland.model.dto.item.ItemInstanceAddRequest;
 import com.cong.fishisland.model.dto.item.ItemInstanceEditRequest;
 import com.cong.fishisland.model.dto.item.ItemInstanceQueryRequest;
 import com.cong.fishisland.model.dto.item.ItemInstanceUpdateRequest;
+import com.cong.fishisland.model.entity.pet.FishPet;
 import com.cong.fishisland.model.entity.pet.ItemInstances;
 import com.cong.fishisland.model.entity.pet.ItemTemplates;
 import com.cong.fishisland.model.entity.user.User;
@@ -51,6 +55,9 @@ public class ItemInstancesServiceImpl extends ServiceImpl<ItemInstancesMapper, I
 
     @Resource
     UserPointsService userPointsService;
+
+    @Resource
+    FishPetMapper fishPetMapper;
 
     @Override
     @Transactional(rollbackFor = Exception.class)
@@ -353,5 +360,171 @@ public class ItemInstancesServiceImpl extends ServiceImpl<ItemInstancesMapper, I
         }
 
         return totalPoints;
+    }
+
+    /**
+     * 穿戴装备
+     * 将装备穿戴到宠物身上，存储到pet表的extendData中
+     * 槽位由物品模板的equipSlot字段决定
+     *
+     * @param itemInstanceId 物品实例ID
+     * @param userId         用户ID
+     * @return 是否成功
+     */
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public boolean equipItem(Long itemInstanceId, Long userId) {
+        // 1. 参数校验
+        if (itemInstanceId == null || itemInstanceId <= 0) {
+            throw new BusinessException(ErrorCode.PARAMS_ERROR, "物品实例ID不能为空");
+        }
+        if (userId == null || userId <= 0) {
+            throw new BusinessException(ErrorCode.PARAMS_ERROR, "用户ID不能为空");
+        }
+
+        // 2. 查询物品实例
+        ItemInstances itemInstance = this.getById(itemInstanceId);
+        if (itemInstance == null) {
+            throw new BusinessException(ErrorCode.NOT_FOUND_ERROR, "物品实例不存在");
+        }
+
+        // 3. 权限校验：只能穿戴自己的物品
+        if (!itemInstance.getOwnerUserId().equals(userId)) {
+            throw new BusinessException(ErrorCode.NO_AUTH_ERROR, "只能穿戴自己的装备");
+        }
+
+        // 4. 查询物品模板
+        ItemTemplates template = itemTemplatesService.getById(itemInstance.getTemplateId());
+        if (template == null || template.getIsDelete() == 1) {
+            throw new BusinessException(ErrorCode.NOT_FOUND_ERROR, "物品模板不存在或已删除");
+        }
+
+        // 5. 校验是否为可穿戴装备
+        String equipSlot = template.getEquipSlot();
+        if (StringUtils.isBlank(equipSlot)) {
+            throw new BusinessException(ErrorCode.OPERATION_ERROR, "该物品不是可穿戴装备");
+        }
+
+        // 6. 查询用户宠物
+        FishPet fishPet = fishPetMapper.selectOne(new QueryWrapper<FishPet>()
+                .eq("userId", userId)
+                .last("LIMIT 1"));
+        if (fishPet == null) {
+            throw new BusinessException(ErrorCode.NOT_FOUND_ERROR, "请先创建宠物");
+        }
+
+        // 7. 解析并更新extendData
+        JSONObject extendData = new JSONObject();
+        if (StringUtils.isNotBlank(fishPet.getExtendData())) {
+            extendData = JSON.parseObject(fishPet.getExtendData());
+        }
+
+        // 获取或创建装备槽位数据
+        JSONObject equippedItems = extendData.containsKey("equippedItems") 
+                ? extendData.getJSONObject("equippedItems") 
+                : new JSONObject();
+
+        // 检查该槽位是否已有装备，如果有则先卸下
+        if (equippedItems.containsKey(equipSlot)) {
+            Long oldItemInstanceId = equippedItems.getLong(equipSlot);
+            // 旧装备已在背包中，无需处理
+        }
+
+        // 穿戴新装备：存储物品实例ID
+        equippedItems.put(equipSlot, itemInstanceId);
+        extendData.put("equippedItems", equippedItems);
+
+        // 8. 更新宠物数据
+        fishPet.setExtendData(extendData.toJSONString());
+        int updateResult = fishPetMapper.updateById(fishPet);
+        if (updateResult <= 0) {
+            throw new BusinessException(ErrorCode.OPERATION_ERROR, "穿戴装备失败");
+        }
+
+        return true;
+    }
+
+    /**
+     * 卸下装备
+     * 将装备从宠物身上卸下，放回背包
+     *
+     * @param equipSlot 装备槽位
+     * @param userId    用户ID
+     * @return 是否成功
+     */
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public boolean unequipItem(String equipSlot, Long userId) {
+        // 1. 参数校验
+        if (StringUtils.isBlank(equipSlot)) {
+            throw new BusinessException(ErrorCode.PARAMS_ERROR, "装备槽位不能为空");
+        }
+        if (userId == null || userId <= 0) {
+            throw new BusinessException(ErrorCode.PARAMS_ERROR, "用户ID不能为空");
+        }
+
+        // 2. 查询用户宠物
+        FishPet fishPet = fishPetMapper.selectOne(new QueryWrapper<FishPet>()
+                .eq("userId", userId)
+                .last("LIMIT 1"));
+        if (fishPet == null) {
+            throw new BusinessException(ErrorCode.NOT_FOUND_ERROR, "宠物不存在");
+        }
+
+        // 3. 解析extendData
+        if (StringUtils.isBlank(fishPet.getExtendData())) {
+            throw new BusinessException(ErrorCode.OPERATION_ERROR, "该槽位没有穿戴装备");
+        }
+
+        JSONObject extendData = JSON.parseObject(fishPet.getExtendData());
+        if (!extendData.containsKey("equippedItems")) {
+            throw new BusinessException(ErrorCode.OPERATION_ERROR, "该槽位没有穿戴装备");
+        }
+
+        JSONObject equippedItems = extendData.getJSONObject("equippedItems");
+        if (!equippedItems.containsKey(equipSlot)) {
+            throw new BusinessException(ErrorCode.OPERATION_ERROR, "该槽位没有穿戴装备");
+        }
+
+        // 4. 移除该槽位的装备ID（装备自动回到背包，无需额外操作）
+        equippedItems.remove(equipSlot);
+        extendData.put("equippedItems", equippedItems);
+
+        // 5. 更新宠物数据
+        fishPet.setExtendData(extendData.toJSONString());
+        int updateResult = fishPetMapper.updateById(fishPet);
+        if (updateResult <= 0) {
+            throw new BusinessException(ErrorCode.OPERATION_ERROR, "卸下装备失败");
+        }
+
+        return true;
+    }
+
+    /**
+     * 根据物品实例ID获取物品VO
+     *
+     * @param itemInstanceId 物品实例ID
+     * @return 物品VO
+     */
+    @Override
+    public ItemInstanceVO getItemInstanceById(Long itemInstanceId) {
+        if (itemInstanceId == null || itemInstanceId <= 0) {
+            return null;
+        }
+
+        // 查询物品实例
+        ItemInstances itemInstance = this.getById(itemInstanceId);
+        if (itemInstance == null) {
+            return null;
+        }
+
+        // 查询物品模板
+        ItemTemplates template = itemTemplatesService.getById(itemInstance.getTemplateId());
+        if (template == null) {
+            return null;
+        }
+
+        // 转换为VO
+        return ItemInstanceVO.objToVo(itemInstance, template);
     }
 }
