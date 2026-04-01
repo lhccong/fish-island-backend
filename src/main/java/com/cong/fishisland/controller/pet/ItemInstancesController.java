@@ -226,6 +226,8 @@ public class ItemInstancesController {
         queryWrapper.eq("ownerUserId", loginUser.getId());
         // 3. 分页查询物品实例
         Page<ItemInstances> itemInstancesPage = itemInstancesService.page(new Page<>(current, pageSize), queryWrapper);
+        // 按装备模板ID升序排序
+        queryWrapper.orderByAsc("templateId");
         // 3. 转换 VO 并返回
         Page<ItemInstanceVO> itemInstancesVoPage = itemInstancesService.getItemInstancesVoPage(itemInstancesPage);
         return ResultUtils.success(itemInstancesVoPage);

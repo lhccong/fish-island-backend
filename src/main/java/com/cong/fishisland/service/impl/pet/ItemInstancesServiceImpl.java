@@ -269,7 +269,12 @@ public class ItemInstancesServiceImpl extends ServiceImpl<ItemInstancesMapper, I
         Map<Long, ItemTemplateVO> templateVoMap = itemTemplatesService.getTemplateVOMapByIds(templateIds);
 
         // 3. 构建 VO 列表
-        List<ItemInstanceVO> voList = records.stream().map(item -> {
+        List<ItemInstanceVO> voList = records.stream().sorted((a, b) -> {
+            if (a.getTemplateId() == null || b.getTemplateId() == null) {
+                return 0;
+            }
+            return a.getTemplateId().compareTo(b.getTemplateId());
+        }).map(item -> {
             ItemInstanceVO vo = new ItemInstanceVO();
             BeanUtils.copyProperties(item, vo);
             vo.setTemplate(templateVoMap.get(item.getTemplateId()));

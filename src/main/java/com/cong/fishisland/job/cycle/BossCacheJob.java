@@ -66,6 +66,8 @@ public class BossCacheJob {
                 // 删除排行榜数据，实现每天重置
                 String rankingKey = RedisKey.getKey(RedisKey.BOSS_CHALLENGE_RANKING_KEY, boss.getId());
                 redisTemplate.delete(rankingKey);
+                String rewardDistributedKey = RedisKey.getKey(RedisKey.BOSS_REWARD_DISTRIBUTED_KEY, boss.getId());
+                redisTemplate.delete(rewardDistributedKey);
                 log.debug("已重置Boss排行榜，bossId: {}, rankingKey: {}", boss.getId(), rankingKey);
             }
 

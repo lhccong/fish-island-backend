@@ -75,6 +75,7 @@ public class TurntableServiceImpl extends ServiceImpl<TurntableMapper, Turntable
     @Resource
     private GuaranteeDrawStrategy guaranteeDrawStrategy;
 
+
     /**
      * 小保底触发次数比例（大保底次数 / 10）
      */
@@ -131,11 +132,24 @@ public class TurntableServiceImpl extends ServiceImpl<TurntableMapper, Turntable
         // 获取用户ID
         Long userId = Long.valueOf(StpUtil.getLoginId().toString());
 
-        // 计算消耗积分
-        int totalCostPoints = turntable.getCostPoints() * drawCount;
+        // 判断是否是当天第一次抽奖
+        boolean isFirstDrawToday = !turntableDrawRecordService.hasTodayDrawRecord(userId, turntableId);
 
-        // 扣除积分
-        userPointsService.deductPoints(userId, totalCostPoints, TURNTABLE.getValue(), turntableId.toString(), "转盘抽奖");
+        // 计算消耗积分（每天第一次抽奖的第一抽免费）
+        int totalCostPoints;
+        if (isFirstDrawToday) {
+            // 第一次抽奖：第一抽免费，其余收费
+            totalCostPoints = turntable.getCostPoints() * (drawCount - 1);
+        } else {
+            totalCostPoints = turntable.getCostPoints() * drawCount;
+        }
+        // 确保积分不为负
+        totalCostPoints = Math.max(0, totalCostPoints);
+
+        // 扣除积分（仅非免费时扣除）
+        if (totalCostPoints > 0) {
+            userPointsService.deductPoints(userId, totalCostPoints, TURNTABLE.getValue(), turntableId.toString(), "转盘抽奖");
+        }
 
         // 获取奖品列表
         List<TurntablePrize> prizes = turntablePrizeService.listAvailableByTurntableId(turntableId);

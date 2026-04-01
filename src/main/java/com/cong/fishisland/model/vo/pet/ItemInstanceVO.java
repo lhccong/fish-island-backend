@@ -78,6 +78,11 @@ public class ItemInstanceVO implements Serializable {
     private ItemTemplateVO template;
 
     /**
+     * 装备属性统计
+     */
+    private SingleEquipStatsVO equipStats;
+
+    /**
      * VO 转 实例对象
      */
     public static ItemInstances voToObj(ItemInstanceVO itemInstanceVO) {

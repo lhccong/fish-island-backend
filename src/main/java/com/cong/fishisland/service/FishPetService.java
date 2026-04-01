@@ -9,6 +9,8 @@ import com.cong.fishisland.model.vo.pet.PetRankVO;
 import com.cong.fishisland.model.vo.pet.PetSkinVO;
 import com.cong.fishisland.model.vo.pet.PetVO;
 
+import com.cong.fishisland.model.vo.pet.PetEquipStatsVO;
+
 import java.util.List;
 
 /**
@@ -125,4 +127,12 @@ public interface FishPetService extends IService<FishPet> {
      * @return 更新的用户数量
      */
     int updatePetRankTitles();
+
+    /**
+     * 获取宠物装备属性统计
+     * 统计宠物穿戴的所有装备的 baseAttack、baseDefense、baseHp 和 mainAttr 属性
+     *
+     * @return 装备属性统计VO
+     */
+    PetEquipStatsVO getPetEquipStats();
 } 

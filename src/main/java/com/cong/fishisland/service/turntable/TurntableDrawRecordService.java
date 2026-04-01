@@ -17,11 +17,13 @@ public interface TurntableDrawRecordService extends IService<TurntableDrawRecord
      */
     void saveBatchRecords(List<TurntableDrawRecord> records);
 
+    List<TurntableDrawRecord> listByUserIdAndTurntableId(Long userId, Long turntableId);
+
     /**
-     * 根据用户ID和转盘ID查询记录
+     * 判断用户当天是否已有抽奖记录
      * @param userId 用户ID
      * @param turntableId 转盘ID
-     * @return 记录列表
+     * @return 当天是否已有抽奖记录
      */
-    List<TurntableDrawRecord> listByUserIdAndTurntableId(Long userId, Long turntableId);
+    boolean hasTodayDrawRecord(Long userId, Long turntableId);
 }

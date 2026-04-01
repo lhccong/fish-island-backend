@@ -87,6 +87,11 @@ public interface RedisKey {
     String BOSS_CHALLENGE_RANKING_KEY = "boss:ranking:%d";
 
     /**
+     * Boss奖励已发放标记 boss:reward:distributed:{bossId}
+     */
+    String BOSS_REWARD_DISTRIBUTED_KEY = "boss:reward:distributed:%d";
+
+    /**
      * 帖子中奖用户缓存 post:reward:{postId}:{yyyyMMdd}
      */
     String POST_REWARD_USER_KEY = "post:reward:%d:%s";
