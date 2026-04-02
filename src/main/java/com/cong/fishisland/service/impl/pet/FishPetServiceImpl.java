@@ -164,7 +164,8 @@ public class FishPetServiceImpl extends ServiceImpl<FishPetMapper, FishPet> impl
      * @param fishPet 宠物实体
      * @return 槽位 -> 装备VO 的映射
      */
-    private Map<String, ItemInstanceVO> getEquippedItems(FishPet fishPet) {
+    @Override
+    public Map<String, ItemInstanceVO> getEquippedItems(FishPet fishPet) {
         Map<String, ItemInstanceVO> result = new HashMap<>();
         
         if (fishPet.getExtendData() == null || fishPet.getExtendData().isEmpty()) {

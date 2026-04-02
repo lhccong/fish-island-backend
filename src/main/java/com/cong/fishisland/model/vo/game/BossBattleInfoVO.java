@@ -1,8 +1,10 @@
 package com.cong.fishisland.model.vo.game;
 
+import com.cong.fishisland.model.vo.pet.ItemInstanceVO;
 import lombok.Data;
 
 import java.io.Serializable;
+import java.util.Map;
 
 /**
  * Boss对战信息视图对象
@@ -59,6 +61,11 @@ public class BossBattleInfoVO implements Serializable {
          * 宠物血量
          */
         private Integer health;
+
+        /**
+         * 宠物已穿戴的装备列表（槽位 -> 装备VO）
+         */
+        private Map<String, ItemInstanceVO> equippedItems;
 
         private static final long serialVersionUID = 1L;
     }

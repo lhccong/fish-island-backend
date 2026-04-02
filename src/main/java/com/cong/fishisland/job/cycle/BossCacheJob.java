@@ -29,6 +29,35 @@ public class BossCacheJob {
     private final ObjectMapper objectMapper;
 
     /**
+     * 每天23点半执行，发放Boss击败奖励
+     * cron表达式：0 30 23 * * ? 表示每天23点30分0秒执行
+     */
+    @Scheduled(cron = "0 30 23 * * ?")
+    public void distributeBossRewards() {
+        log.info("开始执行Boss击败奖励发放任务");
+
+        try {
+            // 1. 获取Boss列表数据
+            List<BossVO> bossList = bossService.getBossList();
+
+            if (bossList == null || bossList.isEmpty()) {
+                log.warn("Boss列表为空，跳过奖励发放");
+                return;
+            }
+
+            // 2. 为每个Boss发放奖励
+            for (BossVO boss : bossList) {
+                bossService.distributeBossKillRewards(boss.getId(), boss.getRewardPoints());
+                log.info("Boss击败奖励发放完成，bossId: {}, bossName: {}", boss.getId(), boss.getName());
+            }
+
+            log.info("Boss击败奖励发放任务执行完成，共{}个Boss", bossList.size());
+        } catch (Exception e) {
+            log.error("Boss击败奖励发放任务执行异常", e);
+        }
+    }
+
+    /**
      * 每天凌晨12点执行，将Boss数据写入Redis缓存
      * cron表达式：0 0 0 * * ? 表示每天凌晨0点0分0秒执行
      */

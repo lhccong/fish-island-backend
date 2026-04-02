@@ -38,7 +38,7 @@ public class PetStatusUpdateJob {
      * 每小时更新宠物经验
      * 注意：只有当饥饿度和心情值都大于0时，宠物才会获得经验
      */
-    @Scheduled(fixedRate = 3600000)
+    @Scheduled(fixedRate = 3600000, initialDelay = 3600000)
     public void updatePetLevel() {
         List<UserChatResponse> onlineUserList = webSocketService.getOnlineUserList();
         if (onlineUserList.isEmpty()) {
@@ -69,7 +69,7 @@ public class PetStatusUpdateJob {
      * 注意：60级宠物不会扣除饥饿度和心情值，会自动保持满值
      * 注意：饥饿度和心情值为0的宠物无法获得经验
      */
-    @Scheduled(fixedRate = 3600000)
+    @Scheduled(fixedRate = 3600000, initialDelay = 3600000)
     public void updatePetStatus() {
         log.info("开始执行宠物状态更新任务");
 

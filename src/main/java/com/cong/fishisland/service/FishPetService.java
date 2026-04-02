@@ -11,7 +11,10 @@ import com.cong.fishisland.model.vo.pet.PetVO;
 
 import com.cong.fishisland.model.vo.pet.PetEquipStatsVO;
 
+import com.cong.fishisland.model.vo.pet.ItemInstanceVO;
+
 import java.util.List;
+import java.util.Map;
 
 /**
  * 宠物服务接口
@@ -135,4 +138,12 @@ public interface FishPetService extends IService<FishPet> {
      * @return 装备属性统计VO
      */
     PetEquipStatsVO getPetEquipStats();
+
+    /**
+     * 获取宠物已穿戴的装备列表
+     *
+     * @param pet 宠物实体
+     * @return 槽位 -> 装备VO 的映射
+     */
+    Map<String, ItemInstanceVO> getEquippedItems(FishPet pet);
 } 

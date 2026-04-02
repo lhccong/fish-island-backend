@@ -52,5 +52,13 @@ public interface BossService {
      * @return Boss对战信息
      */
     BossBattleInfoVO getBossBattleInfo(Long bossId);
+    /**
+     * 分配Boss击败奖励
+     * 按排行榜排名百分比分配Boss总积分
+     *
+     * @param bossId Boss ID
+     * @param totalRewardPoints Boss总积分
+     */
+    void distributeBossKillRewards(Long bossId, Integer totalRewardPoints);
 }
 

@@ -2,6 +2,7 @@ package com.cong.fishisland.service.turntable.impl;
 
 import cn.dev33.satoken.stp.StpUtil;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
+import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import com.cong.fishisland.common.ErrorCode;
 import com.cong.fishisland.common.exception.BusinessException;
@@ -212,9 +213,10 @@ public class TurntableServiceImpl extends ServiceImpl<TurntableMapper, Turntable
     }
 
     @Override
-    public List<DrawRecordVO> listDrawRecords(TurntableDrawRecordQueryRequest queryRequest) {
+    public Page<DrawRecordVO> listDrawRecords(TurntableDrawRecordQueryRequest queryRequest) {
         Long userId = Long.valueOf(StpUtil.getLoginId().toString());
-        
+
+        // 构建查询条件
         LambdaQueryWrapper<TurntableDrawRecord> queryWrapper = new LambdaQueryWrapper<>();
         queryWrapper.eq(TurntableDrawRecord::getUserId, userId);
         if (queryRequest != null && queryRequest.getTurntableId() != null) {
@@ -222,10 +224,26 @@ public class TurntableServiceImpl extends ServiceImpl<TurntableMapper, Turntable
         }
         queryWrapper.eq(TurntableDrawRecord::getIsDelete, 0)
                 .orderByDesc(TurntableDrawRecord::getCreateTime);
-        
-        List<TurntableDrawRecord> records = turntableDrawRecordService.list(queryWrapper);
-        
-        return records.stream().map(this::convertRecordToVO).collect(Collectors.toList());
+
+        // 分页参数
+        long current = 1;
+        long size = 10;
+        if (queryRequest != null) {
+            current = queryRequest.getCurrent();
+            size = queryRequest.getPageSize();
+        }
+
+        // 执行分页查询
+        Page<TurntableDrawRecord> recordPage = turntableDrawRecordService.page(new Page<>(current, size), queryWrapper);
+
+        // 转换为VO分页结果
+        List<DrawRecordVO> voList = recordPage.getRecords().stream()
+                .map(this::convertRecordToVO)
+                .collect(Collectors.toList());
+
+        Page<DrawRecordVO> voPage = new Page<>(recordPage.getCurrent(), recordPage.getSize(), recordPage.getTotal());
+        voPage.setRecords(voList);
+        return voPage;
     }
 
     @Override

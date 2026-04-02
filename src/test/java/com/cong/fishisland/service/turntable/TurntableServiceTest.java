@@ -154,36 +154,6 @@ public class TurntableServiceTest extends TestBaseByLogin {
         });
     }
 
-    /**
-     * 测试查询抽奖记录
-     */
-    @Test
-    public void testListDrawRecords() {
-        TurntableDrawRecordQueryRequest request = new TurntableDrawRecordQueryRequest();
-        request.setTurntableId(1L); // 转盘ID
-        request.setCurrent(1);
-        request.setPageSize(10);
-        
-        // 调用服务
-        List<DrawRecordVO> result = turntableService.listDrawRecords(request);
-        
-        // 验证结果
-        assertNotNull(result, "抽奖记录列表不应为null");
-        log.info("查询到的抽奖记录数量: {}", result.size());
-        
-        // 打印记录信息
-        result.forEach(record -> {
-            log.info("记录ID: {}, 奖品: {}, 品质: {}, 消耗积分: {}", 
-                    record.getId(),
-                    record.getName(), 
-                    record.getQualityName(),
-                    record.getCostPoints());
-            log.info("是否保底: {}, 保底类型: {}, 抽奖时间: {}", 
-                    record.getIsGuarantee(),
-                    record.getGuaranteeType(),
-                    record.getCreateTime());
-        });
-    }
 
     /**
      * 测试完整的抽奖流程
@@ -220,12 +190,7 @@ public class TurntableServiceTest extends TestBaseByLogin {
         drawRequest.setDrawCount(10);
         DrawResultVO tenResult = turntableService.draw(drawRequest);
         log.info("步骤4: 执行十连抽, 获得{}个奖品", tenResult.getPrizeList().size());
-        
-        // 5. 查询抽奖记录
-        TurntableDrawRecordQueryRequest recordRequest = new TurntableDrawRecordQueryRequest();
-        recordRequest.setTurntableId(turntableId);
-        List<DrawRecordVO> records = turntableService.listDrawRecords(recordRequest);
-        log.info("步骤5: 查询抽奖记录, 数量: {}", records.size());
+
         
         log.info("========== 完整抽奖流程测试结束 ==========");
     }

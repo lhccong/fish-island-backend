@@ -35,7 +35,7 @@ public class IncSyncHostPostToMySQL {
     /**
      * 每半小时执行一次
      */
-    @Scheduled(fixedRate = 1_800_000)
+    @Scheduled(fixedRate = 1_800_000, initialDelay = 1800000)
     public void run() {
         log.info("开始更新热榜数据...");
         StopWatch stopWatch = new StopWatch();

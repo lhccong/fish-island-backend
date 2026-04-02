@@ -15,6 +15,8 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.web.bind.annotation.*;
 
 import javax.annotation.Resource;
+import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
+
 import java.util.List;
 
 /**
@@ -65,8 +67,8 @@ public class TurntableController {
      */
     @GetMapping("/records")
     @ApiOperation("查询抽奖记录")
-    public BaseResponse<List<DrawRecordVO>> listDrawRecords(TurntableDrawRecordQueryRequest request) {
-        List<DrawRecordVO> result = turntableService.listDrawRecords(request);
+    public BaseResponse<Page<DrawRecordVO>> listDrawRecords(TurntableDrawRecordQueryRequest request) {
+        Page<DrawRecordVO> result = turntableService.listDrawRecords(request);
         return ResultUtils.success(result);
     }
 }

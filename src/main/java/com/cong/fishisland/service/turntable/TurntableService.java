@@ -1,6 +1,7 @@
 package com.cong.fishisland.service.turntable;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
+import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.baomidou.mybatisplus.extension.service.IService;
 import com.cong.fishisland.model.dto.turntable.DrawRequest;
 import com.cong.fishisland.model.dto.turntable.TurntableDrawRecordQueryRequest;
@@ -42,9 +43,9 @@ public interface TurntableService extends IService<Turntable> {
     /**
      * 查询抽奖记录
      * @param queryRequest 查询请求
-     * @return 抽奖记录列表
+     * @return 分页抽奖记录
      */
-    List<DrawRecordVO> listDrawRecords(TurntableDrawRecordQueryRequest queryRequest);
+    Page<DrawRecordVO> listDrawRecords(TurntableDrawRecordQueryRequest queryRequest);
 
     /**
      * 获取查询条件

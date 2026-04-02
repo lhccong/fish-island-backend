@@ -470,3 +470,31 @@ CREATE TABLE item_instances
     INDEX idx_template_id (templateId) COMMENT '物品模板索引'
 ) COMMENT ='物品实例表（玩家真正持有的物品，每个实例可有强化、耐久、附魔等个性化信息）';
 
+-- Boss表
+create table if not exists boss
+(
+    id                   bigint auto_increment comment 'Boss ID' primary key,
+    name                 varchar(100)                       not null comment 'Boss名称',
+    avatar               varchar(512)                       null comment 'Boss头像URL',
+    health               int          default 1000         not null comment 'Boss血量',
+    attack               int          default 100          not null comment 'Boss攻击力',
+    rewardPoints         int          default 100          not null comment '击败奖励积分',
+    critRate             decimal(5,4) default 0.0000       null comment '暴击率(0-1)',
+    comboRate            decimal(5,4) default 0.0000       null comment '连击率(0-1)',
+    dodgeRate            decimal(5,4) default 0.0000       null comment '闪避率(0-1)',
+    blockRate            decimal(5,4) default 0.0000       null comment '格挡率(0-1)',
+    lifesteal            decimal(5,4) default 0.0000       null comment '吸血率(0-1)',
+    critResistance       decimal(5,4) default 0.0000       null comment '抗暴击率(0-1)',
+    comboResistance      decimal(5,4) default 0.0000       null comment '抗连击率(0-1)',
+    dodgeResistance      decimal(5,4) default 0.0000       null comment '抗闪避率(0-1)',
+    blockResistance      decimal(5,4) default 0.0000       null comment '抗格挡率(0-1)',
+    lifestealResistance  decimal(5,4) default 0.0000       null comment '抗吸血率(0-1)',
+    sort                 int          default 0           not null comment '排序',
+    status               tinyint      default 1           not null comment '状态：0-禁用，1-启用',
+    createTime           datetime     default CURRENT_TIMESTAMP not null comment '创建时间',
+    updateTime           datetime     default CURRENT_TIMESTAMP not null on update CURRENT_TIMESTAMP comment '更新时间',
+    isDelete             tinyint      default 0           not null comment '是否删除',
+    index idx_status (status),
+    index idx_sort (sort)
+) comment 'Boss表' collate = utf8mb4_unicode_ci;
+
