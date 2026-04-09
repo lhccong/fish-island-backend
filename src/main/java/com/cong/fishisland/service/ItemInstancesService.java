@@ -103,4 +103,12 @@ public interface ItemInstancesService extends IService<ItemInstances> {
      */
     ItemInstanceVO getItemInstanceById(Long itemInstanceId);
 
+    /**
+     * 批量分解蓝绿装备（稀有度1、2）
+     * 已穿戴的装备不会被分解
+     *
+     * @return 分解获得的总积分
+     */
+    Long batchDecomposeBlueGreenEquipments();
+
 }

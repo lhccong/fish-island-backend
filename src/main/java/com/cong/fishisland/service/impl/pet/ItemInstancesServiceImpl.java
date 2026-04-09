@@ -35,8 +35,7 @@ import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
 import javax.annotation.Resource;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 import java.util.stream.Collectors;
 
 /**
@@ -531,5 +530,114 @@ public class ItemInstancesServiceImpl extends ServiceImpl<ItemInstancesMapper, I
 
         // 转换为VO
         return ItemInstanceVO.objToVo(itemInstance, template);
+    }
+
+    /**
+     * 批量分解蓝绿装备（稀有度1、2）
+     * 已穿戴的装备不会被分解
+     *
+     * @return 分解获得的总积分
+     */
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public Long batchDecomposeBlueGreenEquipments() {
+        // 1. 获取当前登录用户
+        User loginUser = userService.getLoginUser();
+        if (loginUser == null || loginUser.getId() == null) {
+            throw new BusinessException(ErrorCode.NOT_LOGIN_ERROR, "用户未登录");
+        }
+        Long userId = loginUser.getId();
+
+        // 2. 获取已穿戴装备的ID列表
+        Set<Long> equippedItemIds = getEquippedItemIds(userId);
+
+        // 3. 查询用户所有物品实例
+        List<ItemInstances> userItems = this.list(new QueryWrapper<ItemInstances>()
+                .eq("ownerUserId", userId));
+
+        if (CollectionUtils.isEmpty(userItems)) {
+            return 0L;
+        }
+
+        // 4. 批量获取模板信息
+        List<Long> templateIds = userItems.stream()
+                .map(ItemInstances::getTemplateId)
+                .distinct()
+                .collect(Collectors.toList());
+        List<ItemTemplates> templates = itemTemplatesService.listByIds(templateIds);
+        Map<Long, ItemTemplates> templateMap = templates.stream()
+                .collect(Collectors.toMap(ItemTemplates::getId, t -> t));
+
+        // 5. 筛选需要分解的装备：稀有度为1或2，且未穿戴
+        List<ItemInstances> toDecompose = new ArrayList<>();
+        for (ItemInstances item : userItems) {
+            // 跳过已穿戴的装备
+            if (equippedItemIds.contains(item.getId())) {
+                continue;
+            }
+
+            ItemTemplates template = templateMap.get(item.getTemplateId());
+            if (template == null) {
+                continue;
+            }
+
+            // 稀有度为1或2，且有分解积分
+            Integer rarity = template.getRarity();
+            if (rarity != null && (rarity == 1 || rarity == 2)) {
+                long removePoint = template.getRemovePoint() == null ? 0L : template.getRemovePoint().longValue();
+                if (removePoint > 0) {
+                    toDecompose.add(item);
+                }
+            }
+        }
+
+        if (CollectionUtils.isEmpty(toDecompose)) {
+            return 0L;
+        }
+
+        // 6. 批量分解装备
+        Long totalPoints = 0L;
+        for (ItemInstances item : toDecompose) {
+            ItemTemplates template = templateMap.get(item.getTemplateId());
+            int quantity = item.getQuantity() == null ? 1 : item.getQuantity();
+            long removePoint = template.getRemovePoint() == null ? 0L : template.getRemovePoint().longValue();
+            long itemPoints = removePoint * quantity;
+            totalPoints += itemPoints;
+
+            // 发放积分
+            userPointsService.updateUsedPoints(userId, -(int) itemPoints, ITEM_DECOMPOSE.getValue(),
+                    template.getId().toString(), "批量分解蓝绿装备获得积分");
+
+            // 删除物品实例
+            this.removeById(item.getId());
+        }
+
+        return totalPoints;
+    }
+
+    /**
+     * 获取用户已穿戴装备的ID集合
+     *
+     * @param userId 用户ID
+     * @return 已穿戴装备ID集合
+     */
+    private Set<Long> getEquippedItemIds(Long userId) {
+        FishPet fishPet = fishPetMapper.selectOne(new QueryWrapper<FishPet>()
+                .eq("userId", userId)
+                .last("LIMIT 1"));
+
+        if (fishPet == null || StringUtils.isBlank(fishPet.getExtendData())) {
+            return new HashSet<>();
+        }
+
+        JSONObject extendData = JSON.parseObject(fishPet.getExtendData());
+        if (!extendData.containsKey("equippedItems")) {
+            return new HashSet<>();
+        }
+
+        JSONObject equippedItems = extendData.getJSONObject("equippedItems");
+        return equippedItems.values().stream()
+                .map(obj -> Long.valueOf(obj.toString()))
+                .collect(Collectors.toSet());
     }
 }

@@ -40,6 +40,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import javax.annotation.Resource;
 import java.util.*;
+import java.util.Set;
 import java.util.stream.Collectors;
 
 /**
@@ -159,6 +160,17 @@ public class TurntableServiceImpl extends ServiceImpl<TurntableMapper, Turntable
         // 获取用户进度
         TurntableUserProgress progress = turntableUserProgressService.getOrCreateProgress(userId, turntableId, turntable.getGuaranteeCount());
 
+        // 查询用户已有的装备模板ID集合
+        Set<Long> ownedTemplateIds = itemInstancesService.list(
+                new LambdaQueryWrapper<ItemInstances>()
+                        .eq(ItemInstances::getOwnerUserId, userId)
+                        .eq(ItemInstances::getIsDelete, 0)
+        ).stream().map(ItemInstances::getTemplateId).collect(Collectors.toSet());
+
+        // 查询用户已有的称号ID集合
+        Set<Long> ownedTitleIds = userTitleService.listUserTitlesByUserId(userId)
+                .stream().map(UserTitle::getTitleId).collect(Collectors.toSet());
+
         // 执行抽奖
         List<DrawPrizeVO> drawResults = new ArrayList<>();
         boolean isGuaranteeTriggered = false;
@@ -172,7 +184,17 @@ public class TurntableServiceImpl extends ServiceImpl<TurntableMapper, Turntable
             if (checkResult.isTriggered) {
                 // 触发保底，使用保底策略
                 guaranteeDrawStrategy.setMinQuality(checkResult.minQuality);
-                selectedPrize = guaranteeDrawStrategy.draw(prizes);
+                // 大保底：从用户未拥有的奖品中抽取
+                List<TurntablePrize> candidatePrizes = prizes;
+                if (checkResult.guaranteeType == GuaranteeTypeEnum.BIG.getValue()) {
+                    List<TurntablePrize> unownedPrizes = prizes.stream()
+                            .filter(p -> !isUserOwnedPrize(p, ownedTemplateIds, ownedTitleIds))
+                            .collect(Collectors.toList());
+                    if (!unownedPrizes.isEmpty()) {
+                        candidatePrizes = unownedPrizes;
+                    }
+                }
+                selectedPrize = guaranteeDrawStrategy.draw(candidatePrizes);
                 isGuaranteeTriggered = true;
                 guaranteeType = checkResult.guaranteeType;
             } else {
@@ -501,6 +523,21 @@ public class TurntableServiceImpl extends ServiceImpl<TurntableMapper, Turntable
     private String getQualityName(Integer quality) {
         PrizeQualityEnum qualityEnum = PrizeQualityEnum.getEnumByValue(quality);
         return qualityEnum != null ? qualityEnum.getText() : PrizeQualityEnum.NORMAL.getText();
+    }
+
+    /**
+     * 判断用户是否已拥有该奖品
+     */
+    private boolean isUserOwnedPrize(TurntablePrize prize, Set<Long> ownedTemplateIds, Set<Long> ownedTitleIds) {
+        if (prize.getPrizeType() == null || prize.getPrizeId() == null) {
+            return false;
+        }
+        if (prize.getPrizeType().equals(PrizeTypeEnum.EQUIPMENT.getValue())) {
+            return ownedTemplateIds.contains(prize.getPrizeId());
+        } else if (prize.getPrizeType().equals(PrizeTypeEnum.TITLE.getValue())) {
+            return ownedTitleIds.contains(prize.getPrizeId());
+        }
+        return false;
     }
 
     /**

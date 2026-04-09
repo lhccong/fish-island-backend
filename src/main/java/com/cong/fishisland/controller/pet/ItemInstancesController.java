@@ -114,6 +114,18 @@ public class ItemInstancesController {
     }
 
     /**
+     * 批量分解蓝绿装备（稀有度1、2）
+     * 已穿戴的装备不会被分解
+     */
+    @PostMapping("/batchDecomposeBlueGreen")
+    @SaCheckLogin
+    @ApiOperation("批量分解蓝绿装备")
+    public BaseResponse<Long> batchDecomposeBlueGreenEquipments() {
+        Long totalPoints = itemInstancesService.batchDecomposeBlueGreenEquipments();
+        return ResultUtils.success(totalPoints);
+    }
+
+    /**
      * 穿戴装备
      */
     @PostMapping("/equip")
