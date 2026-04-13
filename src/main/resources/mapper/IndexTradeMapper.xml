@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper
+        PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.cong.fishisland.mapper.fund.IndexTradeMapper">
+
+    <resultMap id="BaseResultMap" type="com.cong.fishisland.model.entity.fund.IndexTradeRecord">
+            <id property="id" column="id" />
+            <result property="userId" column="userId" />
+            <result property="indexCode" column="indexCode" />
+            <result property="tradeType" column="tradeType" />
+            <result property="amount" column="amount" />
+            <result property="nav" column="nav" />
+            <result property="shares" column="shares" />
+            <result property="status" column="status" />
+            <result property="expectedSettleDate" column="expectedSettleDate" />
+            <result property="actualSettleTime" column="actualSettleTime" />
+            <result property="profitLoss" column="profitLoss" />
+            <result property="createTime" column="createTime" />
+    </resultMap>
+
+    <sql id="Base_Column_List">
+        id,userId,indexCode,tradeType,amount,nav,
+        shares,status,expectedSettleDate,actualSettleTime,profitLoss,
+        createTime
+    </sql>
+</mapper>

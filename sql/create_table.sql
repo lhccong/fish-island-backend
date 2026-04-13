@@ -208,6 +208,42 @@ create table if not exists fund
     index idx_userId (userId)
 ) comment '基金持仓表' collate = utf8mb4_unicode_ci;
 
+-- 指数交易记录表
+create table if not exists index_trade_record(
+    id                 bigint(20)     NOT NULL AUTO_INCREMENT COMMENT '主键',
+    userId             bigint(20)     NOT NULL COMMENT '用户ID，关联user表',
+    indexCode          varchar(32)    not null comment '指数代码（如：sh000001-上证指数，sz399001-深证成指）',
+    tradeType          tinyint(4)     NOT NULL COMMENT '交易类型：1-买入，2-卖出',
+    amount             bigint         not null comment '交易金额（积分）',
+    nav                decimal(10, 4) NOT NULL COMMENT '成交时的指数净值',
+    shares             decimal(20, 8) NOT NULL COMMENT '成交份额',
+    status             tinyint(4)     NOT NULL DEFAULT 1 COMMENT '状态：1-已完成（买入立即完成，卖出T+0结算）',
+    expectedSettleDate date           DEFAULT NULL COMMENT '已废弃：预计结算日期',
+    actualSettleTime   datetime       DEFAULT NULL COMMENT '实际结算完成时间（卖出时记录）',
+    profitLoss         bigint         DEFAULT NULL COMMENT '仅卖出有效：盈亏金额（积分）',
+    createTime         datetime       NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '下单时间',
+    PRIMARY KEY (`id`),
+    KEY `idx_userId` (`userId`),
+    KEY `idx_user_index_create` (`userId`, `indexCode`, `createTime`),
+    KEY `idx_index_code` (`indexCode`)
+) COMMENT ='指数交易记录表';
+
+-- 指数持仓表
+create table if not exists index_position(
+    id              bigint auto_increment primary key,
+    userId          bigint(20)     NOT NULL COMMENT '用户ID，关联user表',
+    indexCode       varchar(32)    not null comment '指数代码（如：sh000001-上证指数，sz399001-深证成指）',
+    totalShares     decimal(20, 8) not null default 0 comment '总份额（= availableShares + lockedShares）',
+    availableShares decimal(20, 8) not null default 0 comment '可用份额（可卖出）',
+    lockedShares    decimal(20, 8) not null default 0 comment '锁定份额（当日买入，次日09:30解锁）',
+    avgCost         decimal(12, 6) not null default 0 comment '平均成本（净值）',
+    createTime      datetime       default current_timestamp comment '创建时间',
+    updateTime      datetime       default current_timestamp on update current_timestamp comment '更新时间',
+    unique key uk_user_index (userId, indexCode),
+    KEY `idx_index_code` (`indexCode`),
+    KEY `idx_locked_shares` (`lockedShares`)
+) comment '指数持仓表';
+
 -- 房间消息表
 create table if not exists room_message
 (
@@ -473,27 +509,27 @@ CREATE TABLE item_instances
 -- Boss表
 create table if not exists boss
 (
-    id                   bigint auto_increment comment 'Boss ID' primary key,
-    name                 varchar(100)                       not null comment 'Boss名称',
-    avatar               varchar(512)                       null comment 'Boss头像URL',
-    health               int          default 1000         not null comment 'Boss血量',
-    attack               int          default 100          not null comment 'Boss攻击力',
-    rewardPoints         int          default 100          not null comment '击败奖励积分',
-    critRate             decimal(5,4) default 0.0000       null comment '暴击率(0-1)',
-    comboRate            decimal(5,4) default 0.0000       null comment '连击率(0-1)',
-    dodgeRate            decimal(5,4) default 0.0000       null comment '闪避率(0-1)',
-    blockRate            decimal(5,4) default 0.0000       null comment '格挡率(0-1)',
-    lifesteal            decimal(5,4) default 0.0000       null comment '吸血率(0-1)',
-    critResistance       decimal(5,4) default 0.0000       null comment '抗暴击率(0-1)',
-    comboResistance      decimal(5,4) default 0.0000       null comment '抗连击率(0-1)',
-    dodgeResistance      decimal(5,4) default 0.0000       null comment '抗闪避率(0-1)',
-    blockResistance      decimal(5,4) default 0.0000       null comment '抗格挡率(0-1)',
-    lifestealResistance  decimal(5,4) default 0.0000       null comment '抗吸血率(0-1)',
-    sort                 int          default 0           not null comment '排序',
-    status               tinyint      default 1           not null comment '状态：0-禁用，1-启用',
-    createTime           datetime     default CURRENT_TIMESTAMP not null comment '创建时间',
-    updateTime           datetime     default CURRENT_TIMESTAMP not null on update CURRENT_TIMESTAMP comment '更新时间',
-    isDelete             tinyint      default 0           not null comment '是否删除',
+    id                  bigint auto_increment comment 'Boss ID' primary key,
+    name                varchar(100)                            not null comment 'Boss名称',
+    avatar              varchar(512)                            null comment 'Boss头像URL',
+    health              int           default 1000              not null comment 'Boss血量',
+    attack              int           default 100               not null comment 'Boss攻击力',
+    rewardPoints        int           default 100               not null comment '击败奖励积分',
+    critRate            decimal(5, 4) default 0.0000            null comment '暴击率(0-1)',
+    comboRate           decimal(5, 4) default 0.0000            null comment '连击率(0-1)',
+    dodgeRate           decimal(5, 4) default 0.0000            null comment '闪避率(0-1)',
+    blockRate           decimal(5, 4) default 0.0000            null comment '格挡率(0-1)',
+    lifesteal           decimal(5, 4) default 0.0000            null comment '吸血率(0-1)',
+    critResistance      decimal(5, 4) default 0.0000            null comment '抗暴击率(0-1)',
+    comboResistance     decimal(5, 4) default 0.0000            null comment '抗连击率(0-1)',
+    dodgeResistance     decimal(5, 4) default 0.0000            null comment '抗闪避率(0-1)',
+    blockResistance     decimal(5, 4) default 0.0000            null comment '抗格挡率(0-1)',
+    lifestealResistance decimal(5, 4) default 0.0000            null comment '抗吸血率(0-1)',
+    sort                int           default 0                 not null comment '排序',
+    status              tinyint       default 1                 not null comment '状态：0-禁用，1-启用',
+    createTime          datetime      default CURRENT_TIMESTAMP not null comment '创建时间',
+    updateTime          datetime      default CURRENT_TIMESTAMP not null on update CURRENT_TIMESTAMP comment '更新时间',
+    isDelete            tinyint       default 0                 not null comment '是否删除',
     index idx_status (status),
     index idx_sort (sort)
 ) comment 'Boss表' collate = utf8mb4_unicode_ci;
