@@ -4,6 +4,7 @@ import lombok.Data;
 import java.io.Serializable;
 import java.util.Date;
 import java.util.List;
+import java.util.Map;
 
 /**
  * 其他用户宠物视图对象（不包含扩展数据）
@@ -52,6 +53,16 @@ public class OtherUserPetVO implements Serializable {
      * 宠物拥有的皮肤列表
      */
     private List<PetSkinVO> skins;
+
+    /**
+     * 已穿戴的装备列表（按槽位分类，key为槽位名称如head/hand/foot/weapon）
+     */
+    private Map<String, ItemInstanceVO> equippedItems;
+
+    /**
+     * 宠物装备属性统计
+     */
+    private PetEquipStatsVO equipStats;
 
 
     /**

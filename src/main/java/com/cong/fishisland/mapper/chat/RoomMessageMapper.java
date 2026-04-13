@@ -2,6 +2,8 @@ package com.cong.fishisland.mapper.chat;
 
 import com.cong.fishisland.model.entity.chat.RoomMessage;
 import com.baomidou.mybatisplus.core.mapper.BaseMapper;
+import org.apache.ibatis.annotations.Delete;
+import org.apache.ibatis.annotations.Param;
 
 /**
 * @author cong
@@ -11,6 +13,11 @@ import com.baomidou.mybatisplus.core.mapper.BaseMapper;
 */
 public interface RoomMessageMapper extends BaseMapper<RoomMessage> {
 
+    /**
+     * 按 id 物理删除（绕过逻辑删除）
+     */
+    @Delete("DELETE FROM room_message WHERE id = #{id}")
+    int physicalDeleteById(@Param("id") Long id);
 }
 
 

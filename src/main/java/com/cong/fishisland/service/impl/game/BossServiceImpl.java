@@ -3,6 +3,7 @@ package com.cong.fishisland.service.impl.game;
 import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
 import com.cong.fishisland.common.ErrorCode;
 import com.cong.fishisland.common.exception.BusinessException;
+import com.cong.fishisland.constant.BattleConstant;
 import com.cong.fishisland.constant.RedisKey;
 import com.cong.fishisland.mapper.game.BossMapper;
 import com.cong.fishisland.model.entity.game.Boss;
@@ -61,9 +62,9 @@ public class BossServiceImpl implements BossService {
     private static final int MAX_DAILY_CHALLENGES = 2;
 
     // 暴击伤害倍数
-    private static final double CRITICAL_DAMAGE_MULTIPLIER = 2.0;
+    private static final double CRITICAL_DAMAGE_MULTIPLIER = BattleConstant.CRITICAL_DAMAGE_MULTIPLIER;
     // 连击伤害倍数
-    private static final double COMBO_DAMAGE_MULTIPLIER = 1.5;
+    private static final double COMBO_DAMAGE_MULTIPLIER = BattleConstant.COMBO_DAMAGE_MULTIPLIER;
 
     // Boss击败积分分配百分比（按排名）
     // 第1名: 20%, 第2名: 15%, 第3名: 10%, 第4-5名: 各8%, 第6-10名: 各5%
@@ -155,8 +156,8 @@ public class BossServiceImpl implements BossService {
         double petComboRate = petEquipStats != null ? petEquipStats.getComboRate() : 0.0;
         double petDodgeRate = petEquipStats != null ? petEquipStats.getDodgeRate() : 0.0;
         
-        // 攻击力 = 等级 + 装备攻击力
-        int petAttack = petLevel + equipAttack;
+        // 攻击力 = baseAtk * (1 + growthRate)^level + 装备攻击力（指数成长）
+        int petAttack = (int) (BattleConstant.BASE_ATK * Math.pow(1 + BattleConstant.GROWTH_RATE, petLevel)) + equipAttack;
         // 血量 = 等级 * 100 + 装备生命值
         int petHealth = petLevel * 100 + equipHp;
         // 防御力 = 装备防御力（用于减伤）
@@ -610,8 +611,8 @@ public class BossServiceImpl implements BossService {
         int equipHp = petEquipStats != null && petEquipStats.getTotalBaseHp() != null 
                 ? petEquipStats.getTotalBaseHp() : 0;
         
-        // 攻击力 = 等级 + 装备攻击力
-        int petAttack = petLevel + equipAttack;
+        // 攻击力 = baseAtk * (1 + growthRate)^level + 装备攻击力（指数成长）
+        int petAttack = (int) (BattleConstant.BASE_ATK * Math.pow(1 + BattleConstant.GROWTH_RATE, petLevel)) + equipAttack;
         // 血量 = 等级 * 100 + 装备生命值
         int petHealth = petLevel * 100 + equipHp;
 

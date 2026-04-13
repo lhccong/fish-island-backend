@@ -140,6 +140,14 @@ public interface FishPetService extends IService<FishPet> {
     PetEquipStatsVO getPetEquipStats();
 
     /**
+     * 根据用户ID获取宠物装备属性统计
+     *
+     * @param userId 用户ID
+     * @return 装备属性统计VO
+     */
+    PetEquipStatsVO getPetEquipStatsByUserId(Long userId);
+
+    /**
      * 获取宠物已穿戴的装备列表
      *
      * @param pet 宠物实体

@@ -410,6 +410,14 @@ public class FishPetServiceImpl extends ServiceImpl<FishPetMapper, FishPet> impl
         List<PetSkinVO> petSkins = this.getPetSkins(fishPet.getPetId());
         otherUserPetVO.setSkins(petSkins);
 
+        // 获取已穿戴的装备列表
+        Map<String, ItemInstanceVO> equippedItems = getEquippedItems(fishPet);
+        otherUserPetVO.setEquippedItems(equippedItems);
+
+        // 获取宠物装备属性统计
+        PetEquipStatsVO equipStats = this.getPetEquipStatsByUserId(otherUserId);
+        otherUserPetVO.setEquipStats(equipStats);
+
         return otherUserPetVO;
     }
 
@@ -962,6 +970,14 @@ public class FishPetServiceImpl extends ServiceImpl<FishPetMapper, FishPet> impl
         }
 
         Long userId = StpUtil.getLoginIdAsLong();
+        return getPetEquipStatsByUserId(userId);
+    }
+
+    @Override
+    public PetEquipStatsVO getPetEquipStatsByUserId(Long userId) {
+        if (userId == null) {
+            return null;
+        }
 
         // 查询宠物
         QueryWrapper<FishPet> queryWrapper = new QueryWrapper<>();

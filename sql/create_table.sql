@@ -498,3 +498,17 @@ create table if not exists boss
     index idx_sort (sort)
 ) comment 'Boss表' collate = utf8mb4_unicode_ci;
 
+
+-- 聊天记录备份表
+create table if not exists room_message_backup
+(
+    id          bigint comment '原始消息id' primary key,
+    userId      bigint                             not null comment '用户 id',
+    messageId   varchar(128)                       null comment '消息唯一标识',
+    roomId      bigint                             not null comment '房间 id',
+    messageJson mediumtext                         null comment '消息 Json 数据（json）',
+    createTime  datetime default CURRENT_TIMESTAMP not null comment '创建时间',
+    updateTime  datetime default CURRENT_TIMESTAMP not null on update CURRENT_TIMESTAMP comment '更新时间',
+    isDelete    tinyint  default 0                 not null comment '是否删除',
+    backupTime  datetime default CURRENT_TIMESTAMP not null comment '备份时间'
+) comment '聊天记录备份表' collate = utf8mb4_unicode_ci;
