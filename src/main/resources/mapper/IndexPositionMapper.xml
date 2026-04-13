@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper
+        PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.cong.fishisland.mapper.fund.IndexPositionMapper">
+
+    <resultMap id="BaseResultMap" type="com.cong.fishisland.model.entity.fund.IndexPosition">
+        <id property="id" column="id"/>
+        <result property="userId" column="userId"/>
+        <result property="indexCode" column="indexCode"/>
+        <result property="totalShares" column="totalShares"/>
+        <result property="availableShares" column="availableShares"/>
+        <result property="lockedShares" column="lockedShares"/>
+        <result property="avgCost" column="avgCost"/>
+        <result property="updateTime" column="updateTime"/>
+    </resultMap>
+
+    <sql id="Base_Column_List">
+        id, userId, indexCode, totalShares, availableShares, lockedShares, avgCost, updateTime
+    </sql>
+
+    <update id="unlockAllLockedShares">
+        UPDATE index_position
+        SET availableShares = availableShares + lockedShares,
+            lockedShares    = 0
+        WHERE lockedShares > 0
+    </update>
+</mapper>
