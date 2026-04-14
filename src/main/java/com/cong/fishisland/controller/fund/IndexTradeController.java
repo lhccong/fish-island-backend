@@ -119,15 +119,4 @@ public class IndexTradeController {
         return ResultUtils.success(page);
     }
 
-    /**
-     * 获取待结算交易
-     */
-    @GetMapping("/pending")
-    @ApiOperation(value = "获取待结算交易")
-    @SaCheckLogin
-    public BaseResponse<List<IndexTransactionVO>> getPendingTransactions() {
-        Long userId = userService.getLoginUser().getId();
-        List<IndexTransactionVO> list = indexTradeService.getUserPendingTransactions(userId, INDEX_CODE);
-        return ResultUtils.success(list);
-    }
 }

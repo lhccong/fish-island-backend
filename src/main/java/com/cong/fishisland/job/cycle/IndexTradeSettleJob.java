@@ -20,9 +20,9 @@ public class IndexTradeSettleJob {
     private final IndexPositionService indexPositionService;
 
     /**
-     * 每天 09:30 执行份额解锁
+     * 每天 08:30 执行份额解锁
      */
-    @Scheduled(cron = "0 30 9 * * ?")
+    @Scheduled(cron = "0 30 8 * * ?")
     public void unlockShares() {
         log.info("开始执行份额解锁任务");
         try {

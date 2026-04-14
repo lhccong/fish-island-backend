@@ -229,7 +229,7 @@ public class IndexTradeServiceImpl extends ServiceImpl<IndexTradeMapper, IndexTr
         
         BigDecimal costValue = shares.multiply(position.getAvgCost());
         BigDecimal currentValue = shares.multiply(currentNav);
-        return currentValue.subtract(costValue).setScale(0, RoundingMode.HALF_UP).longValue();
+        return currentValue.subtract(costValue).setScale(0, RoundingMode.UP).longValue();
     }
 
     /**

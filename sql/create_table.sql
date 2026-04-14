@@ -217,7 +217,7 @@ create table if not exists index_trade_record(
     amount             bigint         not null comment '交易金额（积分）',
     nav                decimal(10, 4) NOT NULL COMMENT '成交时的指数净值',
     shares             decimal(20, 8) NOT NULL COMMENT '成交份额',
-    status             tinyint(4)     NOT NULL DEFAULT 1 COMMENT '状态：1-已完成（买入立即完成，卖出T+0结算）',
+    status             tinyint(4)     NOT NULL DEFAULT 1 COMMENT '状态：1-已完成（买入立即完成，卖出T+1结算）',
     expectedSettleDate date           DEFAULT NULL COMMENT '已废弃：预计结算日期',
     actualSettleTime   datetime       DEFAULT NULL COMMENT '实际结算完成时间（卖出时记录）',
     profitLoss         bigint         DEFAULT NULL COMMENT '仅卖出有效：盈亏金额（积分）',
