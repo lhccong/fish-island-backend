@@ -44,16 +44,16 @@ public class PetStatusUpdateJob {
         if (onlineUserList.isEmpty()) {
             log.info("当前没有在线用户，不执行宠物等级更新任务");
         } else {
-            log.info("开始执行宠物等级更新任务，只有饥饿度和心情值都大于0的宠物才会获得经验");
+            log.info("开始执行宠物等级更新任务");
             List<String> userIds = onlineUserList.stream().map(UserChatResponse::getId).collect(Collectors.toList());
             
             try {
                 int updatedCount = fishPetService.batchUpdateOnlineUserPetExp(userIds);
                 
                 if (updatedCount > 0) {
-                    log.info("在线用户宠物经验更新成功，共更新{}个宠物（饥饿度和心情值都大于0）", updatedCount);
+                    log.info("在线用户宠物经验更新成功，共更新{}个宠物", updatedCount);
                 } else {
-                    log.info("没有符合条件的宠物需要更新经验（可能是饥饿度或心情值为0）");
+                    log.info("没有符合条件的宠物需要更新经验");
                 }
                 
                 log.info("宠物等级更新任务执行完成");

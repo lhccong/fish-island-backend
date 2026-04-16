@@ -526,7 +526,7 @@ public class FishPetServiceImpl extends ServiceImpl<FishPetMapper, FishPet> impl
                 .in(FishPet::getUserId, userIds)
                 .eq(FishPet::getLevel, 59)
                 .ge(FishPet::getExp, 99) // 经验值为99，+1后会达到100
-                .and(wrapper -> wrapper.gt(FishPet::getHunger, 0).or().gt(FishPet::getMood, 0))
+//                .and(wrapper -> wrapper.gt(FishPet::getHunger, 0).or().gt(FishPet::getMood, 0))
                 .eq(FishPet::getIsDelete, 0)
         );
 

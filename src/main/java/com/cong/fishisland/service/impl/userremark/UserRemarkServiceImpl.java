@@ -24,11 +24,7 @@ public class UserRemarkServiceImpl extends ServiceImpl<UserRemarkMapper, UserRem
     @Override
     public boolean saveRemark(String content) {
         Long userId = StpUtil.getLoginIdAsLong();
-        
-        // 校验内容长度
-        if (content != null && content.length() > 512) {
-            throw new BusinessException(ErrorCode.PARAMS_ERROR, "内容超过512个字符");
-        }
+
         
         // 查询当前用户是否已有备注
         LambdaQueryWrapper<UserRemark> queryWrapper = new LambdaQueryWrapper<>();

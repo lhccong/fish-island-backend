@@ -68,7 +68,6 @@
             <foreach collection="userIds" item="userId" open="(" separator="," close=")">
                 #{userId}
             </foreach>
-            AND (hunger > 0 OR mood > 0)
         </if>
     </update>
     

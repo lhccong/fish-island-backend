@@ -25,6 +25,7 @@ public enum HotDataKeyEnum {
     DOU_YIN("抖音", "DouYin"),
     CS_DN("csdn", "CSDN"),
     JUE_JIN("掘金", "JueJin"),
+    JUE_JIN_HOT("掘金热榜", "JueJinBoiling"),
     SM_ZDM("什么值得买", "SmZdm"),
     ZHI_BO_8("直播吧", "ZhiBo8"),
     TIE_BA("贴吧", "TieBa"),

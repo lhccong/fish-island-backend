@@ -99,12 +99,9 @@ public class PetBattleServiceImpl implements PetBattleService {
 
         List<PetBattleResultVO> results = new ArrayList<>();
         boolean myTurn = true;
-        int myRounds = 0;
-        int opponentRounds = 0;
         int maxActions = 100;
 
-        while ((myRounds < 20 || opponentRounds < 20)
-                && currentMyHealth > 0
+        while (currentMyHealth > 0
                 && currentOpponentHealth > 0
                 && maxActions-- > 0) {
 
@@ -138,11 +135,6 @@ public class PetBattleServiceImpl implements PetBattleService {
             results.add(result);
 
             if (!attackResult.isCombo()) {
-                if (myTurn) {
-                    myRounds++;
-                } else {
-                    opponentRounds++;
-                }
                 myTurn = !myTurn;
             }
         }

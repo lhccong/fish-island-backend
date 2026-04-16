@@ -175,16 +175,11 @@ public class BossServiceImpl implements BossService {
         // 累计用户造成的总伤害
         int totalDamage = 0;
 
-        // 统计双方各自已出手的有效回合数（连击不计入回合数）
-        int petRounds = 0;
-        int bossRounds = 0;
-
         // 为防止极端情况下无限连击导致死循环，增加一个最大行动次数保护
         int maxActions = 100;
 
         // 宠物和Boss各自最多出手 20回合（连击不算回合）
-        while ((petRounds < 20 || bossRounds < 20)
-                && currentPetHealth > 0
+        while (currentPetHealth > 0
                 && currentBossHealth > 0
                 && maxActions-- > 0) {
 
@@ -245,11 +240,6 @@ public class BossServiceImpl implements BossService {
             // 如果不是连击，本次攻击计为一回合，并切换到另一方
             // 连击则仅追加伤害，不增加回合数，攻击方保持不变
             if (!isCombo) {
-                if ("PET".equals(attackerType)) {
-                    petRounds++;
-                } else {
-                    bossRounds++;
-                }
                 petTurn = !petTurn;
             }
         }

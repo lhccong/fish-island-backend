@@ -37,12 +37,14 @@ public class DataSourceRegistry {
     private final QQMusicDataSource qqMusicDataSource;
     private final LinuxDoDataSource linuxDoDataSource;
     private final V2exDataSource v2exDataSource;
+    private final JueJinBoilingDataSource jueJinBoilingDataSource;
 
 
     @PostConstruct
     public void doInit() {
         typeDataSourceMap = new HashMap<String, DataSource>() {{
             put(HotDataKeyEnum.ZHI_HU.getValue(), zhiHuDataSource);
+            put(HotDataKeyEnum.JUE_JIN_HOT.getValue(), jueJinBoilingDataSource);
             put(HotDataKeyEnum.WEI_BO.getValue(), weiBoDataSource);
             put(HotDataKeyEnum.CODE_FATHER.getValue(), codeFatherDataSource);
             put(HotDataKeyEnum.BILI_BILI.getValue(), bilibiliDataSource);
