@@ -2,6 +2,7 @@ package com.cong.fishisland.job.cycle;
 
 import com.cong.fishisland.model.ws.response.UserChatResponse;
 import com.cong.fishisland.service.FishPetService;
+import com.cong.fishisland.service.PetTournamentService;
 import com.cong.fishisland.service.UserPointsService;
 import com.cong.fishisland.websocket.service.WebSocketService;
 import lombok.RequiredArgsConstructor;
@@ -25,6 +26,7 @@ public class PetStatusUpdateJob {
     private final FishPetService fishPetService;
     private final WebSocketService webSocketService;
     private final UserPointsService userPointsService;
+    private final PetTournamentService petTournamentService;
 
     // 每小时饥饿度减少值
     private static final int HUNGER_DECREMENT = 5;
@@ -146,6 +148,20 @@ public class PetStatusUpdateJob {
             log.info("宠物排行榜生成和称号更新任务执行完成");
         } catch (Exception e) {
             log.error("宠物排行榜生成和称号更新任务执行异常", e);
+        }
+    }
+
+    /**
+     * 每天凌晨0点重置武道大会排行榜
+     */
+    @Scheduled(cron = "0 1 0 * * ?")
+    public void resetTournamentLeaderboard() {
+        log.info("开始重置武道大会排行榜");
+        try {
+            petTournamentService.resetDailyLeaderboard();
+            log.info("武道大会排行榜重置完成");
+        } catch (Exception e) {
+            log.error("武道大会排行榜重置异常", e);
         }
     }
 } 
