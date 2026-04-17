@@ -35,14 +35,6 @@ public class TournamentRankVO implements Serializable {
     @ApiModelProperty("宠物图片")
     private String petUrl;
 
-    @ApiModelProperty("实际攻击力（含装备）")
-    private Integer attack;
-
-    @ApiModelProperty("实际生命值（含装备）")
-    private Integer health;
-
-    @ApiModelProperty("宠物装备属性统计")
-    private PetEquipStatsVO equipStats;
 
     private static final long serialVersionUID = 1L;
 }

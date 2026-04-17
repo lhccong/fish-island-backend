@@ -295,17 +295,6 @@ public class PetTournamentServiceImpl implements PetTournamentService {
                 vo.setPetName(pet.getName());
                 vo.setPetLevel(pet.getLevel());
                 vo.setPetUrl(pet.getPetUrl());
-
-                // 装备属性（直接传 pet，不再重复查库）
-                PetEquipStatsVO equipStats = fishPetService.getPetEquipStatsByPet(pet);
-                vo.setEquipStats(equipStats);
-
-                // 实际战斗属性
-                int lv = pet.getLevel() != null ? pet.getLevel() : 1;
-                int equipAtk = equipStats != null && equipStats.getTotalBaseAttack() != null ? equipStats.getTotalBaseAttack() : 0;
-                int equipHp = equipStats != null && equipStats.getTotalBaseHp() != null ? equipStats.getTotalBaseHp() : 0;
-                vo.setAttack((int) (BattleConstant.BASE_ATK * Math.pow(1 + BattleConstant.GROWTH_RATE, lv)) + equipAtk);
-                vo.setHealth(lv * 100 + equipHp);
             }
             return vo;
         } catch (Exception e) {
