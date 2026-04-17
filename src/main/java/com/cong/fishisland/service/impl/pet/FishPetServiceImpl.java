@@ -974,6 +974,55 @@ public class FishPetServiceImpl extends ServiceImpl<FishPetMapper, FishPet> impl
     }
 
     @Override
+    public PetEquipStatsVO getPetEquipStatsByPet(FishPet fishPet) {
+        if (fishPet == null) {
+            return null;
+        }
+        // 获取已穿戴的装备列表
+        Map<String, ItemInstanceVO> equippedItems = getEquippedItems(fishPet);
+
+        // 初始化属性统计
+        PetEquipStatsVO statsVO = new PetEquipStatsVO();
+        statsVO.setTotalBaseAttack(0);
+        statsVO.setTotalBaseDefense(0);
+        statsVO.setTotalBaseHp(0);
+        statsVO.setCritRate(0.0);
+        statsVO.setComboRate(0.0);
+        statsVO.setDodgeRate(0.0);
+        statsVO.setBlockRate(0.0);
+        statsVO.setLifesteal(0.0);
+        statsVO.setCritResistance(0.0);
+        statsVO.setComboResistance(0.0);
+        statsVO.setDodgeResistance(0.0);
+        statsVO.setBlockResistance(0.0);
+        statsVO.setLifestealResistance(0.0);
+
+        if (equippedItems == null || equippedItems.isEmpty()) {
+            return statsVO;
+        }
+
+        for (ItemInstanceVO item : equippedItems.values()) {
+            if (item == null || item.getTemplate() == null) {
+                continue;
+            }
+            ItemTemplateVO template = item.getTemplate();
+            if (template.getBaseAttack() != null) {
+                statsVO.setTotalBaseAttack(statsVO.getTotalBaseAttack() + template.getBaseAttack());
+            }
+            if (template.getBaseDefense() != null) {
+                statsVO.setTotalBaseDefense(statsVO.getTotalBaseDefense() + template.getBaseDefense());
+            }
+            if (template.getBaseHp() != null) {
+                statsVO.setTotalBaseHp(statsVO.getTotalBaseHp() + template.getBaseHp());
+            }
+            if (template.getMainAttr() != null) {
+                parseMainAttr(template.getMainAttr(), statsVO);
+            }
+        }
+        return statsVO;
+    }
+
+    @Override
     public PetEquipStatsVO getPetEquipStatsByUserId(Long userId) {
         if (userId == null) {
             return null;

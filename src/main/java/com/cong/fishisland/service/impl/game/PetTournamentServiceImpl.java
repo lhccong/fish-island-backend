@@ -18,10 +18,12 @@ import com.cong.fishisland.service.UserService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.redis.core.StringRedisTemplate;
+import org.springframework.data.redis.core.ZSetOperations;
 import org.springframework.stereotype.Service;
 
 import java.time.LocalDateTime;
 import java.util.*;
+import java.util.stream.Collectors;
 
 /**
  * 宠物武道大会服务实现
@@ -119,19 +121,36 @@ public class PetTournamentServiceImpl implements PetTournamentService {
         // 当前用户没排名则自动入榜（排到末位）
         autoJoinIfAbsent();
 
-        Set<org.springframework.data.redis.core.ZSetOperations.TypedTuple<String>> tuples =
+        Set<ZSetOperations.TypedTuple<String>> tuples =
                 stringRedisTemplate.opsForZSet().rangeWithScores(TournamentRedisKey.LEADERBOARD, 0, -1);
 
         if (tuples == null || tuples.isEmpty()) {
             return Collections.emptyList();
         }
 
+        // 收集所有 userId
+        List<Long> userIds = tuples.stream()
+                .filter(t -> t.getValue() != null)
+                .map(t -> Long.parseLong(t.getValue()))
+                .collect(Collectors.toList());
+
+        // 批量查用户（1 次）
+        Map<Long, User> userMap = userService.listByIds(userIds).stream()
+                .collect(Collectors.toMap(User::getId, u -> u));
+
+        // 批量查宠物（1 次）
+        Map<Long, FishPet> petMap = fishPetService.list(
+                new QueryWrapper<FishPet>().in("userId", userIds)).stream()
+                .collect(Collectors.toMap(FishPet::getUserId, p -> p));
+
         List<TournamentRankVO> list = new ArrayList<>();
-        for (org.springframework.data.redis.core.ZSetOperations.TypedTuple<String> tuple : tuples) {
-            if (tuple.getValue() == null || tuple.getScore() == null) continue;
+        for (ZSetOperations.TypedTuple<String> tuple : tuples) {
+            if (tuple.getValue() == null || tuple.getScore() == null) {
+                continue;
+            }
             long userId = Long.parseLong(tuple.getValue());
             int rank = tuple.getScore().intValue();
-            TournamentRankVO vo = buildRankVO(userId, rank);
+            TournamentRankVO vo = buildRankVO(userId, rank, userMap.get(userId), petMap.get(userId));
             if (vo != null) {
                 list.add(vo);
             }
@@ -263,13 +282,8 @@ public class PetTournamentServiceImpl implements PetTournamentService {
         return pet;
     }
 
-    private TournamentRankVO buildRankVO(long userId, int rank) {
+    private TournamentRankVO buildRankVO(long userId, int rank, User user, FishPet pet) {
         try {
-            User user = userService.getById(userId);
-            QueryWrapper<FishPet> qw = new QueryWrapper<>();
-            qw.eq("userId", userId);
-            FishPet pet = fishPetService.getOne(qw);
-
             TournamentRankVO vo = new TournamentRankVO();
             vo.setRank(rank);
             vo.setUserId(userId);
@@ -282,18 +296,16 @@ public class PetTournamentServiceImpl implements PetTournamentService {
                 vo.setPetLevel(pet.getLevel());
                 vo.setPetUrl(pet.getPetUrl());
 
-                // 装备属性
-                PetEquipStatsVO equipStats = fishPetService.getPetEquipStatsByUserId(userId);
+                // 装备属性（直接传 pet，不再重复查库）
+                PetEquipStatsVO equipStats = fishPetService.getPetEquipStatsByPet(pet);
                 vo.setEquipStats(equipStats);
 
-                // 实际战斗属性（复用 PetBattleServiceImpl 的计算逻辑）
+                // 实际战斗属性
                 int lv = pet.getLevel() != null ? pet.getLevel() : 1;
                 int equipAtk = equipStats != null && equipStats.getTotalBaseAttack() != null ? equipStats.getTotalBaseAttack() : 0;
                 int equipHp = equipStats != null && equipStats.getTotalBaseHp() != null ? equipStats.getTotalBaseHp() : 0;
-                int attack = (int) (BattleConstant.BASE_ATK * Math.pow(1 + BattleConstant.GROWTH_RATE, lv)) + equipAtk;
-                int health = lv * 100 + equipHp;
-                vo.setAttack(attack);
-                vo.setHealth(health);
+                vo.setAttack((int) (BattleConstant.BASE_ATK * Math.pow(1 + BattleConstant.GROWTH_RATE, lv)) + equipAtk);
+                vo.setHealth(lv * 100 + equipHp);
             }
             return vo;
         } catch (Exception e) {
