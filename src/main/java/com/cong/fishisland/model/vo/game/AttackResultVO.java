@@ -32,6 +32,16 @@ public class AttackResultVO implements Serializable {
      */
     private boolean combo;
 
+    /**
+     * 是否格挡
+     */
+    private boolean block;
+
+    /**
+     * 吸血回复量
+     */
+    private int lifestealHeal;
+
     private static final long serialVersionUID = 1L;
 }
 

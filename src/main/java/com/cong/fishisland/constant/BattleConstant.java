@@ -25,5 +25,10 @@ public interface BattleConstant {
     /**
      * 攻击力成长率（指数成长）
      */
-    double GROWTH_RATE = 0.08;
+    double GROWTH_RATE = 0.06;
+
+    /**
+     * 格挡减伤比例（触发格挡时伤害乘以该系数）
+     */
+    double BLOCK_DAMAGE_REDUCTION = 0.5;
 }
