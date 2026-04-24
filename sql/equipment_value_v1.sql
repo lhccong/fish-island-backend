@@ -1,5 +1,6 @@
 -- 只更新数值字段：rarity, levelReq, baseAttack, baseDefense, baseHp, mainAttr, removePoint
 
+-- start版本 1 --------------------
 -- 攻击:15 | 防御:0 | 生命:0 | 暴击:1.5% 连击:1.5%
 -- 普通的钥匙（rarity=1 武器）
 UPDATE fish.item_templates SET rarity = 1, levelReq = 1, baseAttack = 15, baseDefense = 0, baseHp = 0,
@@ -55,3 +56,4 @@ UPDATE fish.item_templates SET rarity = 4, levelReq = 1, baseAttack = 130, baseD
     mainAttr = '"{\\"critRate\\":0.065,\\"comboRate\\":0.065,\\"lifesteal\\":0.045,\\"blockRate\\":0.035,\\"dodgeRate\\":0.035,\\"critResistance\\":0.035,\\"dodgeResistance\\":0.065,\\"lifestealResistance\\":0.035,\\"comboResistance\\":0.035,\\"blockResistance\\":0.035}"',
     removePoint = 1000
 WHERE id = 2004531905314074626;
+-- end 版本 1 --------------------
