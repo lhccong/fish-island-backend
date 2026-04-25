@@ -10,6 +10,7 @@ import com.cong.fishisland.model.entity.game.TowerClimbProgress;
 import com.cong.fishisland.model.entity.game.TowerClimbRecord;
 import com.cong.fishisland.model.entity.pet.FishPet;
 import com.cong.fishisland.model.entity.user.User;
+import com.cong.fishisland.model.enums.user.PointsRecordSourceEnum;
 import com.cong.fishisland.model.vo.game.AttackResultVO;
 import com.cong.fishisland.model.vo.game.BattleResultVO;
 import com.cong.fishisland.model.vo.game.BattleStatsVO;
@@ -66,7 +67,7 @@ public class TowerClimbServiceImpl implements TowerClimbService {
     private static final double PROB_GROWTH_PER_FLOOR = 0.006;
     private static final double PROB_CAP = 2.0;
     // 每层基础奖励积分
-    private static final int BASE_REWARD = 5;
+    private static final int BASE_REWARD = 10;
     // 最大战斗回合数
     private static final int MAX_ROUNDS = 30;
 
@@ -134,8 +135,10 @@ public class TowerClimbServiceImpl implements TowerClimbService {
             // 更新最高层数
             progress.setMaxFloor(floor);
             towerClimbProgressMapper.updateById(progress);
-            // 发放积分
-            userPointsService.updatePoints(userId, rewardPoints, false);
+            // 发放积分（记录来源为爬塔奖励）
+            userPointsService.addPoints(userId, rewardPoints,
+                    PointsRecordSourceEnum.TOWER_CLIMB.getValue(),
+                    String.valueOf(floor), "爬塔第 " + floor + " 层奖励");
         }
 
         // 保存挑战记录
