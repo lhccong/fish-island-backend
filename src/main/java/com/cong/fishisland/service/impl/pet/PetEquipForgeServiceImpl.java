@@ -5,6 +5,7 @@ import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import com.cong.fishisland.common.ErrorCode;
 import com.cong.fishisland.common.exception.BusinessException;
+import com.cong.fishisland.constant.PetForgeConstant;
 import com.cong.fishisland.mapper.pet.PetEquipForgeMapper;
 import com.cong.fishisland.model.dto.pet.ForgeRefreshRequest;
 import com.cong.fishisland.model.dto.pet.ForgeUpgradeRequest;
@@ -16,6 +17,7 @@ import com.cong.fishisland.model.enums.pet.EntryGradeEnum;
 import com.cong.fishisland.model.enums.pet.EquipSlotEnum;
 import com.cong.fishisland.model.enums.user.PointsRecordSourceEnum;
 import com.cong.fishisland.model.vo.pet.PetEquipForgeVO;
+import com.cong.fishisland.model.vo.pet.PetEquipStatsVO;
 import com.cong.fishisland.service.FishPetService;
 import com.cong.fishisland.service.PetEquipForgeService;
 import com.cong.fishisland.service.UserPointsService;
@@ -249,5 +251,125 @@ public class PetEquipForgeServiceImpl extends ServiceImpl<PetEquipForgeMapper, P
         EquipSlotEnum slot = EquipSlotEnum.of(forge.getEquipSlot());
         vo.setEquipSlotName(slot.getLabel());
         return vo;
+    }
+
+    // ==================== 装备等级加成常量 ====================
+
+    /** 每装备等级提供的攻击力加成 */
+    private static final int LEVEL_BONUS_ATTACK = PetForgeConstant.LEVEL_BONUS_ATTACK;
+    /** 每装备等级提供的防御力加成 */
+    private static final int LEVEL_BONUS_DEFENSE = PetForgeConstant.LEVEL_BONUS_DEFENSE;
+    /** 每装备等级提供的生命值加成 */
+    private static final int LEVEL_BONUS_HP = PetForgeConstant.LEVEL_BONUS_HP;
+    /** 每装备等级提供的概率属性加成（百分比，如 0.05 表示 0.05%） */
+    private static final double LEVEL_BONUS_PERCENT_STAT = PetForgeConstant.LEVEL_BONUS_PCT;
+
+    @Override
+    public PetEquipStatsVO getForgeStatsByPetId(Long petId) {
+        PetEquipStatsVO stats = new PetEquipStatsVO();
+        stats.setTotalBaseAttack(0);
+        stats.setTotalBaseDefense(0);
+        stats.setTotalBaseHp(0);
+        stats.setCritRate(0.0);
+        stats.setComboRate(0.0);
+        stats.setDodgeRate(0.0);
+        stats.setBlockRate(0.0);
+        stats.setLifesteal(0.0);
+        stats.setCritResistance(0.0);
+        stats.setComboResistance(0.0);
+        stats.setDodgeResistance(0.0);
+        stats.setBlockResistance(0.0);
+        stats.setLifestealResistance(0.0);
+
+        if (petId == null) {
+            return stats;
+        }
+
+        List<PetEquipForge> forgeList = lambdaQuery()
+                .eq(PetEquipForge::getPetId, petId)
+                .list();
+
+        for (PetEquipForge forge : forgeList) {
+            // 1. 装备等级加成
+            int level = forge.getEquipLevel() == null ? 0 : forge.getEquipLevel();
+            if (level > 0) {
+                stats.setTotalBaseAttack(stats.getTotalBaseAttack() + level * LEVEL_BONUS_ATTACK);
+                stats.setTotalBaseDefense(stats.getTotalBaseDefense() + level * LEVEL_BONUS_DEFENSE);
+                stats.setTotalBaseHp(stats.getTotalBaseHp() + level * LEVEL_BONUS_HP);
+                double pctBonus = level * LEVEL_BONUS_PERCENT_STAT;
+                stats.setCritRate(stats.getCritRate() + pctBonus);
+                stats.setComboRate(stats.getComboRate() + pctBonus);
+                stats.setDodgeRate(stats.getDodgeRate() + pctBonus);
+                stats.setBlockRate(stats.getBlockRate() + pctBonus);
+                stats.setLifesteal(stats.getLifesteal() + pctBonus);
+                stats.setCritResistance(stats.getCritResistance() + pctBonus);
+                stats.setComboResistance(stats.getComboResistance() + pctBonus);
+                stats.setDodgeResistance(stats.getDodgeResistance() + pctBonus);
+                stats.setBlockResistance(stats.getBlockResistance() + pctBonus);
+                stats.setLifestealResistance(stats.getLifestealResistance() + pctBonus);
+            }
+
+            // 2. 词条属性累加
+            applyEntry(forge.getEntry1(), stats);
+            applyEntry(forge.getEntry2(), stats);
+            applyEntry(forge.getEntry3(), stats);
+            applyEntry(forge.getEntry4(), stats);
+        }
+
+        return stats;
+    }
+
+    /**
+     * 将单条词条的属性值累加到统计VO中
+     */
+    private void applyEntry(EquipEntry entry, PetEquipStatsVO stats) {
+        if (entry == null || entry.getAttr() == null || entry.getValue() == null) {
+            return;
+        }
+        double value = entry.getValue();
+        switch (entry.getAttr()) {
+            case "attack":
+                stats.setTotalBaseAttack(stats.getTotalBaseAttack() + (int) value);
+                break;
+            case "maxHp":
+                stats.setTotalBaseHp(stats.getTotalBaseHp() + (int) value);
+                break;
+            case "defense":
+                stats.setTotalBaseDefense(stats.getTotalBaseDefense() + (int) value);
+                break;
+            case "critRate":
+                stats.setCritRate(stats.getCritRate() + value);
+                break;
+            case "comboRate":
+                stats.setComboRate(stats.getComboRate() + value);
+                break;
+            case "dodgeRate":
+                stats.setDodgeRate(stats.getDodgeRate() + value);
+                break;
+            case "blockRate":
+                stats.setBlockRate(stats.getBlockRate() + value);
+                break;
+            case "lifesteal":
+                stats.setLifesteal(stats.getLifesteal() + value);
+                break;
+            case "antiCrit":
+                stats.setCritResistance(stats.getCritResistance() + value);
+                break;
+            case "antiCombo":
+                stats.setComboResistance(stats.getComboResistance() + value);
+                break;
+            case "antiDodge":
+                stats.setDodgeResistance(stats.getDodgeResistance() + value);
+                break;
+            case "antiBlock":
+                stats.setBlockResistance(stats.getBlockResistance() + value);
+                break;
+            case "antiLifesteal":
+                stats.setLifestealResistance(stats.getLifestealResistance() + value);
+                break;
+            default:
+                log.warn("未知词条属性: {}", entry.getAttr());
+                break;
+        }
     }
 }

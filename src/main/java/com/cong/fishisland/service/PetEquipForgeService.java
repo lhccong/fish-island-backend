@@ -5,6 +5,7 @@ import com.cong.fishisland.model.dto.pet.ForgeRefreshRequest;
 import com.cong.fishisland.model.dto.pet.ForgeUpgradeRequest;
 import com.cong.fishisland.model.entity.pet.PetEquipForge;
 import com.cong.fishisland.model.vo.pet.PetEquipForgeVO;
+import com.cong.fishisland.model.vo.pet.PetEquipStatsVO;
 
 import java.util.List;
 
@@ -40,4 +41,14 @@ public interface PetEquipForgeService extends IService<PetEquipForge> {
      * @return 升级结果（true=成功，false=失败）
      */
     boolean upgradeEquip(ForgeUpgradeRequest request);
+
+    /**
+     * 汇总宠物所有锻造装备的词条属性和装备等级加成
+     * <p>
+     * 词条属性直接累加到对应字段；装备等级加成：每级 +2 攻击/防御/生命，+0.1% 概率属性。
+     *
+     * @param petId 宠物ID
+     * @return 锻造属性统计VO（不含装备模板基础属性，仅锻造部分）
+     */
+    PetEquipStatsVO getForgeStatsByPetId(Long petId);
 }
