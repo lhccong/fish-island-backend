@@ -135,7 +135,7 @@ public class TowerClimbServiceImpl implements TowerClimbService {
             progress.setMaxFloor(floor);
             towerClimbProgressMapper.updateById(progress);
             // 发放积分（记录来源为爬塔奖励）
-            userPointsService.addPoints(userId, rewardPoints,
+            userPointsService.updateUsedPoints(userId, -rewardPoints,
                     PointsRecordSourceEnum.TOWER_CLIMB.getValue(),
                     String.valueOf(floor), "爬塔第 " + floor + " 层奖励");
         }
@@ -208,7 +208,7 @@ public class TowerClimbServiceImpl implements TowerClimbService {
     }
 
     private AttackResultVO performAttack(BattleStatsVO attacker, BattleStatsVO defender,
-                                          int attackerHp, int defenderHp) {
+                                         int attackerHp, int defenderHp) {
         AttackResultVO result = new AttackResultVO();
 
         double effectiveDodge = Math.max(0.0, defender.getDodgeRate() - attacker.getDodgeResistance());
@@ -252,12 +252,16 @@ public class TowerClimbServiceImpl implements TowerClimbService {
 
     // ---- 属性计算 ----
 
-    /** 怪物血量：随层数指数增长 */
+    /**
+     * 怪物血量：随层数指数增长
+     */
     private int calcMonsterHp(int floor) {
         return (int) (MONSTER_BASE_HP * Math.pow(floor, HP_SCALE));
     }
 
-    /** 怪物攻击：随层数指数增长 */
+    /**
+     * 怪物攻击：随层数指数增长
+     */
     private int calcMonsterAtk(int floor) {
         return (int) (MONSTER_BASE_ATK * Math.pow(floor, ATK_SCALE));
     }

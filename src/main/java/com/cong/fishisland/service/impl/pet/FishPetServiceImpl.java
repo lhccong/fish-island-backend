@@ -354,11 +354,11 @@ public class FishPetServiceImpl extends ServiceImpl<FishPetMapper, FishPet> impl
                 break;
             case 5: // 项链 → 暴击率
                 base = PetForgeConstant.NECKLACE_CRIT_BASE * Math.pow(level, PetForgeConstant.LEVEL_SCALE);
-                stats.setCritRate(round2(stats.getCritRate() + base));
+                stats.setCritRate(round4(stats.getCritRate() + base / 100.0));
                 break;
             case 6: // 翅膀 → 连击率
                 base = PetForgeConstant.WINGS_COMBO_BASE * Math.pow(level, PetForgeConstant.LEVEL_SCALE);
-                stats.setComboRate(round2(stats.getComboRate() + base));
+                stats.setComboRate(round4(stats.getComboRate() + base / 100.0));
                 break;
             default:
                 break;
@@ -394,6 +394,10 @@ public class FishPetServiceImpl extends ServiceImpl<FishPetMapper, FishPet> impl
 
     private static double round2(double v) {
         return Math.round(v * 100.0) / 100.0;
+    }
+
+    private static double round4(double v) {
+        return Math.round(v * 10000.0) / 10000.0;
     }
 
     /**

@@ -266,7 +266,8 @@ public class PetEquipForgeServiceImpl extends ServiceImpl<PetEquipForgeMapper, P
 
     /**
      * 在属性对应等级区间内随机取值
-     * 百分比属性保留两位小数，整数属性取整
+     * 百分比属性：区间单位为 %，存库时除以 100 转为小数（如 1.02% → 0.0102），保留四位小数
+     * 整数属性：直接取整
      */
     private double randomValueInRange(EntryAttrEnum attr, int gradeLevel, Random rng) {
         double[] range = attr.getRangeByGrade(gradeLevel);
@@ -274,8 +275,8 @@ public class PetEquipForgeServiceImpl extends ServiceImpl<PetEquipForgeMapper, P
         double max = range[1];
         double raw = min + rng.nextDouble() * (max - min);
         if (attr.isPercentage()) {
-            // 百分比保留两位小数
-            return Math.round(raw * 100.0) / 100.0;
+            // 区间单位为 %，除以 100 转为小数后保留四位小数
+            return Math.round(raw / 100.0 * 10000.0) / 10000.0;
         } else {
             // 整数属性取整
             return Math.round(raw);
@@ -348,11 +349,11 @@ public class PetEquipForgeServiceImpl extends ServiceImpl<PetEquipForgeMapper, P
                 break;
             case 5: // 项链 → 暴击率
                 stats.setCritRate(stats.getCritRate()
-                        + round2(calcLevelBonus(PetForgeConstant.NECKLACE_CRIT_BASE, level)));
+                        + round4(calcLevelBonus(PetForgeConstant.NECKLACE_CRIT_BASE, level) / 100.0));
                 break;
             case 6: // 翅膀 → 连击率
                 stats.setComboRate(stats.getComboRate()
-                        + round2(calcLevelBonus(PetForgeConstant.WINGS_COMBO_BASE, level)));
+                        + round4(calcLevelBonus(PetForgeConstant.WINGS_COMBO_BASE, level) / 100.0));
                 break;
             default:
                 log.warn("未知装备槽位: {}", equipSlot);
@@ -361,6 +362,10 @@ public class PetEquipForgeServiceImpl extends ServiceImpl<PetEquipForgeMapper, P
 
     private static double round2(double v) {
         return Math.round(v * 100.0) / 100.0;
+    }
+
+    private static double round4(double v) {
+        return Math.round(v * 10000.0) / 10000.0;
     }
 
     @Override

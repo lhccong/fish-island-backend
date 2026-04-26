@@ -14,17 +14,6 @@ public interface UserPointsService extends IService<UserPoints> {
 
     void updatePoints(Long userId, Integer points, boolean isSignIn);
 
-    /**
-     * 增加积分（带来源信息，会记录积分流水）
-     *
-     * @param userId      用户ID
-     * @param points      增加的积分
-     * @param sourceType  来源类型（{@link com.cong.fishisland.model.enums.user.PointsRecordSourceEnum} value）
-     * @param sourceId    来源ID（可为 null）
-     * @param description 描述
-     */
-    void addPoints(Long userId, Integer points, String sourceType, String sourceId, String description);
-
     void updateUsedPoints(Long userId, Integer points);
 
     void addSpeakPoint(Long userId);
