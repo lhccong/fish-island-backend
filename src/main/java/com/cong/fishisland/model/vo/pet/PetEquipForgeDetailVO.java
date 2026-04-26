@@ -8,13 +8,13 @@ import lombok.Data;
 import java.io.Serializable;
 
 /**
- * 宠物装备锻造 VO
+ * 宠物单件装备锻造详情 VO（含升级消耗信息）
  *
  * @author cong
  */
 @Data
-@ApiModel(value = "PetEquipForgeVO", description = "宠物装备锻造信息")
-public class PetEquipForgeVO implements Serializable {
+@ApiModel(value = "PetEquipForgeDetailVO", description = "宠物单件装备锻造详情，包含词条属性及本次升级所需积分")
+public class PetEquipForgeDetailVO implements Serializable {
 
     @ApiModelProperty(value = "记录ID")
     private Long id;
@@ -22,15 +22,12 @@ public class PetEquipForgeVO implements Serializable {
     @ApiModelProperty(value = "宠物ID")
     private Long petId;
 
-    /** 装备位置 1-武器 2-手套 3-鞋子 4-头盔 5-项链 6-翅膀 */
     @ApiModelProperty(value = "装备位置：1-武器 2-手套 3-鞋子 4-头盔 5-项链 6-翅膀")
     private Integer equipSlot;
 
-    /** 装备位置名称 */
     @ApiModelProperty(value = "装备位置名称，如：武器、手套、鞋子等")
     private String equipSlotName;
 
-    /** 装备等级（武器为 null） */
     @ApiModelProperty(value = "装备等级，武器为 null")
     private Integer equipLevel;
 
@@ -45,6 +42,15 @@ public class PetEquipForgeVO implements Serializable {
 
     @ApiModelProperty(value = "词条4")
     private EquipEntry entry4;
+
+    @ApiModelProperty(value = "本次升级所需积分（已达最高等级时为 0）", example = "90")
+    private Integer nextUpgradeCost;
+
+    @ApiModelProperty(value = "本次升级成功概率（百分比，已达最高等级时为 0）", example = "55")
+    private Integer successRate;
+
+    @ApiModelProperty(value = "是否已达最高等级", example = "false")
+    private Boolean maxLevel;
 
     private static final long serialVersionUID = 1L;
 }

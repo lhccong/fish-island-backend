@@ -7,6 +7,7 @@ import com.cong.fishisland.common.ErrorCode;
 import com.cong.fishisland.common.exception.BusinessException;
 import com.cong.fishisland.constant.PetForgeConstant;
 import com.cong.fishisland.mapper.pet.PetEquipForgeMapper;
+import com.cong.fishisland.model.dto.pet.ForgeLockRequest;
 import com.cong.fishisland.model.dto.pet.ForgeRefreshRequest;
 import com.cong.fishisland.model.dto.pet.ForgeUpgradeRequest;
 import com.cong.fishisland.model.entity.pet.EquipEntry;
@@ -16,6 +17,7 @@ import com.cong.fishisland.model.enums.pet.EntryAttrEnum;
 import com.cong.fishisland.model.enums.pet.EntryGradeEnum;
 import com.cong.fishisland.model.enums.pet.EquipSlotEnum;
 import com.cong.fishisland.model.enums.user.PointsRecordSourceEnum;
+import com.cong.fishisland.model.vo.pet.PetEquipForgeDetailVO;
 import com.cong.fishisland.model.vo.pet.PetEquipForgeVO;
 import com.cong.fishisland.model.vo.pet.PetEquipStatsVO;
 import com.cong.fishisland.service.FishPetService;
@@ -73,47 +75,99 @@ public class PetEquipForgeServiceImpl extends ServiceImpl<PetEquipForgeMapper, P
     }
 
     @Override
+    public PetEquipForgeDetailVO getForgeDetail(Long petId, Integer equipSlot) {
+        Long userId = StpUtil.getLoginIdAsLong();
+        FishPet pet = getPetAndCheckOwner(petId, userId);
+
+        EquipSlotEnum slot = EquipSlotEnum.of(equipSlot);
+        PetEquipForge forge = getOrCreateForge(pet, slot);
+
+        int currentLevel = forge.getEquipLevel() == null ? 0 : forge.getEquipLevel();
+        boolean isMaxLevel = currentLevel >= MAX_EQUIP_LEVEL;
+
+        PetEquipForgeDetailVO vo = new PetEquipForgeDetailVO();
+        BeanUtils.copyProperties(forge, vo);
+        vo.setEquipSlotName(slot.getLabel());
+        vo.setMaxLevel(isMaxLevel);
+
+        if (isMaxLevel) {
+            vo.setNextUpgradeCost(0);
+            vo.setSuccessRate(0);
+        } else {
+            // 升级消耗积分 = 基础50 + 当前等级 * 20
+            vo.setNextUpgradeCost(BASE_UPGRADE_COST + currentLevel * UPGRADE_COST_FACTOR);
+            // 升级成功概率：基础80%，每级降低5%，最低1%
+            vo.setSuccessRate(Math.max(1, 80 - currentLevel * 5));
+        }
+
+        return vo;
+    }
+
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public PetEquipForgeVO lockEntries(ForgeLockRequest request) {
+        Long userId = StpUtil.getLoginIdAsLong();
+        FishPet pet = getPetAndCheckOwner(request.getPetId(), userId);
+
+        EquipSlotEnum slot = EquipSlotEnum.of(request.getEquipSlot());
+        List<Integer> toLock = request.getLockedEntries() == null
+                ? Collections.emptyList() : request.getLockedEntries();
+
+        PetEquipForge forge = getOrCreateForge(pet, slot);
+
+        EquipEntry[] entries = {forge.getEntry1(), forge.getEntry2(), forge.getEntry3(), forge.getEntry4()};
+        for (int i = 1; i <= 4; i++) {
+            if (entries[i - 1] != null) {
+                entries[i - 1].setLocked(tolock(i, toLock));
+            }
+        }
+
+        forge.setEntry1(entries[0]);
+        forge.setEntry2(entries[1]);
+        forge.setEntry3(entries[2]);
+        forge.setEntry4(entries[3]);
+        updateById(forge);
+
+        return toVO(forge);
+    }
+
+    private boolean tolock(int index, List<Integer> lockedList) {
+        return lockedList.contains(index);
+    }
+
+    @Override
     @Transactional(rollbackFor = Exception.class)
     public PetEquipForgeVO refreshEntries(ForgeRefreshRequest request) {
         Long userId = StpUtil.getLoginIdAsLong();
         FishPet pet = getPetAndCheckOwner(request.getPetId(), userId);
 
         EquipSlotEnum slot = EquipSlotEnum.of(request.getEquipSlot());
-        List<Integer> lockedEntries = request.getLockedEntries() == null
-                ? Collections.emptyList() : request.getLockedEntries();
+
+        // 查询或初始化装备记录
+        PetEquipForge forge = getOrCreateForge(pet, slot);
+
+        EquipEntry[] current = {forge.getEntry1(), forge.getEntry2(), forge.getEntry3(), forge.getEntry4()};
+
+        // 统计已锁定词条数，用于计算积分消耗
+        int lockedCount = 0;
+        for (EquipEntry entry : current) {
+            if (entry != null && Boolean.TRUE.equals(entry.getLocked())) {
+                lockedCount++;
+            }
+        }
 
         // 计算积分消耗：基础 100 + 每锁定一条 50
-        int lockedCount = (int) lockedEntries.stream()
-                .filter(i -> i >= 1 && i <= 4).count();
         int cost = BASE_REFRESH_COST + lockedCount * LOCK_EXTRA_COST;
-
-        // 扣除积分
         userPointsService.deductPoints(userId, cost,
                 PointsRecordSourceEnum.OTHER.getValue(),
                 String.valueOf(request.getPetId()),
                 "宠物装备词条刷新-" + slot.getLabel());
 
-        // 查询或初始化装备记录
-        PetEquipForge forge = getOrCreateForge(pet, slot);
-
-        // 获取当前词条（用于保留锁定词条）
-        EquipEntry[] current = {forge.getEntry1(), forge.getEntry2(), forge.getEntry3(), forge.getEntry4()};
-
-        // 刷新未锁定的词条
-        for (int i = 1; i <= 4; i++) {
-            if (!lockedEntries.contains(i)) {
-                current[i - 1] = randomEntry();
-            } else {
-                // 保留锁定词条，但更新 locked 标记
-                if (current[i - 1] != null) {
-                    current[i - 1].setLocked(true);
-                }
+        // 刷新未锁定的词条，锁定的词条保留
+        for (int i = 0; i < 4; i++) {
+            if (current[i] == null || !Boolean.TRUE.equals(current[i].getLocked())) {
+                current[i] = randomEntry();
             }
-        }
-
-        // 刷新后所有词条 locked 重置为 false（锁定只在本次刷新生效）
-        for (EquipEntry entry : current) {
-            if (entry != null) entry.setLocked(false);
         }
 
         forge.setEntry1(current[0]);
@@ -172,9 +226,6 @@ public class PetEquipForgeServiceImpl extends ServiceImpl<PetEquipForgeMapper, P
         FishPet pet = fishPetService.getById(petId);
         if (pet == null || pet.getIsDelete() == 1) {
             throw new BusinessException(ErrorCode.NOT_FOUND_ERROR, "宠物不存在");
-        }
-        if (!pet.getUserId().equals(userId)) {
-            throw new BusinessException(ErrorCode.NO_AUTH_ERROR, "无权操作他人宠物");
         }
         return pet;
     }

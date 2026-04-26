@@ -322,12 +322,18 @@ public class ItemInstancesServiceImpl extends ServiceImpl<ItemInstancesMapper, I
                 throw new BusinessException(ErrorCode.NO_AUTH_ERROR, "只能分解自己的物品");
             }
 
-            // 4. 获取模板信息和分解数量
+            // 4. 校验装备是否已穿戴，已穿戴的装备不允许分解
+            Set<Long> equippedItemIds = getEquippedItemIds(loginUserId);
+            if (equippedItemIds.contains(itemInstanceId)) {
+                throw new BusinessException(ErrorCode.OPERATION_ERROR, "已穿戴的装备不能分解，请先卸下装备");
+            }
+
+            // 6. 获取模板信息和分解数量
             templateId = itemInstance.getTemplateId();
             userId = loginUserId;
             quantity = itemInstance.getQuantity();
 
-            // 5. 继续执行下面的统一分解逻辑，最后删除实例
+            // 7. 继续执行下面的统一分解逻辑，最后删除实例
         }
 
         // ==================== 场景2：根据模板ID和数量直接分解（系统自动分解） ====================
