@@ -320,7 +320,7 @@ public class PetEquipForgeServiceImpl extends ServiceImpl<PetEquipForgeMapper, P
      * <ul>
      *   <li>武器(1)  → 攻击力</li>
      *   <li>手套(2)  → 防御力</li>
-     *   <li>鞋子(3)  → 闪避率</li>
+     *   <li>鞋子(3)  → 速度</li>
      *   <li>头盔(4)  → 最大生命值</li>
      *   <li>项链(5)  → 暴击率</li>
      *   <li>翅膀(6)  → 连击率</li>
@@ -337,9 +337,10 @@ public class PetEquipForgeServiceImpl extends ServiceImpl<PetEquipForgeMapper, P
                 stats.setTotalBaseDefense(stats.getTotalBaseDefense()
                         + (int) calcLevelBonus(PetForgeConstant.GLOVES_DEF_BASE, level));
                 break;
-            case 3: // 鞋子 → 闪避率
-                stats.setDodgeRate(stats.getDodgeRate()
-                        + round2(calcLevelBonus(PetForgeConstant.SHOES_DODGE_BASE, level)));
+            case 3: // 鞋子 → 速度
+                stats.setSpeed(stats.getSpeed() == null
+                        ? (int) calcLevelBonus(PetForgeConstant.SHOES_SPEED_BASE, level)
+                        : stats.getSpeed() + (int) calcLevelBonus(PetForgeConstant.SHOES_SPEED_BASE, level));
                 break;
             case 4: // 头盔 → 最大生命值
                 stats.setTotalBaseHp(stats.getTotalBaseHp()

@@ -660,7 +660,7 @@ public class ItemInstancesServiceImpl extends ServiceImpl<ItemInstancesMapper, I
         statsVO.setBaseAttack(0);
         statsVO.setBaseDefense(0);
         statsVO.setBaseHp(0);
-        statsVO.setSpeed(0);
+        statsVO.setBaseSpeed(0);
         statsVO.setCritRate(0.0);
         statsVO.setComboRate(0.0);
         statsVO.setDodgeRate(0.0);
@@ -688,7 +688,7 @@ public class ItemInstancesServiceImpl extends ServiceImpl<ItemInstancesMapper, I
             statsVO.setBaseHp(template.getBaseHp());
         }
         if (template.getBaseSpeed() != null) {
-            statsVO.setSpeed(template.getBaseSpeed());
+            statsVO.setBaseSpeed(template.getBaseSpeed());
         }
 
         if (template.getMainAttr() != null) {

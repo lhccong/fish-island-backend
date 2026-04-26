@@ -69,5 +69,10 @@ public class PetVO implements Serializable {
      */
     private Map<String, ItemInstanceVO> equippedItems;
 
+    /**
+     * 宠物装备属性统计（装备基础属性 + 锻造词条 + 锻造等级加成的总和）
+     */
+    private PetEquipStatsVO equipStats;
+
     private static final long serialVersionUID = 1L;
 } 

@@ -162,6 +162,10 @@ public class FishPetServiceImpl extends ServiceImpl<FishPetMapper, FishPet> impl
         Map<String, ItemInstanceVO> equippedItems = getEquippedItems(fishPet);
         petVO.setEquippedItems(equippedItems);
 
+        // 获取宠物装备属性统计（装备基础属性 + 锻造词条 + 锻造等级加成的总和）
+        PetEquipStatsVO equipStats = this.getPetEquipStatsByUserId(userId);
+        petVO.setEquipStats(equipStats);
+
         return petVO;
     }
 
@@ -190,7 +194,7 @@ public class FishPetServiceImpl extends ServiceImpl<FishPetMapper, FishPet> impl
         }
 
         // 预加载该宠物所有锻造记录，避免循环内多次查库
-        Map<Integer, Integer> forgeEnhanceLevelMap = loadForgeEnhanceLevels(fishPet.getPetId());
+        Map<Integer, PetEquipForge> forgeMap = loadForgeMap(fishPet.getPetId());
 
         // 遍历所有槽位，获取装备详情
         for (String slot : equippedItemsJson.keySet()) {
@@ -198,13 +202,14 @@ public class FishPetServiceImpl extends ServiceImpl<FishPetMapper, FishPet> impl
             if (itemInstanceId != null) {
                 ItemInstanceVO itemInstanceVO = itemInstancesService.getItemInstanceById(itemInstanceId);
                 if (itemInstanceVO != null) {
-                    // 解析装备属性
-                    SingleEquipStatsVO equipStats = parseEquipStats(itemInstanceVO);
+                    Integer forgeSlot = EQUIP_SLOT_NAME_MAP.get(slot);
+                    PetEquipForge forge = forgeSlot != null ? forgeMap.get(forgeSlot) : null;
+                    // 解析装备属性（含锻造词条和等级加成）
+                    SingleEquipStatsVO equipStats = parseEquipStats(itemInstanceVO, forge);
                     itemInstanceVO.setEquipStats(equipStats);
                     // 填充锻造强化等级
-                    Integer forgeSlot = EQUIP_SLOT_NAME_MAP.get(slot);
-                    if (forgeSlot != null) {
-                        itemInstanceVO.setEnhanceLevel(forgeEnhanceLevelMap.getOrDefault(forgeSlot, 0));
+                    if (forge != null) {
+                        itemInstanceVO.setEnhanceLevel(forge.getEquipLevel() == null ? 0 : forge.getEquipLevel());
                     }
                     result.put(slot, itemInstanceVO);
                 }
@@ -230,10 +235,10 @@ public class FishPetServiceImpl extends ServiceImpl<FishPetMapper, FishPet> impl
     }
 
     /**
-     * 查询宠物所有锻造装备的强化等级，返回 equipSlot -> equipLevel 映射
+     * 查询宠物所有锻造记录，返回 equipSlot -> PetEquipForge 映射
      */
-    private Map<Integer, Integer> loadForgeEnhanceLevels(Long petId) {
-        Map<Integer, Integer> map = new HashMap<>();
+    private Map<Integer, PetEquipForge> loadForgeMap(Long petId) {
+        Map<Integer, PetEquipForge> map = new HashMap<>();
         if (petId == null) {
             return map;
         }
@@ -244,23 +249,33 @@ public class FishPetServiceImpl extends ServiceImpl<FishPetMapper, FishPet> impl
                                     .eq(PetEquipForge::getPetId, petId));
             for (PetEquipForge forge : forgeList) {
                 if (forge.getEquipSlot() != null) {
-                    map.put(forge.getEquipSlot(),
-                            forge.getEquipLevel() == null ? 0 : forge.getEquipLevel());
+                    map.put(forge.getEquipSlot(), forge);
                 }
             }
         } catch (Exception e) {
-            log.error("加载锻造强化等级失败，petId={}", petId, e);
+            log.error("加载锻造记录失败，petId={}", petId, e);
         }
         return map;
     }
 
     /**
-     * 解析单个装备的属性
+     * 查询宠物所有锻造装备的强化等级，返回 equipSlot -> equipLevel 映射
+     */
+    private Map<Integer, Integer> loadForgeEnhanceLevels(Long petId) {
+        Map<Integer, Integer> map = new HashMap<>();
+        loadForgeMap(petId).forEach((slot, forge) ->
+                map.put(slot, forge.getEquipLevel() == null ? 0 : forge.getEquipLevel()));
+        return map;
+    }
+
+    /**
+     * 解析单个装备的属性（含锻造词条和等级加成）
      *
      * @param itemInstanceVO 装备VO
+     * @param forge          该槽位的锻造记录（可为null）
      * @return 装备属性VO
      */
-    private SingleEquipStatsVO parseEquipStats(ItemInstanceVO itemInstanceVO) {
+    private SingleEquipStatsVO parseEquipStats(ItemInstanceVO itemInstanceVO, PetEquipForge forge) {
         SingleEquipStatsVO statsVO = new SingleEquipStatsVO();
 
         // 初始化默认值
@@ -300,7 +315,85 @@ public class FishPetServiceImpl extends ServiceImpl<FishPetMapper, FishPet> impl
             parseMainAttrForSingleEquip(template.getMainAttr(), statsVO);
         }
 
+        // 叠加锻造词条和等级加成
+        if (forge != null) {
+            int level = forge.getEquipLevel() == null ? 0 : forge.getEquipLevel();
+            int slot  = forge.getEquipSlot()  == null ? 0 : forge.getEquipSlot();
+            applyLevelBonusBySlotToSingle(slot, level, statsVO);
+            applyForgeEntryToSingle(forge.getEntry1(), statsVO);
+            applyForgeEntryToSingle(forge.getEntry2(), statsVO);
+            applyForgeEntryToSingle(forge.getEntry3(), statsVO);
+            applyForgeEntryToSingle(forge.getEntry4(), statsVO);
+        }
+
         return statsVO;
+    }
+
+    /**
+     * 将装备等级加成按槽位差异化叠加到 SingleEquipStatsVO
+     */
+    private void applyLevelBonusBySlotToSingle(int equipSlot, int level, SingleEquipStatsVO stats) {
+        if (level <= 0 || equipSlot <= 0) return;
+        double base;
+        switch (equipSlot) {
+            case 1: // 武器 → 攻击力
+                base = PetForgeConstant.WEAPON_ATK_BASE * Math.pow(level, PetForgeConstant.LEVEL_SCALE);
+                stats.setBaseAttack(stats.getBaseAttack() + (int) base);
+                break;
+            case 2: // 手套 → 防御力
+                base = PetForgeConstant.GLOVES_DEF_BASE * Math.pow(level, PetForgeConstant.LEVEL_SCALE);
+                stats.setBaseDefense(stats.getBaseDefense() + (int) base);
+                break;
+            case 3: // 鞋子 → 速度
+                base = PetForgeConstant.SHOES_SPEED_BASE * Math.pow(level, PetForgeConstant.LEVEL_SCALE);
+                stats.setBaseSpeed(stats.getBaseSpeed() == null ? (int) base : stats.getBaseSpeed() + (int) base);
+                break;
+            case 4: // 头盔 → 最大生命值
+                base = PetForgeConstant.HELMET_HP_BASE * Math.pow(level, PetForgeConstant.LEVEL_SCALE);
+                stats.setBaseHp(stats.getBaseHp() + (int) base);
+                break;
+            case 5: // 项链 → 暴击率
+                base = PetForgeConstant.NECKLACE_CRIT_BASE * Math.pow(level, PetForgeConstant.LEVEL_SCALE);
+                stats.setCritRate(round2(stats.getCritRate() + base));
+                break;
+            case 6: // 翅膀 → 连击率
+                base = PetForgeConstant.WINGS_COMBO_BASE * Math.pow(level, PetForgeConstant.LEVEL_SCALE);
+                stats.setComboRate(round2(stats.getComboRate() + base));
+                break;
+            default:
+                break;
+        }
+    }
+
+    /**
+     * 将单条锻造词条累加到 SingleEquipStatsVO
+     */
+    private void applyForgeEntryToSingle(EquipEntry entry, SingleEquipStatsVO stats) {
+        if (entry == null || entry.getAttr() == null || entry.getValue() == null) {
+            return;
+        }
+        double value = entry.getValue();
+        switch (entry.getAttr()) {
+            case "attack":        stats.setBaseAttack(stats.getBaseAttack() + (int) value); break;
+            case "maxHp":         stats.setBaseHp(stats.getBaseHp() + (int) value); break;
+            case "defense":       stats.setBaseDefense(stats.getBaseDefense() + (int) value); break;
+            case "speed":         stats.setBaseSpeed(stats.getBaseSpeed() == null ? (int) value : stats.getBaseSpeed() + (int) value); break;
+            case "critRate":      stats.setCritRate(stats.getCritRate() + value); break;
+            case "comboRate":     stats.setComboRate(stats.getComboRate() + value); break;
+            case "dodgeRate":     stats.setDodgeRate(stats.getDodgeRate() + value); break;
+            case "blockRate":     stats.setBlockRate(stats.getBlockRate() + value); break;
+            case "lifesteal":     stats.setLifesteal(stats.getLifesteal() + value); break;
+            case "antiCrit":      stats.setCritResistance(stats.getCritResistance() + value); break;
+            case "antiCombo":     stats.setComboResistance(stats.getComboResistance() + value); break;
+            case "antiDodge":     stats.setDodgeResistance(stats.getDodgeResistance() + value); break;
+            case "antiBlock":     stats.setBlockResistance(stats.getBlockResistance() + value); break;
+            case "antiLifesteal": stats.setLifestealResistance(stats.getLifestealResistance() + value); break;
+            default: break;
+        }
+    }
+
+    private static double round2(double v) {
+        return Math.round(v * 100.0) / 100.0;
     }
 
     /**

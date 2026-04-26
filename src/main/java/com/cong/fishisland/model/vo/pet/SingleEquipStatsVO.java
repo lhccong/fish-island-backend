@@ -30,7 +30,7 @@ public class SingleEquipStatsVO implements Serializable {
     /**
      * 速度（决定战斗先手）
      */
-    private Integer speed = 0;
+    private Integer baseSpeed = 0;
 
     /**
      * 主动属性 - 暴击率
