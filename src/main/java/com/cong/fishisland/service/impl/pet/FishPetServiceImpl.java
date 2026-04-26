@@ -78,11 +78,6 @@ public class FishPetServiceImpl extends ServiceImpl<FishPetMapper, FishPet> impl
     // 默认排行榜数量
     private static final int DEFAULT_RANK_LIMIT = 10;
 
-    // 锻造装备等级加成（每级），数值定义见 PetForgeConstant
-    private static final int FORGE_LEVEL_BONUS_ATTACK  = PetForgeConstant.LEVEL_BONUS_ATTACK;
-    private static final int FORGE_LEVEL_BONUS_DEFENSE = PetForgeConstant.LEVEL_BONUS_DEFENSE;
-    private static final int FORGE_LEVEL_BONUS_HP      = PetForgeConstant.LEVEL_BONUS_HP;
-    private static final double FORGE_LEVEL_BONUS_PCT  = PetForgeConstant.LEVEL_BONUS_PCT;
 
     @Override
     public Long createPet(CreatePetRequest createPetRequest) {
@@ -1046,6 +1041,7 @@ public class FishPetServiceImpl extends ServiceImpl<FishPetMapper, FishPet> impl
         statsVO.setTotalBaseAttack(0);
         statsVO.setTotalBaseDefense(0);
         statsVO.setTotalBaseHp(0);
+        statsVO.setSpeed(0);
         statsVO.setCritRate(0.0);
         statsVO.setComboRate(0.0);
         statsVO.setDodgeRate(0.0);
@@ -1071,6 +1067,9 @@ public class FishPetServiceImpl extends ServiceImpl<FishPetMapper, FishPet> impl
                 }
                 if (template.getBaseHp() != null) {
                     statsVO.setTotalBaseHp(statsVO.getTotalBaseHp() + template.getBaseHp());
+                }
+                if (template.getBaseSpeed() != null) {
+                    statsVO.setSpeed(statsVO.getSpeed() == null ? template.getBaseSpeed() : statsVO.getSpeed() + template.getBaseSpeed());
                 }
                 if (template.getMainAttr() != null) {
                     parseMainAttr(template.getMainAttr(), statsVO);
@@ -1107,6 +1106,7 @@ public class FishPetServiceImpl extends ServiceImpl<FishPetMapper, FishPet> impl
         statsVO.setTotalBaseAttack(0);
         statsVO.setTotalBaseDefense(0);
         statsVO.setTotalBaseHp(0);
+        statsVO.setSpeed(0);
         statsVO.setCritRate(0.0);
         statsVO.setComboRate(0.0);
         statsVO.setDodgeRate(0.0);
@@ -1136,6 +1136,9 @@ public class FishPetServiceImpl extends ServiceImpl<FishPetMapper, FishPet> impl
                 }
                 if (template.getBaseHp() != null) {
                     statsVO.setTotalBaseHp(statsVO.getTotalBaseHp() + template.getBaseHp());
+                }
+                if (template.getBaseSpeed() != null) {
+                    statsVO.setSpeed(statsVO.getSpeed() == null ? template.getBaseSpeed() : statsVO.getSpeed() + template.getBaseSpeed());
                 }
 
                 // 解析 mainAttr 属性
@@ -1171,23 +1174,11 @@ public class FishPetServiceImpl extends ServiceImpl<FishPetMapper, FishPet> impl
             }
             // 复用 PetEquipForgeServiceImpl 的逻辑：按词条和等级累加
             for (PetEquipForge forge : forgeList) {
+                // 装备等级加成（按槽位差异化，非线性成长）
                 int level = forge.getEquipLevel() == null ? 0 : forge.getEquipLevel();
-                if (level > 0) {
-                    statsVO.setTotalBaseAttack(statsVO.getTotalBaseAttack() + level * FORGE_LEVEL_BONUS_ATTACK);
-                    statsVO.setTotalBaseDefense(statsVO.getTotalBaseDefense() + level * FORGE_LEVEL_BONUS_DEFENSE);
-                    statsVO.setTotalBaseHp(statsVO.getTotalBaseHp() + level * FORGE_LEVEL_BONUS_HP);
-                    double pct = level * FORGE_LEVEL_BONUS_PCT;
-                    statsVO.setCritRate(statsVO.getCritRate() + pct);
-                    statsVO.setComboRate(statsVO.getComboRate() + pct);
-                    statsVO.setDodgeRate(statsVO.getDodgeRate() + pct);
-                    statsVO.setBlockRate(statsVO.getBlockRate() + pct);
-                    statsVO.setLifesteal(statsVO.getLifesteal() + pct);
-                    statsVO.setCritResistance(statsVO.getCritResistance() + pct);
-                    statsVO.setComboResistance(statsVO.getComboResistance() + pct);
-                    statsVO.setDodgeResistance(statsVO.getDodgeResistance() + pct);
-                    statsVO.setBlockResistance(statsVO.getBlockResistance() + pct);
-                    statsVO.setLifestealResistance(statsVO.getLifestealResistance() + pct);
-                }
+                int slot  = forge.getEquipSlot()  == null ? 0 : forge.getEquipSlot();
+                PetEquipForgeServiceImpl.applyLevelBonusBySlot(slot, level, statsVO);
+
                 applyForgeEntry(forge.getEntry1(), statsVO);
                 applyForgeEntry(forge.getEntry2(), statsVO);
                 applyForgeEntry(forge.getEntry3(), statsVO);
@@ -1210,6 +1201,7 @@ public class FishPetServiceImpl extends ServiceImpl<FishPetMapper, FishPet> impl
             case "attack":        stats.setTotalBaseAttack(stats.getTotalBaseAttack() + (int) value); break;
             case "maxHp":         stats.setTotalBaseHp(stats.getTotalBaseHp() + (int) value); break;
             case "defense":       stats.setTotalBaseDefense(stats.getTotalBaseDefense() + (int) value); break;
+            case "speed":         stats.setSpeed(stats.getSpeed() == null ? (int) value : stats.getSpeed() + (int) value); break;
             case "critRate":      stats.setCritRate(stats.getCritRate() + value); break;
             case "comboRate":     stats.setComboRate(stats.getComboRate() + value); break;
             case "dodgeRate":     stats.setDodgeRate(stats.getDodgeRate() + value); break;

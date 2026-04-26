@@ -253,16 +253,63 @@ public class PetEquipForgeServiceImpl extends ServiceImpl<PetEquipForgeMapper, P
         return vo;
     }
 
-    // ==================== 装备等级加成常量 ====================
+    // ==================== 装备等级加成 ====================
 
-    /** 每装备等级提供的攻击力加成 */
-    private static final int LEVEL_BONUS_ATTACK = PetForgeConstant.LEVEL_BONUS_ATTACK;
-    /** 每装备等级提供的防御力加成 */
-    private static final int LEVEL_BONUS_DEFENSE = PetForgeConstant.LEVEL_BONUS_DEFENSE;
-    /** 每装备等级提供的生命值加成 */
-    private static final int LEVEL_BONUS_HP = PetForgeConstant.LEVEL_BONUS_HP;
-    /** 每装备等级提供的概率属性加成（百分比，如 0.05 表示 0.05%） */
-    private static final double LEVEL_BONUS_PERCENT_STAT = PetForgeConstant.LEVEL_BONUS_PCT;
+    /**
+     * 计算装备等级加成（非线性：BASE * level^SCALE）
+     * 高等级时成长更快，满级(20级)加成约为1级的89倍
+     */
+    private static double calcLevelBonus(double base, int level) {
+        if (level <= 0) return 0;
+        return base * Math.pow(level, PetForgeConstant.LEVEL_SCALE);
+    }
+
+    /**
+     * 将装备等级加成按槽位差异化叠加到统计VO
+     * <ul>
+     *   <li>武器(1)  → 攻击力</li>
+     *   <li>手套(2)  → 防御力</li>
+     *   <li>鞋子(3)  → 闪避率</li>
+     *   <li>头盔(4)  → 最大生命值</li>
+     *   <li>项链(5)  → 暴击率</li>
+     *   <li>翅膀(6)  → 连击率</li>
+     * </ul>
+     */
+    static void applyLevelBonusBySlot(int equipSlot, int level, PetEquipStatsVO stats) {
+        if (level <= 0 || equipSlot <= 0) return;
+        switch (equipSlot) {
+            case 1: // 武器 → 攻击力
+                stats.setTotalBaseAttack(stats.getTotalBaseAttack()
+                        + (int) calcLevelBonus(PetForgeConstant.WEAPON_ATK_BASE, level));
+                break;
+            case 2: // 手套 → 防御力
+                stats.setTotalBaseDefense(stats.getTotalBaseDefense()
+                        + (int) calcLevelBonus(PetForgeConstant.GLOVES_DEF_BASE, level));
+                break;
+            case 3: // 鞋子 → 闪避率
+                stats.setDodgeRate(stats.getDodgeRate()
+                        + round2(calcLevelBonus(PetForgeConstant.SHOES_DODGE_BASE, level)));
+                break;
+            case 4: // 头盔 → 最大生命值
+                stats.setTotalBaseHp(stats.getTotalBaseHp()
+                        + (int) calcLevelBonus(PetForgeConstant.HELMET_HP_BASE, level));
+                break;
+            case 5: // 项链 → 暴击率
+                stats.setCritRate(stats.getCritRate()
+                        + round2(calcLevelBonus(PetForgeConstant.NECKLACE_CRIT_BASE, level)));
+                break;
+            case 6: // 翅膀 → 连击率
+                stats.setComboRate(stats.getComboRate()
+                        + round2(calcLevelBonus(PetForgeConstant.WINGS_COMBO_BASE, level)));
+                break;
+            default:
+                log.warn("未知装备槽位: {}", equipSlot);
+        }
+    }
+
+    private static double round2(double v) {
+        return Math.round(v * 100.0) / 100.0;
+    }
 
     @Override
     public PetEquipStatsVO getForgeStatsByPetId(Long petId) {
@@ -270,6 +317,7 @@ public class PetEquipForgeServiceImpl extends ServiceImpl<PetEquipForgeMapper, P
         stats.setTotalBaseAttack(0);
         stats.setTotalBaseDefense(0);
         stats.setTotalBaseHp(0);
+        stats.setSpeed(0);
         stats.setCritRate(0.0);
         stats.setComboRate(0.0);
         stats.setDodgeRate(0.0);
@@ -290,24 +338,10 @@ public class PetEquipForgeServiceImpl extends ServiceImpl<PetEquipForgeMapper, P
                 .list();
 
         for (PetEquipForge forge : forgeList) {
-            // 1. 装备等级加成
+            // 1. 装备等级加成（按槽位差异化，非线性成长）
             int level = forge.getEquipLevel() == null ? 0 : forge.getEquipLevel();
-            if (level > 0) {
-                stats.setTotalBaseAttack(stats.getTotalBaseAttack() + level * LEVEL_BONUS_ATTACK);
-                stats.setTotalBaseDefense(stats.getTotalBaseDefense() + level * LEVEL_BONUS_DEFENSE);
-                stats.setTotalBaseHp(stats.getTotalBaseHp() + level * LEVEL_BONUS_HP);
-                double pctBonus = level * LEVEL_BONUS_PERCENT_STAT;
-                stats.setCritRate(stats.getCritRate() + pctBonus);
-                stats.setComboRate(stats.getComboRate() + pctBonus);
-                stats.setDodgeRate(stats.getDodgeRate() + pctBonus);
-                stats.setBlockRate(stats.getBlockRate() + pctBonus);
-                stats.setLifesteal(stats.getLifesteal() + pctBonus);
-                stats.setCritResistance(stats.getCritResistance() + pctBonus);
-                stats.setComboResistance(stats.getComboResistance() + pctBonus);
-                stats.setDodgeResistance(stats.getDodgeResistance() + pctBonus);
-                stats.setBlockResistance(stats.getBlockResistance() + pctBonus);
-                stats.setLifestealResistance(stats.getLifestealResistance() + pctBonus);
-            }
+            int slot  = forge.getEquipSlot()  == null ? 0 : forge.getEquipSlot();
+            applyLevelBonusBySlot(slot, level, stats);
 
             // 2. 词条属性累加
             applyEntry(forge.getEntry1(), stats);
@@ -336,6 +370,9 @@ public class PetEquipForgeServiceImpl extends ServiceImpl<PetEquipForgeMapper, P
                 break;
             case "defense":
                 stats.setTotalBaseDefense(stats.getTotalBaseDefense() + (int) value);
+                break;
+            case "speed":
+                stats.setSpeed(stats.getSpeed() == null ? (int) value : stats.getSpeed() + (int) value);
                 break;
             case "critRate":
                 stats.setCritRate(stats.getCritRate() + value);

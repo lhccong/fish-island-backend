@@ -20,6 +20,7 @@ import com.cong.fishisland.model.entity.pet.ItemTemplates;
 import com.cong.fishisland.model.entity.user.User;
 import com.cong.fishisland.model.vo.pet.ItemInstanceVO;
 import com.cong.fishisland.model.vo.pet.ItemTemplateVO;
+import com.cong.fishisland.model.vo.pet.SingleEquipStatsVO;
 import static com.cong.fishisland.model.enums.user.PointsRecordSourceEnum.*;
 
 import com.cong.fishisland.service.ItemInstancesService;
@@ -277,6 +278,7 @@ public class ItemInstancesServiceImpl extends ServiceImpl<ItemInstancesMapper, I
             ItemInstanceVO vo = new ItemInstanceVO();
             BeanUtils.copyProperties(item, vo);
             vo.setTemplate(templateVoMap.get(item.getTemplateId()));
+            vo.setEquipStats(parseEquipStats(vo));
             return vo;
         }).collect(Collectors.toList());
 
@@ -639,5 +641,125 @@ public class ItemInstancesServiceImpl extends ServiceImpl<ItemInstancesMapper, I
         return equippedItems.values().stream()
                 .map(obj -> Long.valueOf(obj.toString()))
                 .collect(Collectors.toSet());
+    }
+
+    /**
+     * 解析单个装备实例的属性统计
+     *
+     * @param itemInstanceVO 装备VO（需包含 template 信息）
+     * @return 单个装备属性统计VO
+     */
+    private SingleEquipStatsVO parseEquipStats(ItemInstanceVO itemInstanceVO) {
+        SingleEquipStatsVO statsVO = new SingleEquipStatsVO();
+        statsVO.setBaseAttack(0);
+        statsVO.setBaseDefense(0);
+        statsVO.setBaseHp(0);
+        statsVO.setSpeed(0);
+        statsVO.setCritRate(0.0);
+        statsVO.setComboRate(0.0);
+        statsVO.setDodgeRate(0.0);
+        statsVO.setBlockRate(0.0);
+        statsVO.setLifesteal(0.0);
+        statsVO.setCritResistance(0.0);
+        statsVO.setComboResistance(0.0);
+        statsVO.setDodgeResistance(0.0);
+        statsVO.setBlockResistance(0.0);
+        statsVO.setLifestealResistance(0.0);
+
+        if (itemInstanceVO == null || itemInstanceVO.getTemplate() == null) {
+            return statsVO;
+        }
+
+        ItemTemplateVO template = itemInstanceVO.getTemplate();
+
+        if (template.getBaseAttack() != null) {
+            statsVO.setBaseAttack(template.getBaseAttack());
+        }
+        if (template.getBaseDefense() != null) {
+            statsVO.setBaseDefense(template.getBaseDefense());
+        }
+        if (template.getBaseHp() != null) {
+            statsVO.setBaseHp(template.getBaseHp());
+        }
+        if (template.getBaseSpeed() != null) {
+            statsVO.setSpeed(template.getBaseSpeed());
+        }
+
+        if (template.getMainAttr() != null) {
+            parseMainAttrForSingleEquip(template.getMainAttr(), statsVO);
+        }
+
+        return statsVO;
+    }
+
+    /**
+     * 解析单个装备的 mainAttr 属性
+     * mainAttr 格式: {"critRate":0.1, ...} 或 "{\"critRate\":0.1}"
+     *
+     * @param mainAttr 属性JSON
+     * @param statsVO  装备属性VO
+     */
+    private void parseMainAttrForSingleEquip(Object mainAttr, SingleEquipStatsVO statsVO) {
+        try {
+            if (mainAttr == null) {
+                return;
+            }
+
+            String mainAttrStr;
+            if (mainAttr instanceof String) {
+                mainAttrStr = (String) mainAttr;
+            } else {
+                mainAttrStr = JSON.toJSONString(mainAttr);
+            }
+
+            if (mainAttrStr == null || mainAttrStr.isEmpty() || "null".equals(mainAttrStr)) {
+                return;
+            }
+
+            if (mainAttrStr.startsWith("\"") && mainAttrStr.endsWith("\"")) {
+                mainAttrStr = JSON.parseObject(mainAttrStr, String.class);
+                if (mainAttrStr == null || mainAttrStr.isEmpty()) {
+                    return;
+                }
+            }
+
+            Map<String, Object> attrMap = JSON.parseObject(mainAttrStr, Map.class);
+            if (attrMap == null) {
+                return;
+            }
+
+            for (Map.Entry<String, Object> entry : attrMap.entrySet()) {
+                String key = entry.getKey();
+                Object valueObj = entry.getValue();
+                if (key == null || valueObj == null) {
+                    continue;
+                }
+                double value;
+                if (valueObj instanceof Number) {
+                    value = ((Number) valueObj).doubleValue();
+                } else {
+                    try {
+                        value = Double.parseDouble(valueObj.toString());
+                    } catch (NumberFormatException e) {
+                        continue;
+                    }
+                }
+                switch (key) {
+                    case "critRate":        statsVO.setCritRate(value);        break;
+                    case "comboRate":       statsVO.setComboRate(value);       break;
+                    case "dodgeRate":       statsVO.setDodgeRate(value);       break;
+                    case "blockRate":       statsVO.setBlockRate(value);       break;
+                    case "lifesteal":       statsVO.setLifesteal(value);       break;
+                    case "critResistance":  statsVO.setCritResistance(value);  break;
+                    case "comboResistance": statsVO.setComboResistance(value); break;
+                    case "dodgeResistance": statsVO.setDodgeResistance(value); break;
+                    case "blockResistance": statsVO.setBlockResistance(value); break;
+                    case "lifestealResistance": statsVO.setLifestealResistance(value); break;
+                    default: break;
+                }
+            }
+        } catch (Exception e) {
+            // 解析失败时保留默认值，不影响主流程
+        }
     }
 }

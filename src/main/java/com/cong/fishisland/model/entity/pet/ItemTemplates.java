@@ -85,6 +85,12 @@ public class ItemTemplates implements Serializable {
     private Integer baseHp;
 
     /**
+     * 基础速度（决定战斗先手，速度高的一方先攻击）
+     */
+    @TableField(value = "baseSpeed")
+    private Integer baseSpeed;
+
+    /**
      * 非常规属性/词缀(JSON)，格式: [{k,v},...]
      */
     @TableField(value = "mainAttr")

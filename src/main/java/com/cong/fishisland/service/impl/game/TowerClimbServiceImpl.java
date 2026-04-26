@@ -124,7 +124,6 @@ public class TowerClimbServiceImpl implements TowerClimbService {
 
         // 执行战斗
         List<BattleResultVO> rounds = doBattle(petStats, monsterStats);
-
         // 判断胜负（宠物血量 > 0 则胜利）
         int lastPetHp = rounds.get(rounds.size() - 1).getPetRemainingHealth();
         boolean win = lastPetHp > 0;
@@ -168,7 +167,8 @@ public class TowerClimbServiceImpl implements TowerClimbService {
         List<BattleResultVO> rounds = new ArrayList<>();
         int petHp = pet.getHealth();
         int monsterHp = monster.getHealth();
-        boolean petTurn = true; // 宠物先手
+        // 速度高的一方先手；相同时随机决定（野怪速度默认 0，宠物通常先手）
+        boolean petTurn = BattleStatsVO.aGoesFirst(pet, monster, random);
 
         for (int i = 0; i < MAX_ROUNDS && petHp > 0 && monsterHp > 0; i++) {
             BattleResultVO round = new BattleResultVO();
