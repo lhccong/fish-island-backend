@@ -90,6 +90,7 @@ CREATE TABLE IF NOT EXISTS `fish_battle_hero_skin` (
     `skin_name` VARCHAR(128) NOT NULL COMMENT '皮肤名称',
     `splash_art` VARCHAR(512) DEFAULT NULL COMMENT '皮肤立绘URL',
     `model_url` VARCHAR(512) DEFAULT NULL COMMENT '皮肤3D模型URL',
+    `asset_config`  LONGTEXT DEFAULT NULL COMMENT '英雄皮肤展示资产配置JSON',
     `is_default` TINYINT DEFAULT 0 COMMENT '是否默认皮肤（1是/0否）',
     `status` TINYINT DEFAULT 1 COMMENT '状态（0禁用/1启用）',
     `create_time` DATETIME DEFAULT CURRENT_TIMESTAMP,
@@ -102,9 +103,9 @@ CREATE TABLE IF NOT EXISTS `fish_battle_hero_skin` (
 
 -- 对局记录表
 CREATE TABLE IF NOT EXISTS `fish_battle_game` (
-                                                  `id`                BIGINT          NOT NULL AUTO_INCREMENT COMMENT '主键ID',
-                                                  `room_id`           BIGINT          NOT NULL COMMENT '关联房间ID',
-                                                  `game_mode`         VARCHAR(16)     NOT NULL DEFAULT 'classic' COMMENT '游戏模式',
+    `id`                BIGINT          NOT NULL AUTO_INCREMENT COMMENT '主键ID',
+    `room_id`           BIGINT          NOT NULL COMMENT '关联房间ID',
+    `game_mode`         VARCHAR(16)     NOT NULL DEFAULT 'classic' COMMENT '游戏模式',
     `winning_team`      VARCHAR(8)      DEFAULT NULL COMMENT '胜利队伍（blue/red）',
     `blue_kills`        INT             NOT NULL DEFAULT 0 COMMENT '蓝队总击杀',
     `red_kills`         INT             NOT NULL DEFAULT 0 COMMENT '红队总击杀',
@@ -123,10 +124,10 @@ CREATE TABLE IF NOT EXISTS `fish_battle_game` (
 
 -- 玩家对局统计表（单局）
 CREATE TABLE IF NOT EXISTS `fish_battle_player_stats` (
-                                                          `id`                BIGINT          NOT NULL AUTO_INCREMENT COMMENT '主键ID',
-                                                          `game_id`           BIGINT          NOT NULL COMMENT '对局ID',
-                                                          `user_id`           BIGINT          NOT NULL COMMENT '用户ID',
-                                                          `hero_id`           VARCHAR(32)     NOT NULL COMMENT '使用的英雄ID',
+    `id`                BIGINT          NOT NULL AUTO_INCREMENT COMMENT '主键ID',
+    `game_id`           BIGINT          NOT NULL COMMENT '对局ID',
+    `user_id`           BIGINT          NOT NULL COMMENT '用户ID',
+    `hero_id`           VARCHAR(32)     NOT NULL COMMENT '使用的英雄ID',
     `team`              VARCHAR(8)      NOT NULL COMMENT '所在队伍（blue/red）',
     `kills`             INT             NOT NULL DEFAULT 0 COMMENT '击杀数',
     `deaths`            INT             NOT NULL DEFAULT 0 COMMENT '死亡数',
@@ -148,29 +149,29 @@ CREATE TABLE IF NOT EXISTS `fish_battle_player_stats` (
 
 -- 玩家总体统计表
 CREATE TABLE IF NOT EXISTS `fish_battle_user_stats` (
-                                                        `id`                BIGINT          NOT NULL AUTO_INCREMENT COMMENT '主键ID',
-                                                        `user_id`           BIGINT          NOT NULL COMMENT '用户ID',
-                                                        `total_games`       INT             NOT NULL DEFAULT 0 COMMENT '总场次',
-                                                        `wins`              INT             NOT NULL DEFAULT 0 COMMENT '胜场',
-                                                        `losses`            INT             NOT NULL DEFAULT 0 COMMENT '败场',
-                                                        `total_kills`       INT             NOT NULL DEFAULT 0 COMMENT '总击杀',
-                                                        `total_deaths`      INT             NOT NULL DEFAULT 0 COMMENT '总死亡',
-                                                        `total_assists`     INT             NOT NULL DEFAULT 0 COMMENT '总助攻',
-                                                        `mvp_count`         INT             NOT NULL DEFAULT 0 COMMENT 'MVP次数',
-                                                        `current_streak`    INT             NOT NULL DEFAULT 0 COMMENT '当前连胜（负数表示连败）',
-                                                        `max_streak`        INT             NOT NULL DEFAULT 0 COMMENT '最大连胜',
-                                                        `today_games`       INT             NOT NULL DEFAULT 0 COMMENT '今日已玩场次',
-                                                        `today_date`        DATE            DEFAULT NULL COMMENT '今日日期（用于每日重置计数）',
-                                                        `daily_limit`       INT             NOT NULL DEFAULT 20 COMMENT '每日对局上限',
-                                                        `create_time`       DATETIME        NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
-                                                        `update_time`       DATETIME        NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
-                                                        PRIMARY KEY (`id`),
+    `id`                BIGINT          NOT NULL AUTO_INCREMENT COMMENT '主键ID',
+    `user_id`           BIGINT          NOT NULL COMMENT '用户ID',
+    `total_games`       INT             NOT NULL DEFAULT 0 COMMENT '总场次',
+    `wins`              INT             NOT NULL DEFAULT 0 COMMENT '胜场',
+    `losses`            INT             NOT NULL DEFAULT 0 COMMENT '败场',
+    `total_kills`       INT             NOT NULL DEFAULT 0 COMMENT '总击杀',
+    `total_deaths`      INT             NOT NULL DEFAULT 0 COMMENT '总死亡',
+    `total_assists`     INT             NOT NULL DEFAULT 0 COMMENT '总助攻',
+    `mvp_count`         INT             NOT NULL DEFAULT 0 COMMENT 'MVP次数',
+    `current_streak`    INT             NOT NULL DEFAULT 0 COMMENT '当前连胜（负数表示连败）',
+    `max_streak`        INT             NOT NULL DEFAULT 0 COMMENT '最大连胜',
+    `today_games`       INT             NOT NULL DEFAULT 0 COMMENT '今日已玩场次',
+    `today_date`        DATE            DEFAULT NULL COMMENT '今日日期（用于每日重置计数）',
+    `daily_limit`       INT             NOT NULL DEFAULT 20 COMMENT '每日对局上限',
+    `create_time`       DATETIME        NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+    `update_time`       DATETIME        NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
+    PRIMARY KEY (`id`),
     UNIQUE KEY `uk_user_id` (`user_id`)
     ) ENGINE = InnoDB DEFAULT CHARSET = utf8mb4 COLLATE = utf8mb4_unicode_ci COMMENT = '摸鱼大乱斗玩家总体统计表';
 
 
 -- 英雄数据
-INSERT INTO `fish`.`fish_battle_hero` (`id`, `hero_id`, `name`, `name_en`, `role`, `base_hp`, `base_mp`, `base_ad`, `move_speed`, `attack_range`, `attack_speed`, `avatar_url`, `splash_art`, `model_url`, `asset_config`, `skills`, `status`, `create_time`, `update_time`) VALUES (1, 'ashe', '艾希', 'Ashe', 'marksman', 700, 500, 70, 310, 10.0, 1.00, 'https://ddragon.leagueoflegends.com/cdn/14.3.1/img/champion/Ashe.png', 'https://ddragon.leagueoflegends.com/cdn/img/champion/loading/Ashe_0.jpg', 'https://cdn.xiaojingge.com/3d-battle/models/heroes/ashe/%E5%AF%92%E5%86%B0%E5%B0%84%E6%89%8B.glb', '{}', '{\"q\":{\"name\":\"游侠集中\",\"icon\":\"q\",\"description\":\"艾希的普攻变为连射箭矢，增加攻速和伤害\"},\"w\":{\"name\":\"万箭齐发\",\"icon\":\"w\",\"description\":\"艾希发射一排锥形箭雨，伤害并减速命中的敌人\"},\"e\":{\"name\":\"鹰击长空\",\"icon\":\"e\",\"description\":\"艾希派出一只鹰灵探查目标区域，提供视野\"},\"r\":{\"name\":\"魔法水晶箭\",\"icon\":\"r\",\"description\":\"艾希射出一支巨大冰箭，击晕命中的第一个敌方英雄，飞行距离越远晕眩越久\"}}', 1, '2026-04-27 22:09:31', '2026-04-27 23:46:49');
+INSERT INTO `fish`.`fish_battle_hero` (`id`, `hero_id`, `name`, `name_en`, `role`, `base_hp`, `base_mp`, `base_ad`, `move_speed`, `attack_range`, `attack_speed`, `avatar_url`, `splash_art`, `model_url`, `asset_config`, `skills`, `status`, `create_time`, `update_time`) VALUES (1, 'ashe', '艾希', 'Ashe', 'marksman', 700, 500, 70, 310, 10.0, 1.00, 'https://ddragon.leagueoflegends.com/cdn/14.3.1/img/champion/Ashe.png', 'https://ddragon.leagueoflegends.com/cdn/img/champion/loading/Ashe_0.jpg', 'https://cdn.xiaojingge.com/3d-battle/models/heroes/ashe/寒冰射手.glb', '{}', '{\"q\":{\"name\":\"游侠集中\",\"icon\":\"q\",\"description\":\"艾希的普攻变为连射箭矢，增加攻速和伤害\"},\"w\":{\"name\":\"万箭齐发\",\"icon\":\"w\",\"description\":\"艾希发射一排锥形箭雨，伤害并减速命中的敌人\"},\"e\":{\"name\":\"鹰击长空\",\"icon\":\"e\",\"description\":\"艾希派出一只鹰灵探查目标区域，提供视野\"},\"r\":{\"name\":\"魔法水晶箭\",\"icon\":\"r\",\"description\":\"艾希射出一支巨大冰箭，击晕命中的第一个敌方英雄，飞行距离越远晕眩越久\"}}', 1, '2026-04-27 22:09:31', '2026-04-27 23:46:49');
 
 -- 召唤师技能数据
 INSERT INTO `fish`.`fish_battle_summoner_spell` (`id`, `spell_id`, `name`, `icon`, `description`, `cooldown`, `status`, `create_time`, `update_time`) VALUES (1, 'flash', '闪现', 'https://ddragon.leagueoflegends.com/cdn/14.3.1/img/spell/SummonerFlash.png', '瞬间传送到附近位置', 300, 1, '2026-04-27 22:09:21', '2026-04-27 23:06:14');

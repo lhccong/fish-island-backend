@@ -49,6 +49,9 @@ public class FishBattleHeroSkin implements Serializable {
     @TableField("model_url")
     private String modelUrl;
 
+    @TableField("asset_config")
+    private String assetConfig;
+
     /**
      * 是否默认皮肤
      */
