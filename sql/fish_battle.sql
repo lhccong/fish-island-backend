@@ -100,6 +100,75 @@ CREATE TABLE IF NOT EXISTS `fish_battle_hero_skin` (
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='摸鱼大乱斗英雄皮肤表';
 
 
+-- 对局记录表
+CREATE TABLE IF NOT EXISTS `fish_battle_game` (
+                                                  `id`                BIGINT          NOT NULL AUTO_INCREMENT COMMENT '主键ID',
+                                                  `room_id`           BIGINT          NOT NULL COMMENT '关联房间ID',
+                                                  `game_mode`         VARCHAR(16)     NOT NULL DEFAULT 'classic' COMMENT '游戏模式',
+    `winning_team`      VARCHAR(8)      DEFAULT NULL COMMENT '胜利队伍（blue/red）',
+    `blue_kills`        INT             NOT NULL DEFAULT 0 COMMENT '蓝队总击杀',
+    `red_kills`         INT             NOT NULL DEFAULT 0 COMMENT '红队总击杀',
+    `duration_seconds`  INT             NOT NULL DEFAULT 0 COMMENT '对局时长（秒）',
+    `end_reason`        VARCHAR(32)     DEFAULT NULL COMMENT '结束原因（crystal_destroyed/kill_limit）',
+    `mvp_user_id`       BIGINT          DEFAULT NULL COMMENT 'MVP用户ID',
+    `start_time`        DATETIME        DEFAULT NULL COMMENT '开始时间',
+    `end_time`          DATETIME        DEFAULT NULL COMMENT '结束时间',
+    `create_time`       DATETIME        NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+    PRIMARY KEY (`id`),
+    KEY `idx_room_id` (`room_id`),
+    KEY `idx_mvp_user_id` (`mvp_user_id`),
+    KEY `idx_start_time` (`start_time`),
+    KEY `idx_create_time` (`create_time`)
+    ) ENGINE = InnoDB DEFAULT CHARSET = utf8mb4 COLLATE = utf8mb4_unicode_ci COMMENT = '摸鱼大乱斗对局记录表';
+
+-- 玩家对局统计表（单局）
+CREATE TABLE IF NOT EXISTS `fish_battle_player_stats` (
+                                                          `id`                BIGINT          NOT NULL AUTO_INCREMENT COMMENT '主键ID',
+                                                          `game_id`           BIGINT          NOT NULL COMMENT '对局ID',
+                                                          `user_id`           BIGINT          NOT NULL COMMENT '用户ID',
+                                                          `hero_id`           VARCHAR(32)     NOT NULL COMMENT '使用的英雄ID',
+    `team`              VARCHAR(8)      NOT NULL COMMENT '所在队伍（blue/red）',
+    `kills`             INT             NOT NULL DEFAULT 0 COMMENT '击杀数',
+    `deaths`            INT             NOT NULL DEFAULT 0 COMMENT '死亡数',
+    `assists`           INT             NOT NULL DEFAULT 0 COMMENT '助攻数',
+    `damage_dealt`      INT             NOT NULL DEFAULT 0 COMMENT '输出伤害',
+    `damage_taken`      INT             NOT NULL DEFAULT 0 COMMENT '承受伤害',
+    `healing`           INT             NOT NULL DEFAULT 0 COMMENT '治疗量',
+    `is_mvp`            TINYINT         NOT NULL DEFAULT 0 COMMENT '是否MVP（0否/1是）',
+    `is_win`            TINYINT         NOT NULL DEFAULT 0 COMMENT '是否胜利（0否/1是）',
+    `likes`             INT             NOT NULL DEFAULT 0 COMMENT '获赞数',
+    `points_earned`     INT             NOT NULL DEFAULT 0 COMMENT '本局获得积分',
+    `create_time`       DATETIME        NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+    PRIMARY KEY (`id`),
+    KEY `idx_game_id` (`game_id`),
+    KEY `idx_user_id` (`user_id`),
+    UNIQUE KEY `uk_game_user` (`game_id`, `user_id`),
+    KEY `idx_hero_id` (`hero_id`)
+    ) ENGINE = InnoDB DEFAULT CHARSET = utf8mb4 COLLATE = utf8mb4_unicode_ci COMMENT = '摸鱼大乱斗玩家对局统计表';
+
+-- 玩家总体统计表
+CREATE TABLE IF NOT EXISTS `fish_battle_user_stats` (
+                                                        `id`                BIGINT          NOT NULL AUTO_INCREMENT COMMENT '主键ID',
+                                                        `user_id`           BIGINT          NOT NULL COMMENT '用户ID',
+                                                        `total_games`       INT             NOT NULL DEFAULT 0 COMMENT '总场次',
+                                                        `wins`              INT             NOT NULL DEFAULT 0 COMMENT '胜场',
+                                                        `losses`            INT             NOT NULL DEFAULT 0 COMMENT '败场',
+                                                        `total_kills`       INT             NOT NULL DEFAULT 0 COMMENT '总击杀',
+                                                        `total_deaths`      INT             NOT NULL DEFAULT 0 COMMENT '总死亡',
+                                                        `total_assists`     INT             NOT NULL DEFAULT 0 COMMENT '总助攻',
+                                                        `mvp_count`         INT             NOT NULL DEFAULT 0 COMMENT 'MVP次数',
+                                                        `current_streak`    INT             NOT NULL DEFAULT 0 COMMENT '当前连胜（负数表示连败）',
+                                                        `max_streak`        INT             NOT NULL DEFAULT 0 COMMENT '最大连胜',
+                                                        `today_games`       INT             NOT NULL DEFAULT 0 COMMENT '今日已玩场次',
+                                                        `today_date`        DATE            DEFAULT NULL COMMENT '今日日期（用于每日重置计数）',
+                                                        `daily_limit`       INT             NOT NULL DEFAULT 20 COMMENT '每日对局上限',
+                                                        `create_time`       DATETIME        NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+                                                        `update_time`       DATETIME        NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
+                                                        PRIMARY KEY (`id`),
+    UNIQUE KEY `uk_user_id` (`user_id`)
+    ) ENGINE = InnoDB DEFAULT CHARSET = utf8mb4 COLLATE = utf8mb4_unicode_ci COMMENT = '摸鱼大乱斗玩家总体统计表';
+
+
 -- 英雄数据
 INSERT INTO `fish`.`fish_battle_hero` (`id`, `hero_id`, `name`, `name_en`, `role`, `base_hp`, `base_mp`, `base_ad`, `move_speed`, `attack_range`, `attack_speed`, `avatar_url`, `splash_art`, `model_url`, `asset_config`, `skills`, `status`, `create_time`, `update_time`) VALUES (1, 'ashe', '艾希', 'Ashe', 'marksman', 700, 500, 70, 310, 10.0, 1.00, 'https://ddragon.leagueoflegends.com/cdn/14.3.1/img/champion/Ashe.png', 'https://ddragon.leagueoflegends.com/cdn/img/champion/loading/Ashe_0.jpg', 'https://cdn.xiaojingge.com/3d-battle/models/heroes/ashe/%E5%AF%92%E5%86%B0%E5%B0%84%E6%89%8B.glb', '{}', '{\"q\":{\"name\":\"游侠集中\",\"icon\":\"q\",\"description\":\"艾希的普攻变为连射箭矢，增加攻速和伤害\"},\"w\":{\"name\":\"万箭齐发\",\"icon\":\"w\",\"description\":\"艾希发射一排锥形箭雨，伤害并减速命中的敌人\"},\"e\":{\"name\":\"鹰击长空\",\"icon\":\"e\",\"description\":\"艾希派出一只鹰灵探查目标区域，提供视野\"},\"r\":{\"name\":\"魔法水晶箭\",\"icon\":\"r\",\"description\":\"艾希射出一支巨大冰箭，击晕命中的第一个敌方英雄，飞行距离越远晕眩越久\"}}', 1, '2026-04-27 22:09:31', '2026-04-27 23:46:49');
 

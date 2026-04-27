@@ -128,3 +128,12 @@ fishisland:
     zhihu:
       # 仅在知乎接口需要时配置，建议通过环境变量/外部配置注入，不要写死到仓库
       cookie: "_xsrf=X8Dsa9qixtotHh1vaKNzgiT3yUhjX61w; _zap=fb2f2912-e6b9-4c4a-97a5-bb3f61327dc4; d_c0=svYTvtbxDBuPTmqhG1JHuVy6a1UJNvLYrIg=|1757505170; q_c1=d844d98c02df4f5ea3188dff41124310|1758332501000|1758332501000; z_c0=2|1:0|10:1773106653|4:z_c0|92:Mi4xUThEb0R3QUFBQUN5OWhPLTF2RU1HeVlBQUFCZ0FsVk5YY21iYWdEOXlaWHJ5ZkRkT0NPX3QwSGhWRWlMUTIzTFVR|bb49beb9e7f58d48438a711cdf2fb188a5f8846fbfdca0eac0ea554be1761d6a; __zse_ck=005_Zd64h670DrvrwUJUfikxYA5sQtnpku7LNqHOGg0xzleh0Xd0UTV6DJlR8UUQmtd2gYRd1EWpHH7sgAS6o=zQ/qCvFuXC1WZeIVziGVjksktn4wHkf0sQebZoW//l2B7r-FRG/JLZkvY7QYbdDtGel4oRQxG9iNrcPg0n+7CYPwUdS1kAggoieG+MetC2V7wiOTJ4QyO+Jh+OMXzWpfpCuLeLpITZ6goBX6pn36Gy2oVq//0EKHzOYJ318xjaQQx+g; Hm_lvt_98beee57fd2ef70ccdd5ca52b9740c49=1773042517,1773711805; Hm_lpvt_98beee57fd2ef70ccdd5ca52b9740c49=1773711805; HMACCOUNT=FD9BEF9D2A854DE0; BEC=738c6d0432e7aaf738ea36855cdce904"
+
+# 摸鱼大乱斗 Socket.IO 服务器配置
+fish-battle-server:
+  ws-port: 8091
+  ws-host: 0.0.0.0
+  ping-interval-ms: 10000
+  ping-timeout-ms: 30000
+  allowed-origins: ""
+  hero-pick-duration: 60
