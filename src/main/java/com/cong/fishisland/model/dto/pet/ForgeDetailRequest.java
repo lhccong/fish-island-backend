@@ -7,13 +7,13 @@ import lombok.Data;
 import java.io.Serializable;
 
 /**
- * 装备升级请求
+ * 查询单件装备锻造详情请求
  *
  * @author cong
  */
 @Data
-@ApiModel(value = "ForgeUpgradeRequest", description = "装备升级请求，消耗积分随等级递增，成功概率随等级递减")
-public class ForgeUpgradeRequest implements Serializable {
+@ApiModel(value = "ForgeDetailRequest", description = "查询单件装备锻造详情请求")
+public class ForgeDetailRequest implements Serializable {
 
     /**
      * 宠物ID
@@ -23,7 +23,6 @@ public class ForgeUpgradeRequest implements Serializable {
 
     /**
      * 装备位置 1-武器 2-手套 3-鞋子 4-头盔 5-项链 6-翅膀
-     *
      */
     @ApiModelProperty(value = "装备位置：1-武器 2-手套 3-鞋子 4-头盔 5-项链 6-翅膀", required = true, example = "1")
     private Integer equipSlot;

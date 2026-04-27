@@ -19,6 +19,9 @@ public class TowerFloorMonsterVO implements Serializable {
     @ApiModelProperty("怪物名称")
     private String name;
 
+    @ApiModelProperty("怪物头像")
+    private String avatarUrl = "https://img0.baidu.com/it/u=4184635331,1123213756&fm=253&fmt=auto&app=120&f=JPEG?w=440&h=441";
+
     @ApiModelProperty("怪物血量")
     private Integer health;
 

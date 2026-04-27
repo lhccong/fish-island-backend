@@ -103,6 +103,20 @@ public class UserPointsServiceImpl extends ServiceImpl<UserPointsMapper, UserPoi
         this.updateById(userPoints);
     }
 
+//    @Override
+//    public void addPoints(Long userId, Integer points, String sourceType, String sourceId, String description) {
+//        UserPoints userPoints = this.getById(userId);
+//        int beforePoints = userPoints.getPoints();
+//        int afterPoints = beforePoints + points;
+//        userPoints.setPoints(afterPoints);
+//        userPoints.setLevel(calculateLevel(afterPoints));
+//        this.updateById(userPoints);
+//
+//        int usedPoints = userPoints.getUsedPoints() == null ? 0 : userPoints.getUsedPoints();
+//        userPointsRecordService.addPointsIncreaseRecord(userId, points, sourceType, description,
+//                beforePoints, afterPoints, usedPoints, usedPoints);
+//    }
+
     @Override
     public void updateUsedPoints(Long userId, Integer points) {
         UserPoints userPoints = this.getById(userId);

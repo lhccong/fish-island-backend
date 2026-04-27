@@ -25,6 +25,9 @@ public class BattleStatsVO {
     /** 防御力（每点防御减少1点伤害，最低造成1点） */
     private int defense;
 
+    /** 速度（决定战斗先手，速度高的一方先攻击；相同时随机决定） */
+    private int speed;
+
     // ---- 主动属性 ----
 
     /** 暴击率（0.0 ~ 1.0），触发后伤害 × {@code CRITICAL_DAMAGE_MULTIPLIER} */
@@ -79,6 +82,7 @@ public class BattleStatsVO {
         s.attack  = (int) (baseAtk * Math.pow(1 + growthRate, level)) + equipAtk;
         s.health  = level * 100 + equipHp;
         s.defense = getInt(stats != null ? stats.getTotalBaseDefense() : null);
+        s.speed   = getInt(stats != null ? stats.getSpeed()            : null);
 
         s.critRate            = getDbl(stats != null ? stats.getCritRate()            : null);
         s.comboRate           = getDbl(stats != null ? stats.getComboRate()           : null);
@@ -120,6 +124,22 @@ public class BattleStatsVO {
     }
 
     // ---- 内部工具 ----
+
+    /**
+     * 根据速度判断先手
+     * <p>速度高的一方先攻击；速度相同时随机决定（50% 概率）。
+     *
+     * @param a   一方战斗属性
+     * @param b   另一方战斗属性
+     * @param rng 随机数生成器
+     * @return true 表示 a 先手，false 表示 b 先手
+     */
+    public static boolean aGoesFirst(BattleStatsVO a, BattleStatsVO b, java.util.Random rng) {
+        if (a.speed != b.speed) {
+            return a.speed > b.speed;
+        }
+        return rng.nextBoolean();
+    }
 
     private static int    getInt(Integer val) { return val != null ? val  : 0;   }
     private static double getDbl(Double  val) { return val != null ? val  : 0.0; }

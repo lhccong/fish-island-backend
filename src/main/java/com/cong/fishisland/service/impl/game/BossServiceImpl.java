@@ -151,7 +151,8 @@ public class BossServiceImpl implements BossService {
 
         int currentPetHealth = petStats.getHealth();
         List<BattleResultVO> battleResults = new ArrayList<>();
-        boolean petTurn = true;
+        // 速度高的一方先手；相同时随机决定（Boss 速度默认 0，宠物通常先手）
+        boolean petTurn = BattleStatsVO.aGoesFirst(petStats, bossStats, new java.util.Random());
         int totalDamage = 0;
         int maxActions = 100;
 

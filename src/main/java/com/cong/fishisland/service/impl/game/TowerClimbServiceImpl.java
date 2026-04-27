@@ -10,6 +10,7 @@ import com.cong.fishisland.model.entity.game.TowerClimbProgress;
 import com.cong.fishisland.model.entity.game.TowerClimbRecord;
 import com.cong.fishisland.model.entity.pet.FishPet;
 import com.cong.fishisland.model.entity.user.User;
+import com.cong.fishisland.model.enums.user.PointsRecordSourceEnum;
 import com.cong.fishisland.model.vo.game.AttackResultVO;
 import com.cong.fishisland.model.vo.game.BattleResultVO;
 import com.cong.fishisland.model.vo.game.BattleStatsVO;
@@ -66,7 +67,7 @@ public class TowerClimbServiceImpl implements TowerClimbService {
     private static final double PROB_GROWTH_PER_FLOOR = 0.006;
     private static final double PROB_CAP = 2.0;
     // 每层基础奖励积分
-    private static final int BASE_REWARD = 5;
+    private static final int BASE_REWARD = 10;
     // 最大战斗回合数
     private static final int MAX_ROUNDS = 30;
 
@@ -123,7 +124,6 @@ public class TowerClimbServiceImpl implements TowerClimbService {
 
         // 执行战斗
         List<BattleResultVO> rounds = doBattle(petStats, monsterStats);
-
         // 判断胜负（宠物血量 > 0 则胜利）
         int lastPetHp = rounds.get(rounds.size() - 1).getPetRemainingHealth();
         boolean win = lastPetHp > 0;
@@ -134,8 +134,10 @@ public class TowerClimbServiceImpl implements TowerClimbService {
             // 更新最高层数
             progress.setMaxFloor(floor);
             towerClimbProgressMapper.updateById(progress);
-            // 发放积分
-            userPointsService.updatePoints(userId, rewardPoints, false);
+            // 发放积分（记录来源为爬塔奖励）
+            userPointsService.updateUsedPoints(userId, -rewardPoints,
+                    PointsRecordSourceEnum.TOWER_CLIMB.getValue(),
+                    String.valueOf(floor), "爬塔第 " + floor + " 层奖励");
         }
 
         // 保存挑战记录
@@ -165,7 +167,8 @@ public class TowerClimbServiceImpl implements TowerClimbService {
         List<BattleResultVO> rounds = new ArrayList<>();
         int petHp = pet.getHealth();
         int monsterHp = monster.getHealth();
-        boolean petTurn = true; // 宠物先手
+        // 速度高的一方先手；相同时随机决定（野怪速度默认 0，宠物通常先手）
+        boolean petTurn = BattleStatsVO.aGoesFirst(pet, monster, random);
 
         for (int i = 0; i < MAX_ROUNDS && petHp > 0 && monsterHp > 0; i++) {
             BattleResultVO round = new BattleResultVO();
@@ -205,7 +208,7 @@ public class TowerClimbServiceImpl implements TowerClimbService {
     }
 
     private AttackResultVO performAttack(BattleStatsVO attacker, BattleStatsVO defender,
-                                          int attackerHp, int defenderHp) {
+                                         int attackerHp, int defenderHp) {
         AttackResultVO result = new AttackResultVO();
 
         double effectiveDodge = Math.max(0.0, defender.getDodgeRate() - attacker.getDodgeResistance());
@@ -249,12 +252,16 @@ public class TowerClimbServiceImpl implements TowerClimbService {
 
     // ---- 属性计算 ----
 
-    /** 怪物血量：随层数指数增长 */
+    /**
+     * 怪物血量：随层数指数增长
+     */
     private int calcMonsterHp(int floor) {
         return (int) (MONSTER_BASE_HP * Math.pow(floor, HP_SCALE));
     }
 
-    /** 怪物攻击：随层数指数增长 */
+    /**
+     * 怪物攻击：随层数指数增长
+     */
     private int calcMonsterAtk(int floor) {
         return (int) (MONSTER_BASE_ATK * Math.pow(floor, ATK_SCALE));
     }

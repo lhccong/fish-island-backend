@@ -84,7 +84,8 @@ public class PetBattleServiceImpl implements PetBattleService {
         int currentOppHealth = opp.getHealth();
 
         List<PetBattleResultVO> results = new ArrayList<>();
-        boolean myTurn = true;
+        // 速度高的一方先手；相同时随机决定
+        boolean myTurn = BattleStatsVO.aGoesFirst(my, opp, random);
         int maxActions = 100;
 
         while (currentMyHealth > 0 && currentOppHealth > 0 && maxActions-- > 0) {
