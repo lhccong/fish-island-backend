@@ -51,4 +51,16 @@ public class Battle3dBroadcastService {
         payload.put("serverTime", serverTime);
         return payload;
     }
+
+    /**
+     * 广播战斗事件（combatEvent），附加自定义字段。
+     */
+    public void broadcastCombatEvent(BattleRoom room, String eventType, String eventIdPrefix,
+                                      long serverTime, Map<String, Object> extraFields) {
+        Map<String, Object> payload = createBaseCombatEvent(room, eventIdPrefix, serverTime);
+        if (extraFields != null) {
+            payload.putAll(extraFields);
+        }
+        broadcast(room, eventType, payload);
+    }
 }

@@ -1,6 +1,8 @@
 package com.cong.fishisland.socketio.battle;
 
 import com.cong.fishisland.model.fishbattle.battle.BattleChampionState;
+import com.cong.fishisland.model.fishbattle.battle.BattleHealthRelicState;
+import com.cong.fishisland.model.fishbattle.battle.BattleStructureState;
 import com.cong.fishisland.model.fishbattle.battle.BattleRoom;
 import com.cong.fishisland.model.fishbattle.battle.BattleVector3;
 import com.cong.fishisland.model.fishbattle.battle.PlayerSession;
@@ -57,6 +59,8 @@ public class Battle3dRoomManager {
     private double mapZMin = -19.6;
     private double mapZMax = 19.6;
 
+    private JsonNode latestMapConfigRoot;
+
     @PostConstruct
     public void init() {
         // 预加载英雄属性缓存
@@ -95,6 +99,7 @@ public class Battle3dRoomManager {
                 return;
             }
             JsonNode root = objectMapper.readTree(configJson);
+            latestMapConfigRoot = root;
 
             // 解析出生点 spawnLayouts
             JsonNode spawnNode = root.path("spawnLayouts");
@@ -117,6 +122,7 @@ public class Battle3dRoomManager {
             log.info("地图配置加载完成: blueSpawns={}, redSpawns={}, bounds=[{},{},{},{}]",
                     blueSpawns.size(), redSpawns.size(), mapXMin, mapXMax, mapZMin, mapZMax);
         } catch (Exception e) {
+            latestMapConfigRoot = null;
             log.warn("地图配置解析失败，使用默认值: {}", e.getMessage());
         }
     }
@@ -244,12 +250,22 @@ public class Battle3dRoomManager {
             userMapping.put(p.getUserId(), championId);
         }
 
+        battleRoom.getStructures().addAll(buildInitialStructures());
+        battleRoom.getHealthRelics().addAll(buildInitialHealthRelics());
+        long now = System.currentTimeMillis();
+        long spawnIntervalMs = latestMapConfigRoot != null
+                ? latestMapConfigRoot.path("minions").path("spawnIntervalMs").asLong(25000L)
+                : 25000L;
+        battleRoom.setNextMinionSpawnAt(now + Math.max(1000L, spawnIntervalMs));
+        battleRoom.setMinionWaveSequence(0L);
+
         battleRooms.put(roomCode, battleRoom);
         userChampionMapping.put(roomCode, userMapping);
         sceneReadyUsers.put(roomCode, new CopyOnWriteArraySet<>());
         roomPlayerCounts.put(roomCode, userMapping.size());
 
-        log.info("战斗房间已创建: roomCode={}, 英雄数量={}", roomCode, battleRoom.getChampions().size());
+        log.info("战斗房间已创建: roomCode={}, 英雄数量={}, 补血道具数量={}",
+                roomCode, battleRoom.getChampions().size(), battleRoom.getHealthRelics().size());
         return battleRoom;
     }
 
@@ -410,6 +426,10 @@ public class Battle3dRoomManager {
         return mapping != null ? new LinkedHashMap<>(mapping) : Collections.emptyMap();
     }
 
+    public JsonNode getLatestMapConfigRoot() {
+        return latestMapConfigRoot;
+    }
+
     private double[] resolveSpawnPosition(String team, int teamIndex) {
         List<double[]> layouts = "blue".equals(team) ? blueSpawns : redSpawns;
         if (layouts == null || layouts.isEmpty()) {
@@ -419,6 +439,102 @@ public class Battle3dRoomManager {
             return layouts.get(teamIndex);
         }
         return layouts.get(0);
+    }
+
+    private List<BattleStructureState> buildInitialStructures() {
+        List<BattleStructureState> structures = new ArrayList<BattleStructureState>();
+        JsonNode root = latestMapConfigRoot;
+        if (root == null || root.isMissingNode()) {
+            return structures;
+        }
+        JsonNode structureRoot = root.path("structures");
+        appendStructures(structures, structureRoot.path("towers"), "tower");
+        appendStructures(structures, structureRoot.path("nexuses"), "nexus");
+        appendStructures(structures, structureRoot.path("inhibitors"), "inhibitor");
+        return structures;
+    }
+
+    private List<BattleHealthRelicState> buildInitialHealthRelics() {
+        List<BattleHealthRelicState> relics = new ArrayList<BattleHealthRelicState>();
+        JsonNode root = latestMapConfigRoot;
+        if (root == null || root.isMissingNode()) {
+            return relics;
+        }
+        JsonNode relicArray = root.path("healthRelics").path("items");
+        if (relicArray == null || !relicArray.isArray()) {
+            return relics;
+        }
+        for (JsonNode node : relicArray) {
+            if (node == null || !node.isObject()) {
+                continue;
+            }
+            BattleVector3 position = parseVector3(node.path("position"));
+            if (position == null) {
+                continue;
+            }
+            String id = node.path("id").asText();
+            if (id == null || id.trim().isEmpty()) {
+                continue;
+            }
+            relics.add(BattleHealthRelicState.builder()
+                    .id(id)
+                    .position(position)
+                    .isAvailable(Boolean.TRUE)
+                    .respawnAt(null)
+                    .healPercent(node.path("healPercent").asDouble(0.15D))
+                    .pickupRadius(node.path("pickupRadius").asDouble(2.5D))
+                    .build());
+        }
+        return relics;
+    }
+
+    private void appendStructures(List<BattleStructureState> structures, JsonNode arrayNode, String structureType) {
+        if (arrayNode == null || !arrayNode.isArray()) {
+            return;
+        }
+        for (JsonNode node : arrayNode) {
+            if (node == null || !node.isObject()) {
+                continue;
+            }
+            BattleVector3 position = parseVector3(node.path("position"));
+            if (position == null) {
+                continue;
+            }
+            String id = node.path("id").asText();
+            if (id == null || id.trim().isEmpty()) {
+                continue;
+            }
+            double maxHp = node.path("maxHp").asDouble(0D);
+            boolean isTower = "tower".equals(structureType);
+            structures.add(BattleStructureState.builder()
+                    .id(id)
+                    .type(structureType)
+                    .subType(isTower ? node.path("subType").asText(node.path("type").asText(null)) : null)
+                    .team(node.path("team").asText("blue"))
+                    .position(position)
+                    .collisionRadius(node.path("collisionRadius").asDouble(0D))
+                    .hp(maxHp)
+                    .maxHp(maxHp)
+                    .isDestroyed(Boolean.FALSE)
+                    .armor(node.path("armor").asDouble(0D))
+                    .attackDamage(node.path("attackDamage").asDouble(isTower ? 150D : 0D))
+                    .attackRange(node.path("attackRange").asDouble(isTower ? 20D : 0D))
+                    .attackSpeed(node.path("attackSpeed").asDouble(isTower ? 1D : 0D))
+                    .lastAttackAt(0L)
+                    .targetEntityId(null)
+                    .build());
+        }
+    }
+
+    private BattleVector3 parseVector3(JsonNode arrayNode) {
+        if (arrayNode == null || !arrayNode.isArray() || arrayNode.size() < 3) {
+            return null;
+        }
+        return BattleVector3.builder()
+                .x(arrayNode.get(0).asDouble())
+                .y(arrayNode.get(1).asDouble())
+                .z(arrayNode.get(2).asDouble())
+                .build();
     }
 
     private Map<String, Map<String, Object>> createInitialSkillStates(String spell1, String spell2) {

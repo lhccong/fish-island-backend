@@ -49,6 +49,33 @@ public class BattleRoom {
     private List<BattleChampionState> champions;
 
     /**
+     * 当前房间全部小兵状态。
+     */
+    private List<BattleMinionState> minions;
+
+    /**
+     * 当前房间全部建筑状态。
+     */
+    private List<BattleStructureState> structures;
+
+    /**
+     * 当前房间全部补血道具状态。
+     */
+    private List<BattleHealthRelicState> healthRelics;
+
+    /**
+     * 下一波小兵生成时间戳，到达后生成一波并重新计时。
+     */
+    private Long nextMinionSpawnAt;
+
+    private Long minionWaveSequence;
+
+    /**
+     * 延迟伤害队列（塔弹道、远程小兵弹道等），tick 结束统一结算。
+     */
+    private List<PendingAttackState> pendingAttacks;
+
+    /**
      * 当前房间在线会话。
      */
     private List<PlayerSession> players;
@@ -61,6 +88,12 @@ public class BattleRoom {
                 .gameTimer(0D)
                 .tickNumber(0L)
                 .champions(new CopyOnWriteArrayList<BattleChampionState>())
+                .minions(new CopyOnWriteArrayList<BattleMinionState>())
+                .structures(new CopyOnWriteArrayList<BattleStructureState>())
+                .healthRelics(new CopyOnWriteArrayList<BattleHealthRelicState>())
+                .nextMinionSpawnAt(System.currentTimeMillis() + 5000L)
+                .minionWaveSequence(0L)
+                .pendingAttacks(new CopyOnWriteArrayList<PendingAttackState>())
                 .players(new CopyOnWriteArrayList<PlayerSession>())
                 .build();
     }

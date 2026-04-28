@@ -24,209 +24,672 @@ CREATE TABLE IF NOT EXISTS `fish_battle_config` (
 -- =========================================================================
 INSERT INTO `fish_battle_config` (`config_key`, `config_data`, `description`) VALUES
 ('map_default', '{
-  "_doc": "地图场景完整配置（地图边界+建筑+草丛+泉水+小兵+桥面视觉等）",
-
-  "map": {
-    "_doc": "地图基础尺寸与可走区域边界",
-    "width": 160,
-    "depth": 54,
-    "bridgeWidth": 40,
-    "bridgeLength": 270,
-    "playableBounds": {
-      "_doc": "可走动区域边界坐标",
-      "minX": -130,
-      "maxX": 130,
-      "minZ": -19.6,
-      "maxZ": 19.6
+    "_doc": "战斗地图共享配置（Single Source of Truth）。后端 Java 启动时加载为 BattleMapConfig Bean，前端通过 GET /fishBattle/mapConfig 拉取。修改此文件即可同时影响前后端，无需两边分别改代码。JSON 不支持注释，所有 _doc 字段仅供阅读，程序通过 @JsonIgnoreProperties(ignoreUnknown=true) 自动忽略。",
+    "map": {
+        "_doc": "地图基础尺寸与可走区域边界",
+        "width": 160,
+        "depth": 54,
+        "bridgeWidth": 40,
+        "bridgeLength": 270,
+        "playableBounds": {
+            "_doc": "英雄/小兵可走区域边界，超出会被钳位",
+            "minX": -130,
+            "maxX": 130,
+            "minZ": -19.6,
+            "maxZ": 19.6
+        }
+    },
+    "spawnLayouts": {
+        "_doc": "英雄初始出生编队坐标 [x, y, z]，最多 5 人",
+        "blue": [
+            [
+                -125,
+                0,
+                -5
+            ],
+            [
+                -120,
+                0,
+                -2
+            ],
+            [
+                -125,
+                0,
+                0
+            ],
+            [
+                -120,
+                0,
+                2
+            ],
+            [
+                -125,
+                0,
+                5
+            ]
+        ],
+        "red": [
+            [
+                125,
+                0,
+                -5
+            ],
+            [
+                120,
+                0,
+                -2
+            ],
+            [
+                125,
+                0,
+                0
+            ],
+            [
+                120,
+                0,
+                2
+            ],
+            [
+                125,
+                0,
+                5
+            ]
+        ]
+    },
+    "structures": {
+        "_doc": "所有建筑定义。position=[x,y,z]，collisionRadius=碰撞半径，maxHp=最大血量，armor=护甲",
+        "towers": [
+            {
+                "_doc": "蓝队外塔",
+                "id": "tower_0",
+                "team": "blue",
+                "subType": "outer",
+                "position": [
+                    -25,
+                    0,
+                    0
+                ],
+                "collisionRadius": 2.5,
+                "maxHp": 3000,
+                "armor": 40,
+                "attackDamage": 150,
+                "attackRange": 20,
+                "attackSpeed": 0.63
+            },
+            {
+                "_doc": "蓝队内塔",
+                "id": "tower_1",
+                "team": "blue",
+                "subType": "inner",
+                "position": [
+                    -55,
+                    0,
+                    0
+                ],
+                "collisionRadius": 2.5,
+                "maxHp": 4000,
+                "armor": 40,
+                "attackDamage": 150,
+                "attackRange": 20,
+                "attackSpeed": 0.63
+            },
+            {
+                "_doc": "蓝队左门牙塔",
+                "id": "tower_2",
+                "team": "blue",
+                "subType": "nexusGuard",
+                "position": [
+                    -100,
+                    0,
+                    -5.4
+                ],
+                "collisionRadius": 2.5,
+                "maxHp": 3500,
+                "armor": 40,
+                "attackDamage": 150,
+                "attackRange": 15,
+                "attackSpeed": 0.83
+            },
+            {
+                "_doc": "蓝队右门牙塔",
+                "id": "tower_3",
+                "team": "blue",
+                "subType": "nexusGuard",
+                "position": [
+                    -100,
+                    0,
+                    5.4
+                ],
+                "collisionRadius": 2.5,
+                "maxHp": 3500,
+                "armor": 40,
+                "attackDamage": 150,
+                "attackRange": 15,
+                "attackSpeed": 0.83
+            },
+            {
+                "_doc": "红队外塔",
+                "id": "tower_4",
+                "team": "red",
+                "subType": "outer",
+                "position": [
+                    25,
+                    0,
+                    0
+                ],
+                "collisionRadius": 2.5,
+                "maxHp": 3000,
+                "armor": 40,
+                "attackDamage": 150,
+                "attackRange": 20,
+                "attackSpeed": 0.63
+            },
+            {
+                "_doc": "红队内塔",
+                "id": "tower_5",
+                "team": "red",
+                "subType": "inner",
+                "position": [
+                    55,
+                    0,
+                    0
+                ],
+                "collisionRadius": 2.5,
+                "maxHp": 4000,
+                "armor": 40,
+                "attackDamage": 150,
+                "attackRange": 20,
+                "attackSpeed": 0.63
+            },
+            {
+                "_doc": "红队左门牙塔",
+                "id": "tower_6",
+                "team": "red",
+                "subType": "nexusGuard",
+                "position": [
+                    100,
+                    0,
+                    -5.4
+                ],
+                "collisionRadius": 2.5,
+                "maxHp": 3500,
+                "armor": 40,
+                "attackDamage": 150,
+                "attackRange": 15,
+                "attackSpeed": 0.83
+            },
+            {
+                "_doc": "红队右门牙塔",
+                "id": "tower_7",
+                "team": "red",
+                "subType": "nexusGuard",
+                "position": [
+                    100,
+                    0,
+                    5.4
+                ],
+                "collisionRadius": 2.5,
+                "maxHp": 3500,
+                "armor": 40,
+                "attackDamage": 150,
+                "attackRange": 15,
+                "attackSpeed": 0.83
+            }
+        ],
+        "towerVisual": {
+            "_doc": "防御塔前端视觉参数（模型路径、动画、尺寸）。后端不使用此节。",
+            "blue": {
+                "outerModelPath": "https://cdn.xiaojingge.com/3d-battle/models/towers/blue_tower.glb",
+                "outerDestroyedModelPath": "https://cdn.xiaojingge.com/3d-battle/models/towers/turrets_destroyed.glb",
+                "innerModelPath": "https://cdn.xiaojingge.com/3d-battle/models/towers/blue_tower.glb",
+                "innerDestroyedModelPath": "https://cdn.xiaojingge.com/3d-battle/models/towers/turrets_destroyed.glb",
+                "nexusGuardModelPath": "https://cdn.xiaojingge.com/3d-battle/models/towers/blue_tower.glb",
+                "nexusGuardDestroyedModelPath": "https://cdn.xiaojingge.com/3d-battle/models/towers/turrets_destroyed.glb",
+                "rotationY": 1.5707963
+            },
+            "red": {
+                "outerModelPath": "https://cdn.xiaojingge.com/3d-battle/models/towers/red_tower.glb",
+                "outerDestroyedModelPath": "https://cdn.xiaojingge.com/3d-battle/models/towers/turrets_destroyed.glb",
+                "innerModelPath": "https://cdn.xiaojingge.com/3d-battle/models/towers/red_tower.glb",
+                "innerDestroyedModelPath": "https://cdn.xiaojingge.com/3d-battle/models/towers/turrets_destroyed.glb",
+                "nexusGuardModelPath": "https://cdn.xiaojingge.com/3d-battle/models/towers/red_tower.glb",
+                "nexusGuardDestroyedModelPath": "https://cdn.xiaojingge.com/3d-battle/models/towers/turrets_destroyed.glb",
+                "rotationY": -1.5707963
+            },
+            "outer": {
+                "targetHeight": 7.6,
+                "modelScale": 2.5,
+                "groundOffsetY": -8.3,
+                "destroyedTargetHeight": 0,
+                "destroyedModelScale": 0,
+                "destroyedGroundOffsetY": -5,
+                "idleClip": "Idle1_Base",
+                "deathClip": "Idle1_Base"
+            },
+            "inner": {
+                "targetHeight": 7.6,
+                "modelScale": 2.5,
+                "groundOffsetY": -8.3,
+                "destroyedTargetHeight": 0,
+                "destroyedModelScale": 0,
+                "destroyedGroundOffsetY": -5,
+                "idleClip": "Idle1_Base",
+                "deathClip": "Idle1_Base"
+            },
+            "nexusGuard": {
+                "targetHeight": 7.6,
+                "modelScale": 2.5,
+                "groundOffsetY": -8.3,
+                "destroyedTargetHeight": 0,
+                "destroyedModelScale": 0,
+                "destroyedGroundOffsetY": -5,
+                "idleClip": "Idle1_Base",
+                "deathClip": "Idle1_Base"
+            }
+        },
+        "inhibitors": [
+            {
+                "_doc": "蓝队兵营水晶",
+                "id": "inhibitor_0",
+                "team": "blue",
+                "position": [
+                    -80,
+                    0,
+                    0
+                ],
+                "collisionRadius": 5.5,
+                "maxHp": 2500,
+                "armor": 20
+            },
+            {
+                "_doc": "红队兵营水晶",
+                "id": "inhibitor_1",
+                "team": "red",
+                "position": [
+                    80,
+                    0,
+                    0
+                ],
+                "collisionRadius": 5.5,
+                "maxHp": 2500,
+                "armor": 20
+            }
+        ],
+        "inhibitorVisual": {
+            "_doc": "兵营水晶前端视觉参数",
+            "blue": {
+                "modelPath": "https://cdn.xiaojingge.com/3d-battle/models/towers/blue_small_nexus.glb",
+                "targetHeight": 5.0,
+                "modelScale": 3.2,
+                "groundOffsetY": -10.1,
+                "rotationY": 0,
+                "idleClip": "Idle_Normal1",
+                "deathClip": "Idle_Hold"
+            },
+            "red": {
+                "modelPath": "https://cdn.xiaojingge.com/3d-battle/models/towers/red_smaill_nexus.glb",
+                "targetHeight": 5.0,
+                "modelScale": 3.2,
+                "groundOffsetY": -10.1,
+                "rotationY": 3.1415926,
+                "idleClip": "Idle_Normal1",
+                "deathClip": "Idle_Hold"
+            }
+        },
+        "nexuses": [
+            {
+                "_doc": "蓝队水晶枢纽",
+                "id": "nexus_0",
+                "team": "blue",
+                "position": [
+                    -110,
+                    0,
+                    0
+                ],
+                "collisionRadius": 6.5,
+                "maxHp": 5000,
+                "armor": 20
+            },
+            {
+                "_doc": "红队水晶枢纽",
+                "id": "nexus_1",
+                "team": "red",
+                "position": [
+                    115,
+                    0,
+                    0
+                ],
+                "collisionRadius": 6.5,
+                "maxHp": 5000,
+                "armor": 20
+            }
+        ],
+        "nexusVisual": {
+            "_doc": "水晶枢纽前端视觉参数",
+            "blueModelPath": "https://cdn.xiaojingge.com/3d-battle/models/towers/blue_main_nexus.glb",
+            "redModelPath": "https://cdn.xiaojingge.com/3d-battle/models/towers/red_main_nexus.glb",
+            "targetHeight": 8.5,
+            "modelScale": 2.5,
+            "groundOffsetY": -15,
+            "blueRotationY": 0,
+            "redRotationY": 3.1415926,
+            "idleClip": "Idle1_Base",
+            "damagedClip": "State2",
+            "criticalClip": "State3",
+            "deathClip": "Destroyed",
+            "damagedThreshold": 0.66,
+            "criticalThreshold": 0.33
+        }
+    },
+    "healthRelics": {
+        "_doc": "生命遗迹（补血道具）。position=[x,y,z]，healPercent=回复最大血量百分比，pickupRadius=拾取半径，respawnMs=刷新间隔毫秒",
+        "items": [
+            {
+                "id": "relic_0",
+                "position": [
+                    -10,
+                    0,
+                    15
+                ],
+                "healPercent": 0.15,
+                "pickupRadius": 2.5,
+                "respawnMs": 90000
+            },
+            {
+                "id": "relic_1",
+                "position": [
+                    10,
+                    0,
+                    -15
+                ],
+                "healPercent": 0.15,
+                "pickupRadius": 2.5,
+                "respawnMs": 90000
+            },
+            {
+                "id": "relic_2",
+                "position": [
+                    -45,
+                    0,
+                    -15
+                ],
+                "healPercent": 0.15,
+                "pickupRadius": 2.5,
+                "respawnMs": 90000
+            },
+            {
+                "id": "relic_3",
+                "position": [
+                    45,
+                    0,
+                    15
+                ],
+                "healPercent": 0.15,
+                "pickupRadius": 2.5,
+                "respawnMs": 90000
+            }
+        ],
+        "visual": {
+            "_doc": "生命遗迹前端视觉参数",
+            "modelPath": "https://cdn.xiaojingge.com/3d-battle/models/other/plant_honeyfruit.glb",
+            "targetHeight": 3.2,
+            "rotationY": 0,
+            "idleClip": null,
+            "floatHeight": 0.5,
+            "bobAmplitude": 0.3,
+            "bobSpeed": 2,
+            "ringOuterRadius": 1.2,
+            "ringInnerRadius": 0.8
+        }
+    },
+    "bushes": {
+        "_doc": "草丛碰撞体（后端用于视野判定）与前端视觉参数。center=[x,z]，size=[宽,深]",
+        "colliders": [
+            {
+                "_doc": "左上草丛",
+                "center": [
+                    -40,
+                    -18
+                ],
+                "size": [
+                    8,
+                    3.5
+                ]
+            },
+            {
+                "_doc": "左下草丛",
+                "center": [
+                    -40,
+                    18
+                ],
+                "size": [
+                    8,
+                    3.5
+                ]
+            },
+            {
+                "_doc": "中上草丛",
+                "center": [
+                    0,
+                    -18
+                ],
+                "size": [
+                    10,
+                    4
+                ]
+            },
+            {
+                "_doc": "中下草丛",
+                "center": [
+                    0,
+                    18
+                ],
+                "size": [
+                    10,
+                    4
+                ]
+            },
+            {
+                "_doc": "右上草丛",
+                "center": [
+                    40,
+                    -18
+                ],
+                "size": [
+                    8,
+                    3.5
+                ]
+            },
+            {
+                "_doc": "右下草丛",
+                "center": [
+                    40,
+                    18
+                ],
+                "size": [
+                    8,
+                    3.5
+                ]
+            }
+        ],
+        "visual": {
+            "_doc": "草丛前端视觉参数（三组草丛区域：left/center/right）",
+            "left": {
+                "x": -40,
+                "wallInset": 2,
+                "size": [
+                    8,
+                    2.8,
+                    3.5
+                ],
+                "modelPath": null,
+                "targetHeight": 2.6,
+                "rotationY": 0,
+                "idleClip": null
+            },
+            "center": {
+                "x": 0,
+                "wallInset": 2,
+                "size": [
+                    10,
+                    3,
+                    4
+                ],
+                "modelPath": null,
+                "targetHeight": 2.8,
+                "rotationY": 0,
+                "idleClip": null
+            },
+            "right": {
+                "x": 40,
+                "wallInset": 2,
+                "size": [
+                    8,
+                    2.8,
+                    3.5
+                ],
+                "modelPath": null,
+                "targetHeight": 2.6,
+                "rotationY": 0,
+                "idleClip": null
+            }
+        },
+        "grass": {
+            "_doc": "实例化草片渲染参数",
+            "modelPath": "https://cdn.xiaojingge.com/3d-battle/models/other/grass.glb",
+            "count": 700,
+            "scaleMin": 0.25,
+            "scaleMax": 0.60,
+            "heightScale": 2.0,
+            "swayIntensity": 0.1
+        }
+    },
+    "minions": {
+        "_doc": "小兵配置。spawnIntervalMs=出兵间隔毫秒，spawnPoints=出生X坐标，zOffsets=纵向排列偏移",
+        "spawnIntervalMs": 25000,
+        "melee": {
+            "_doc": "近战兵：高 HP、近距离攻击",
+            "hp": 420,
+            "attackDamage": 42,
+            "attackRange": 1.35,
+            "acquisitionRange": 9.0,
+            "attackCooldownMs": 1200,
+            "moveSpeed": 2.4,
+            "collisionRadius": 0.45,
+            "modelUrl": {
+                "blue": "https://cdn.xiaojingge.com/3d-battle/models/other/melee_minion_order.glb",
+                "red": "https://cdn.xiaojingge.com/3d-battle/models/other/melee_minion_chaos.glb"
+            },
+            "visual": {
+                "_doc": "近战兵前端视觉参数",
+                "blue": {
+                    "targetHeight": 1.8,
+                    "modelScale": 1.2,
+                    "groundOffsetY": 0,
+                    "rotationY": 0
+                },
+                "red": {
+                    "targetHeight": 1.8,
+                    "modelScale": 1.2,
+                    "groundOffsetY": 0,
+                    "rotationY": 0
+                },
+                "idleClip": "Idle1",
+                "runClip": "Run",
+                "attackClip": "Attack3",
+                "deathClip": "minion_melee_death3"
+            }
+        },
+        "caster": {
+            "_doc": "远程兵（Caster）：低 HP、远距离攻击、带弹道",
+            "hp": 280,
+            "attackDamage": 50,
+            "attackRange": 6.0,
+            "acquisitionRange": 9.0,
+            "attackCooldownMs": 1600,
+            "moveSpeed": 2.4,
+            "collisionRadius": 0.4,
+            "modelUrl": {
+                "blue": "https://cdn.xiaojingge.com/3d-battle/models/other/ranged_minion_order.glb",
+                "red": "https://cdn.xiaojingge.com/3d-battle/models/other/ranged_minion_chaos.glb"
+            },
+            "visual": {
+                "_doc": "远程兵前端视觉参数",
+                "blue": {
+                    "targetHeight": 1.6,
+                    "modelScale": 1.5,
+                    "groundOffsetY": 0,
+                    "rotationY": 0
+                },
+                "red": {
+                    "targetHeight": 1.6,
+                    "modelScale": 1.5,
+                    "groundOffsetY": 0,
+                    "rotationY": 0
+                },
+                "idleClip": "Idle1",
+                "runClip": "Run",
+                "attackClip": "Attack1",
+                "deathClip": "Death"
+            }
+        },
+        "spawnPoints": {
+            "blue": {
+                "meleeX": -105,
+                "casterX": -107
+            },
+            "red": {
+                "meleeX": 105,
+                "casterX": 107
+            }
+        },
+        "zOffsets": [
+            -2.0,
+            0,
+            2.0
+        ],
+        "healthBar": {
+            "_doc": "小兵头顶血条参数",
+            "width": 2,
+            "height": 0.42,
+            "offsetY": 3.2
+        }
+    },
+    "fountain": {
+        "blue": {
+            "position": [
+                -130,
+                0,
+                0
+            ],
+            "visual": {
+                "modelPath": "https://cdn.xiaojingge.com/3d-battle/models/heroes/ahri/tft17_god_ahri.glb",
+                "targetHeight": 5.8,
+                "rotationY": 0,
+                "idleClip": "Idle1"
+            }
+        },
+        "red": {
+            "position": [
+                130,
+                0,
+                0
+            ],
+            "visual": {
+                "modelPath": "https://cdn.xiaojingge.com/3d-battle/models/heroes/ahri/ahri_(tft_set_11).glb",
+                "targetHeight": 5.8,
+                "rotationY": 0,
+                "idleClip": "Celebration"
+            }
+        }
+    },
+    "ruins": {
+        "_doc": "桥面正中心的悬浮冰晶遗迹装饰",
+        "modelPath": "https://cdn.xiaojingge.com/3d-battle/models/other/npc_worldscup.glb",
+        "targetHeight": 3.0,
+        "rotationY": 0,
+        "idleClip": "Idle"
     }
-  },
-
-  "spawnLayouts": {
-    "_doc": "双方初始出生点位置 [x, y, z]",
-    "blue": [[-125,0,-5], [-120,0,-2], [-125,0,0], [-120,0,2], [-125,0,5]],
-    "red":  [[125,0,-5],  [120,0,-2],  [125,0,0],  [120,0,2],  [125,0,5]]
-  },
-
-  "structures": {
-    "_doc": "建筑配置（防御塔+兵营水晶+水晶枢纽）",
-    "towers": [
-      {"_doc":"蓝队外塔",        "id":"tower_0", "team":"blue", "type":"outer",      "position":[-70,0,0],   "collisionRadius":3.5, "maxHp":3000, "armor":40},
-      {"_doc":"蓝队内塔",        "id":"tower_1", "team":"blue", "type":"inner",      "position":[-90,0,0],   "collisionRadius":3.5, "maxHp":3500, "armor":55},
-      {"_doc":"蓝队基地守卫塔A",  "id":"tower_2", "team":"blue", "type":"nexusGuard", "position":[-100,0,-8], "collisionRadius":3.5, "maxHp":3000, "armor":70},
-      {"_doc":"蓝队基地守卫塔B",  "id":"tower_3", "team":"blue", "type":"nexusGuard", "position":[-100,0,8],  "collisionRadius":3.5, "maxHp":3000, "armor":70},
-      {"_doc":"红队外塔",        "id":"tower_4", "team":"red",  "type":"outer",      "position":[70,0,0],    "collisionRadius":3.5, "maxHp":3000, "armor":40},
-      {"_doc":"红队内塔",        "id":"tower_5", "team":"red",  "type":"inner",      "position":[90,0,0],    "collisionRadius":3.5, "maxHp":3500, "armor":55},
-      {"_doc":"红队基地守卫塔A",  "id":"tower_6", "team":"red",  "type":"nexusGuard", "position":[100,0,-8],  "collisionRadius":3.5, "maxHp":3000, "armor":70},
-      {"_doc":"红队基地守卫塔B",  "id":"tower_7", "team":"red",  "type":"nexusGuard", "position":[100,0,8],   "collisionRadius":3.5, "maxHp":3000, "armor":70}
-    ],
-    "towerVisual": {
-      "_doc": "防御塔前端视觉参数",
-      "blue": {
-        "outerModelPath":             "https://cdn.xiaojingge.com/3d-battle/models/towers/blue_tower.glb",
-        "outerDestroyedModelPath":    "https://cdn.xiaojingge.com/3d-battle/models/towers/turrets_destroyed.glb",
-        "innerModelPath":             "https://cdn.xiaojingge.com/3d-battle/models/towers/blue_tower.glb",
-        "innerDestroyedModelPath":    "https://cdn.xiaojingge.com/3d-battle/models/towers/turrets_destroyed.glb",
-        "nexusGuardModelPath":        "https://cdn.xiaojingge.com/3d-battle/models/towers/blue_tower.glb",
-        "nexusGuardDestroyedModelPath":"https://cdn.xiaojingge.com/3d-battle/models/towers/turrets_destroyed.glb",
-        "rotationY": 1.5707963
-      },
-      "red": {
-        "outerModelPath":             "https://cdn.xiaojingge.com/3d-battle/models/towers/red_tower.glb",
-        "outerDestroyedModelPath":    "https://cdn.xiaojingge.com/3d-battle/models/towers/turrets_destroyed.glb",
-        "innerModelPath":             "https://cdn.xiaojingge.com/3d-battle/models/towers/red_tower.glb",
-        "innerDestroyedModelPath":    "https://cdn.xiaojingge.com/3d-battle/models/towers/turrets_destroyed.glb",
-        "nexusGuardModelPath":        "https://cdn.xiaojingge.com/3d-battle/models/towers/red_tower.glb",
-        "nexusGuardDestroyedModelPath":"https://cdn.xiaojingge.com/3d-battle/models/towers/turrets_destroyed.glb",
-        "rotationY": -1.5707963
-      },
-      "outer":      {"targetHeight":7.6, "modelScale":2.5, "groundOffsetY":-8.3, "destroyedTargetHeight":0, "destroyedModelScale":0, "destroyedGroundOffsetY":-5, "idleClip":"Idle1_Base", "deathClip":"Idle1_Base"},
-      "inner":      {"targetHeight":7.6, "modelScale":2.5, "groundOffsetY":-8.3, "destroyedTargetHeight":0, "destroyedModelScale":0, "destroyedGroundOffsetY":-5, "idleClip":"Idle1_Base", "deathClip":"Idle1_Base"},
-      "nexusGuard": {"targetHeight":7.6, "modelScale":2.5, "groundOffsetY":-8.3, "destroyedTargetHeight":0, "destroyedModelScale":0, "destroyedGroundOffsetY":-5, "idleClip":"Idle1_Base", "deathClip":"Idle1_Base"}
-    },
-    "inhibitors": [
-      {"_doc":"蓝队兵营水晶", "id":"inhibitor_0", "team":"blue", "position":[-80,0,0], "collisionRadius":5.5, "maxHp":2500, "armor":20},
-      {"_doc":"红队兵营水晶", "id":"inhibitor_1", "team":"red",  "position":[80,0,0],  "collisionRadius":5.5, "maxHp":2500, "armor":20}
-    ],
-    "inhibitorVisual": {
-      "_doc": "兵营水晶前端视觉参数",
-      "blue": {"modelPath":"https://cdn.xiaojingge.com/3d-battle/models/towers/blue_small_nexus.glb", "targetHeight":5.0, "modelScale":3.2, "groundOffsetY":-10.1, "rotationY":0, "idleClip":"Idle_Normal1", "deathClip":"Idle_Hold"},
-      "red":  {"modelPath":"https://cdn.xiaojingge.com/3d-battle/models/towers/red_smaill_nexus.glb", "targetHeight":5.0, "modelScale":3.2, "groundOffsetY":-10.1, "rotationY":3.1415926, "idleClip":"Idle_Normal1", "deathClip":"Idle_Hold"}
-    },
-    "nexuses": [
-      {"_doc":"蓝队水晶枢纽", "id":"nexus_0", "team":"blue", "position":[-110,0,0], "collisionRadius":6.5, "maxHp":5000, "armor":20},
-      {"_doc":"红队水晶枢纽", "id":"nexus_1", "team":"red",  "position":[115,0,0],  "collisionRadius":6.5, "maxHp":5000, "armor":20}
-    ],
-    "nexusVisual": {
-      "_doc": "水晶枢纽前端视觉参数",
-      "blueModelPath":"https://cdn.xiaojingge.com/3d-battle/models/towers/blue_main_nexus.glb",
-      "redModelPath": "https://cdn.xiaojingge.com/3d-battle/models/towers/red_main_nexus.glb",
-      "targetHeight":8.5, "modelScale":2.5, "groundOffsetY":-15,
-      "blueRotationY":0, "redRotationY":3.1415926,
-      "idleClip":"Idle1_Base", "damagedClip":"State2", "criticalClip":"State3", "deathClip":"Destroyed",
-      "damagedThreshold":0.66, "criticalThreshold":0.33
-    }
-  },
-
-  "healthRelics": {
-    "_doc": "生命遗迹（补血道具）",
-    "items": [
-      {"id":"relic_0", "position":[-10,0,15],  "healPercent":0.15, "pickupRadius":2.5, "respawnMs":90000},
-      {"id":"relic_1", "position":[10,0,-15],   "healPercent":0.15, "pickupRadius":2.5, "respawnMs":90000},
-      {"id":"relic_2", "position":[-45,0,-15],  "healPercent":0.15, "pickupRadius":2.5, "respawnMs":90000},
-      {"id":"relic_3", "position":[45,0,15],    "healPercent":0.15, "pickupRadius":2.5, "respawnMs":90000}
-    ],
-    "visual": {
-      "_doc": "生命遗迹前端视觉参数",
-      "modelPath":"https://cdn.xiaojingge.com/3d-battle/models/other/plant_honeyfruit.glb",
-      "targetHeight":3.2, "rotationY":0, "idleClip":null,
-      "floatHeight":0.5, "bobAmplitude":0.3, "bobSpeed":2,
-      "ringOuterRadius":1.2, "ringInnerRadius":0.8
-    }
-  },
-
-  "bushes": {
-    "_doc": "草丛碰撞体（后端视野判定）与前端视觉参数",
-    "colliders": [
-      {"_doc":"左上草丛", "center":[-40,-18], "size":[8,3.5]},
-      {"_doc":"左下草丛", "center":[-40,18],  "size":[8,3.5]},
-      {"_doc":"中上草丛", "center":[0,-18],   "size":[10,4]},
-      {"_doc":"中下草丛", "center":[0,18],    "size":[10,4]},
-      {"_doc":"右上草丛", "center":[40,-18],  "size":[8,3.5]},
-      {"_doc":"右下草丛", "center":[40,18],   "size":[8,3.5]}
-    ],
-    "visual": {
-      "_doc": "草丛前端视觉参数（三组草丛区域）",
-      "left":   {"x":-40, "wallInset":2, "size":[8,2.8,3.5], "modelPath":null, "targetHeight":2.6, "rotationY":0, "idleClip":null},
-      "center": {"x":0,   "wallInset":2, "size":[10,3,4],    "modelPath":null, "targetHeight":2.8, "rotationY":0, "idleClip":null},
-      "right":  {"x":40,  "wallInset":2, "size":[8,2.8,3.5], "modelPath":null, "targetHeight":2.6, "rotationY":0, "idleClip":null}
-    },
-    "grass": {
-      "_doc": "实例化草片渲染参数",
-      "modelPath":"https://cdn.xiaojingge.com/3d-battle/models/other/grass.glb",
-      "count":700, "scaleMin":0.25, "scaleMax":0.60, "heightScale":2.0, "swayIntensity":0.1
-    }
-  },
-
-  "minions": {
-    "_doc": "小兵配置",
-    "spawnIntervalMs": 25000,
-    "melee": {
-      "_doc": "近战兵：高HP、近距离攻击",
-      "hp":420, "attackDamage":42, "attackRange":1.35, "acquisitionRange":9.0,
-      "attackCooldownMs":1200, "moveSpeed":2.4, "collisionRadius":0.45,
-      "modelUrl": {
-        "blue":"https://cdn.xiaojingge.com/3d-battle/models/other/melee_minion_order.glb",
-        "red": "https://cdn.xiaojingge.com/3d-battle/models/other/melee_minion_chaos.glb"
-      },
-      "visual": {
-        "_doc": "近战兵前端视觉参数",
-        "blue":{"targetHeight":1.8, "modelScale":1.2, "groundOffsetY":0, "rotationY":0},
-        "red": {"targetHeight":1.8, "modelScale":1.2, "groundOffsetY":0, "rotationY":0},
-        "idleClip":"Idle1", "runClip":"Run", "attackClip":"Attack3", "deathClip":"minion_melee_death3"
-      }
-    },
-    "caster": {
-      "_doc": "远程兵：低HP、远距离攻击",
-      "hp":280, "attackDamage":150, "attackRange":6.0, "acquisitionRange":9.0,
-      "attackCooldownMs":1600, "moveSpeed":2.4, "collisionRadius":0.4,
-      "modelUrl": {
-        "blue":"https://cdn.xiaojingge.com/3d-battle/models/other/ranged_minion_order.glb",
-        "red": "https://cdn.xiaojingge.com/3d-battle/models/other/ranged_minion_chaos.glb"
-      },
-      "visual": {
-        "_doc": "远程兵前端视觉参数",
-        "blue":{"targetHeight":1.6, "modelScale":1.5, "groundOffsetY":0, "rotationY":0},
-        "red": {"targetHeight":1.6, "modelScale":1.5, "groundOffsetY":0, "rotationY":0},
-        "idleClip":"Idle1", "runClip":"Run", "attackClip":"Attack1", "deathClip":"Death"
-      }
-    },
-    "spawnPoints": {
-      "blue":{"meleeX":-105, "casterX":-107},
-      "red": {"meleeX":105,  "casterX":107}
-    },
-    "zOffsets": [-2.0, 0, 2.0],
-    "healthBar": {"_doc":"小兵头顶血条参数", "width":2, "height":0.42, "offsetY":3.2}
-  },
-
-  "fountain": {
-    "_doc": "泉水配置（含位置和视觉参数）",
-    "blue": {
-      "position":[-130,0,0],
-      "visual": {"modelPath":"https://cdn.xiaojingge.com/3d-battle/models/heroes/ahri/tft17_god_ahri.glb", "targetHeight":5.8, "rotationY":0, "idleClip":"Idle1"}
-    },
-    "red": {
-      "position":[130,0,0],
-      "visual": {"modelPath":"https://cdn.xiaojingge.com/3d-battle/models/heroes/ahri/ahri_(tft_set_11).glb", "targetHeight":5.8, "rotationY":0, "idleClip":"Celebration"}
-    }
-  },
-
-  "ruins": {
-    "_doc": "桥面正中心的悬浮冰晶遗迹装饰",
-    "modelPath":"https://cdn.xiaojingge.com/3d-battle/models/other/npc_worldscup.glb",
-    "targetHeight":3.0, "rotationY":0, "idleClip":"Idle"
-  },
-
-  "bridge": {
-    "_doc": "桥面几何与视觉参数",
-    "bodyHeight": 0.7,
-    "bodyExtraWidth": 0.42,
-    "supportExtraWidth": 0.16,
-    "railingOffset": 0.62,
-    "lowerRailingOffset": 0.5,
-    "topSurfaceY": 0.024,
-    "iceOverlayY": 0.086,
-    "edgeLineY": 0.134,
-    "centerLineY": 0.172,
-    "centerGlowY": 0.118,
-    "ruinsBaseY": 0.028,
-    "ruinsRingY": 0.082,
-    "supportInsetX": 50,
-    "supportSpacing": 20,
-    "railingPostInsetX": 32,
-    "railingPostSpacing": 6,
-    "railingBeamInsetX": 30,
-    "pillarInsetX": 30
-  }
 }', '地图场景完整配置（地图边界+建筑+草丛+泉水+小兵+桥面视觉等）');
 
 

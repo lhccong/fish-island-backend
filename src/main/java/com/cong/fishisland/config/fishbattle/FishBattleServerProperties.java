@@ -41,4 +41,14 @@ public class FishBattleServerProperties {
      * 选英雄阶段倒计时（秒），便于调试时调整
      */
     private Integer heroPickDuration = 60;
+
+    /**
+     * 是否启用小兵生成（调试用），默认 true
+     */
+    private Boolean spawnMinionsEnabled = true;
+
+    /**
+     * 仅为指定队伍出兵（调试用），blue/red，null 表示双方都出
+     */
+    private String spawnOnlyTeam;
 }
