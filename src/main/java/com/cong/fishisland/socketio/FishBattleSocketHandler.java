@@ -12,6 +12,7 @@ import com.cong.fishisland.service.fishbattle.FishBattleSummonerSpellService;
 import com.corundumstudio.socketio.SocketIOClient;
 import com.corundumstudio.socketio.SocketIOServer;
 import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
@@ -38,6 +39,9 @@ public class FishBattleSocketHandler {
     private final UserService userService;
     private final com.cong.fishisland.service.fishbattle.FishBattleRoomService fishBattleRoomService;
     private final com.cong.fishisland.config.fishbattle.FishBattleServerProperties fishBattleServerProperties;
+    private final com.cong.fishisland.socketio.battle.Battle3dRoomManager battle3dRoomManager;
+    private final com.cong.fishisland.socketio.battle.InputQueue inputQueue;
+    private final com.cong.fishisland.socketio.battle.Battle3dBroadcastService battle3dBroadcastService;
     private final ScheduledExecutorService heroPickScheduler = Executors.newScheduledThreadPool(2);
     private final Map<String, ScheduledFuture<?>> heroPickTimers = new ConcurrentHashMap<>();
 
@@ -141,6 +145,34 @@ public class FishBattleSocketHandler {
         fishBattleSocketIOServer.addEventListener("battle:sceneReady", JsonNode.class, (client, data, ackRequest) -> {
             handleBattleSceneReady(client, data);
         });
+        fishBattleSocketIOServer.addEventListener("battle:ping", JsonNode.class, (client, data, ackRequest) -> {
+            handleBattlePing(client, data, ackRequest);
+        });
+
+        /* ==================== 对战移动事件 ==================== */
+        fishBattleSocketIOServer.addEventListener("champion:move", JsonNode.class, (client, data, ackRequest) -> {
+            handleBattleMove(client, data);
+        });
+        fishBattleSocketIOServer.addEventListener("move", JsonNode.class, (client, data, ackRequest) -> {
+            handleBattleMove(client, data);
+        });
+        fishBattleSocketIOServer.addEventListener("champion:stop", JsonNode.class, (client, data, ackRequest) -> {
+            handleBattleStop(client, data);
+        });
+        fishBattleSocketIOServer.addEventListener("stop", JsonNode.class, (client, data, ackRequest) -> {
+            handleBattleStop(client, data);
+        });
+
+        /* ==================== 表情/语音/动画广播中继 ==================== */
+        fishBattleSocketIOServer.addEventListener("champion:animate", JsonNode.class, (client, data, ackRequest) -> {
+            handleBattleBroadcastRelay(client, "champion:animate", data);
+        });
+        fishBattleSocketIOServer.addEventListener("champion:emote", JsonNode.class, (client, data, ackRequest) -> {
+            handleBattleBroadcastRelay(client, "champion:emote", data);
+        });
+        fishBattleSocketIOServer.addEventListener("champion:voice", JsonNode.class, (client, data, ackRequest) -> {
+            handleBattleBroadcastRelay(client, "champion:voice", data);
+        });
 
         /* 启动服务器 */
         fishBattleSocketIOServer.start();
@@ -187,6 +219,9 @@ public class FishBattleSocketHandler {
 
         // 从全局连接跟踪中移除（确保 getOnlineCount 立即减少）
         roomManager.removeConnectedUser(sessionId);
+
+        // 从战斗房间中移除玩家会话
+        battle3dRoomManager.removeSessionById(sessionId);
 
         // 尝试从房间移除
         FishBattleRoomManager.LeaveResult result = roomManager.leaveRoom(client);
@@ -1121,7 +1156,7 @@ public class FishBattleSocketHandler {
 
     /**
      * 处理客户端进入3D对战页面后的 battle:join 事件。
-     * 返回当前房间所有玩家的初始英雄站位数据。
+     * 通过 battle3dRoomManager 加入战斗房间，返回权威初始英雄状态。
      */
     private void handleBattleJoin(SocketIOClient client, JsonNode payload) {
         Long userId = getAuthUserId(client);
@@ -1136,7 +1171,6 @@ public class FishBattleSocketHandler {
         }
         FishBattleRoomManager.RoomSession session = roomManager.getRoomSession(roomCode);
         if (session == null) {
-            // 房间内存丢失（后端重启）或对局已结束
             Map<String, Object> notFound = new LinkedHashMap<>();
             notFound.put("reason", "对局已结束或服务器已重启，房间不存在");
             broadcastService.sendToClient(client, "battle:roomNotFound", notFound);
@@ -1147,43 +1181,57 @@ public class FishBattleSocketHandler {
             return;
         }
 
-        // 构造初始英雄站位数据
-        List<Map<String, Object>> champions = new ArrayList<>();
-        int blueIdx = 0;
-        int redIdx = 0;
-        // 从 spawnLayouts 硬编码出生点（与 map_default 配置一致）
-        double[][] blueSpawns = {{-125,0,-5},{-120,0,-2},{-125,0,0},{-120,0,2},{-125,0,5}};
-        double[][] redSpawns = {{125,0,-5},{120,0,-2},{125,0,0},{120,0,2},{125,0,5}};
-
-        for (FishBattleRoomManager.PlayerConnection p : session.getPlayers().values()) {
-            Map<String, Object> champ = new LinkedHashMap<>();
-            champ.put("odm", p.getUserId());
-            champ.put("playerName", p.getPlayerName());
-            champ.put("heroId", p.getSelectedHeroId());
-            champ.put("team", p.getTeam());
-            champ.put("skinId", p.getSkinId());
-            champ.put("heroModelUrl", p.getHeroModelUrl());
-
-            // 分配出生点
-            double[] spawn;
-            if ("blue".equals(p.getTeam())) {
-                spawn = blueIdx < blueSpawns.length ? blueSpawns[blueIdx++] : blueSpawns[0];
-            } else {
-                spawn = redIdx < redSpawns.length ? redSpawns[redIdx++] : redSpawns[0];
-            }
-            champ.put("positionX", spawn[0]);
-            champ.put("positionY", spawn[1]);
-            champ.put("positionZ", spawn[2]);
-            champions.add(champ);
+        // 如果战斗房间尚未创建（防御性：正常流程在 handleGameLoaded 中创建）
+        if (!battle3dRoomManager.hasBattleRoom(roomCode)) {
+            createBattleRoom(roomCode, session);
         }
+
+        // 查找玩家名
+        FishBattleRoomManager.PlayerConnection conn = roomManager.getBySessionId(client.getSessionId().toString());
+        String playerName = conn != null ? conn.getPlayerName() : "玩家";
+
+        // 加入战斗房间
+        com.cong.fishisland.model.fishbattle.battle.PlayerSession battleSession =
+                battle3dRoomManager.joinByUserId(roomCode, userId, playerName, client);
+
+        // 构造初始英雄状态（从权威 BattleRoom 读取）
+        com.cong.fishisland.model.fishbattle.battle.BattleRoom battleRoom = battle3dRoomManager.getRoom(roomCode);
+        List<Map<String, Object>> champions = new ArrayList<>();
+        if (battleRoom != null && battleRoom.getChampions() != null) {
+            for (com.cong.fishisland.model.fishbattle.battle.BattleChampionState cs : battleRoom.getChampions()) {
+                Map<String, Object> champ = new LinkedHashMap<>();
+                champ.put("id", cs.getId());
+                champ.put("heroId", cs.getHeroId());
+                champ.put("playerName", cs.getPlayerName());
+                champ.put("team", cs.getTeam());
+                champ.put("heroModelUrl", cs.getModelUrl());
+                champ.put("skin", cs.getSkin());
+                champ.put("position", cs.getPosition());
+                champ.put("rotation", cs.getRotation());
+                champ.put("moveSpeed", cs.getMoveSpeed());
+                champ.put("animationState", cs.getAnimationState());
+                champ.put("hp", cs.getHp());
+                champ.put("maxHp", cs.getMaxHp());
+                champ.put("mp", cs.getMp());
+                champ.put("maxMp", cs.getMaxMp());
+                champions.add(champ);
+            }
+        }
+
+        // 附加 userId → championId 映射
+        Map<Long, String> userChampionMap = battle3dRoomManager.getUserChampionMapping(roomCode);
 
         Map<String, Object> battlePayload = new LinkedHashMap<>();
         battlePayload.put("roomCode", roomCode);
+        battlePayload.put("myUserId", userId);
+        battlePayload.put("myChampionId", battleSession != null ? battleSession.getChampionId() : null);
         battlePayload.put("champions", champions);
+        battlePayload.put("userChampionMapping", userChampionMap);
         battlePayload.put("serverTime", System.currentTimeMillis());
         broadcastService.sendToClient(client, "battle:state", battlePayload);
 
-        log.info("玩家加入对战场景: roomCode={}, userId={}", roomCode, userId);
+        log.info("玩家加入对战场景: roomCode={}, userId={}, championId={}",
+                roomCode, userId, battleSession != null ? battleSession.getChampionId() : "spectator");
     }
 
     /**
@@ -1214,6 +1262,24 @@ public class FishBattleSocketHandler {
             log.info("全员场景就绪，广播 battle:allSceneReady: roomCode={}", roomCode);
             Collection<SocketIOClient> roomClients = roomManager.getRoomClients(roomCode);
             broadcastService.broadcast(roomClients, "battle:allSceneReady", new java.util.LinkedHashMap<>());
+        }
+    }
+
+    /**
+     * 处理 battle:ping，立即回复 battle:pong 供前端计算 RTT。
+     */
+    private void handleBattlePing(SocketIOClient client, JsonNode payload, com.corundumstudio.socketio.AckRequest ackRequest) {
+        Map<String, Object> pongPayload = new LinkedHashMap<>();
+        pongPayload.put("serverTime", System.currentTimeMillis());
+        if (payload != null && payload.has("clientSendTime") && payload.path("clientSendTime").canConvertToLong()) {
+            pongPayload.put("clientSendTime", payload.path("clientSendTime").asLong());
+        }
+        if (payload != null && payload.has("clientTime") && payload.path("clientTime").canConvertToLong()) {
+            pongPayload.put("clientTime", payload.path("clientTime").asLong());
+        }
+        client.sendEvent("battle:pong", pongPayload);
+        if (ackRequest != null && ackRequest.isAckRequested()) {
+            ackRequest.sendAckData(pongPayload);
         }
     }
 
@@ -1273,6 +1339,9 @@ public class FishBattleSocketHandler {
                 }
             }
 
+            // 全员加载完成后创建战斗房间
+            createBattleRoom(roomCode, session);
+
             Map<String, Object> allLoadedPayload = new LinkedHashMap<>();
             allLoadedPayload.put("roomCode", roomCode);
             allLoadedPayload.put("serverTime", System.currentTimeMillis());
@@ -1281,5 +1350,149 @@ public class FishBattleSocketHandler {
             broadcastLobbyOverview();
             log.info("全员加载完成，进入对局状态: roomCode={}", roomCode);
         }
+    }
+
+    // ==================== 战斗房间创建 ====================
+
+    /**
+     * 创建权威战斗房间（由 Battle3dRoomManager 管理运行时状态）。
+     * 在全员加载完成后调用，将选英雄阶段的玩家数据转换为战斗运行时状态。
+     */
+    private void createBattleRoom(String roomCode, FishBattleRoomManager.RoomSession session) {
+        if (battle3dRoomManager.hasBattleRoom(roomCode)) {
+            return;
+        }
+        try {
+            battle3dRoomManager.createRoomFromPlayers(roomCode, session.getPlayers().values());
+            log.info("战斗房间已创建: roomCode={}", roomCode);
+        } catch (Exception e) {
+            log.error("战斗房间创建失败: roomCode={}", roomCode, e);
+        }
+    }
+
+    // ==================== 对战移动/停止处理 ====================
+
+    /**
+     * 根据 SocketIOClient 查找对应的战斗会话。
+     */
+    private com.cong.fishisland.model.fishbattle.battle.PlayerSession findBattleSessionByClient(SocketIOClient client) {
+        return battle3dRoomManager.findPlayerSessionBySessionId(client.getSessionId().toString());
+    }
+
+    /**
+     * 处理 champion:move / move 事件。
+     * 验证 championId 和会话，提取目标点和输入模式，入队到 InputQueue。
+     */
+    private void handleBattleMove(SocketIOClient client, JsonNode payload) {
+        if (payload == null || payload.path("championId").isMissingNode()) {
+            return;
+        }
+        String championId = payload.path("championId").asText();
+        JsonNode pointNode = payload.has("targetPoint") && !payload.path("targetPoint").isNull()
+                ? payload.path("targetPoint")
+                : payload.has("target") && !payload.path("target").isNull()
+                        ? payload.path("target") : null;
+        if (pointNode == null || pointNode.isMissingNode() || pointNode.isNull()
+                || !pointNode.has("x") || !pointNode.has("z")) {
+            return;
+        }
+        com.cong.fishisland.model.fishbattle.battle.PlayerSession session = findBattleSessionByClient(client);
+        if (session == null || !championId.equals(session.getChampionId())) {
+            return;
+        }
+        com.cong.fishisland.model.fishbattle.battle.BattleRoom room =
+                battle3dRoomManager.findRoomBySessionId(client.getSessionId().toString());
+        if (room == null) {
+            return;
+        }
+        String inputMode = payload.has("inputMode") ? payload.path("inputMode").asText("mouse") : "mouse";
+        Long clientMoveSequence = payload.has("clientMoveSequence") && payload.path("clientMoveSequence").canConvertToLong()
+                ? payload.path("clientMoveSequence").asLong()
+                : null;
+        Long clientTimestamp = payload.has("clientTimestamp") && payload.path("clientTimestamp").canConvertToLong()
+                ? payload.path("clientTimestamp").asLong()
+                : null;
+        inputQueue.enqueue(com.cong.fishisland.model.fishbattle.battle.PlayerInput.builder()
+                .type(com.cong.fishisland.model.fishbattle.battle.PlayerInput.Type.MOVE)
+                .championId(championId)
+                .roomId(room.getRoomId())
+                .sessionId(client.getSessionId().toString())
+                .clientSeq(clientMoveSequence)
+                .clientTimestamp(clientTimestamp)
+                .serverReceiveTime(System.currentTimeMillis())
+                .targetX(pointNode.path("x").asDouble())
+                .targetZ(pointNode.path("z").asDouble())
+                .inputMode(inputMode)
+                .rawPayload(payload)
+                .build());
+    }
+
+    /**
+     * 处理 champion:stop / stop 事件。
+     * 验证 championId 和会话，入队到 InputQueue。
+     */
+    private void handleBattleStop(SocketIOClient client, JsonNode payload) {
+        if (payload == null || payload.path("championId").isMissingNode()) {
+            return;
+        }
+        String championId = payload.path("championId").asText();
+        com.cong.fishisland.model.fishbattle.battle.PlayerSession session = findBattleSessionByClient(client);
+        if (session == null || !championId.equals(session.getChampionId())) {
+            return;
+        }
+        com.cong.fishisland.model.fishbattle.battle.BattleRoom room =
+                battle3dRoomManager.findRoomBySessionId(client.getSessionId().toString());
+        if (room == null) {
+            return;
+        }
+        Long clientMoveSequence = payload.has("clientMoveSequence") && payload.path("clientMoveSequence").canConvertToLong()
+                ? payload.path("clientMoveSequence").asLong()
+                : null;
+        Long clientTimestamp = payload.has("clientTimestamp") && payload.path("clientTimestamp").canConvertToLong()
+                ? payload.path("clientTimestamp").asLong()
+                : null;
+        Double clientPositionX = payload.has("clientPosition") && payload.path("clientPosition").has("x")
+                ? payload.path("clientPosition").path("x").asDouble()
+                : null;
+        Double clientPositionZ = payload.has("clientPosition") && payload.path("clientPosition").has("z")
+                ? payload.path("clientPosition").path("z").asDouble()
+                : null;
+        inputQueue.enqueue(com.cong.fishisland.model.fishbattle.battle.PlayerInput.builder()
+                .type(com.cong.fishisland.model.fishbattle.battle.PlayerInput.Type.STOP)
+                .championId(championId)
+                .roomId(room.getRoomId())
+                .sessionId(client.getSessionId().toString())
+                .clientSeq(clientMoveSequence)
+                .clientTimestamp(clientTimestamp)
+                .serverReceiveTime(System.currentTimeMillis())
+                .clientPositionX(clientPositionX)
+                .clientPositionZ(clientPositionZ)
+                .rawPayload(payload)
+                .build());
+    }
+
+    /**
+     * 通用广播中继：将客户端发送的事件原样加上 serverTime 后广播给同房间所有玩家。
+     * 用于 champion:animate / champion:emote / champion:voice 等无需服务端逻辑处理的交互事件。
+     */
+    private static final ObjectMapper RELAY_MAPPER = new ObjectMapper();
+
+    private void handleBattleBroadcastRelay(SocketIOClient client, String eventType, JsonNode payload) {
+        if (payload == null) { return; }
+        com.cong.fishisland.model.fishbattle.battle.BattleRoom room =
+                battle3dRoomManager.findRoomBySessionId(client.getSessionId().toString());
+        if (room == null) { return; }
+        Map<String, Object> relayPayload = new LinkedHashMap<>();
+        relayPayload.put("serverTime", System.currentTimeMillis());
+        // 将 JsonNode 转换为普通 Java 对象（Map/List/String/Number/Boolean），
+        // 避免 netty-socketio 序列化 JsonNode 时产生非标准 JSON 结构。
+        payload.fields().forEachRemaining(entry -> {
+            try {
+                relayPayload.put(entry.getKey(), RELAY_MAPPER.treeToValue(entry.getValue(), Object.class));
+            } catch (Exception e) {
+                log.warn("广播中继字段转换失败: key={}, eventType={}", entry.getKey(), eventType, e);
+            }
+        });
+        battle3dBroadcastService.broadcast(room, eventType, relayPayload);
     }
 }
