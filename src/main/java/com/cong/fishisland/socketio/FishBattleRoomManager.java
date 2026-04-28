@@ -1082,6 +1082,7 @@ public class FishBattleRoomManager {
         private String spell2;
         private int loadingProgress;
         private boolean loaded;
+        private boolean sceneReady; // 3D 战斗场景资产加载完成标记
     }
 
     /**

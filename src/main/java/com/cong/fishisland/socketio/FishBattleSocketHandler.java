@@ -134,6 +134,14 @@ public class FishBattleSocketHandler {
             handleGameLoaded(client, data);
         });
 
+        /* ==================== 对战事件 ==================== */
+        fishBattleSocketIOServer.addEventListener("battle:join", JsonNode.class, (client, data, ackRequest) -> {
+            handleBattleJoin(client, data);
+        });
+        fishBattleSocketIOServer.addEventListener("battle:sceneReady", JsonNode.class, (client, data, ackRequest) -> {
+            handleBattleSceneReady(client, data);
+        });
+
         /* 启动服务器 */
         fishBattleSocketIOServer.start();
         log.info("摸鱼大乱斗 Socket.IO 服务器启动成功，所有事件监听器已注册");
@@ -396,6 +404,7 @@ public class FishBattleSocketHandler {
                 heroItem.put("avatarUrl", hero.getAvatarUrl());
                 heroItem.put("splashArt", hero.getSplashArt());
                 heroItem.put("modelUrl", hero.getModelUrl());
+                heroItem.put("assetConfig", hero.getAssetConfig());
                 heroItem.put("skills", hero.getSkills());
                 heroList.add(heroItem);
             }
@@ -742,6 +751,7 @@ public class FishBattleSocketHandler {
             heroItem.put("avatarUrl", hero.getAvatarUrl());
             heroItem.put("splashArt", hero.getSplashArt());
             heroItem.put("modelUrl", hero.getModelUrl());
+            heroItem.put("assetConfig", hero.getAssetConfig());
             heroItem.put("skills", hero.getSkills());
             heroList.add(heroItem);
         }
@@ -1107,6 +1117,104 @@ public class FishBattleSocketHandler {
         String spell2 = payload.path("spell2").asText(null);
         roomManager.selectSpells(roomCode, conn.getUserId(), spell1, spell2);
         broadcastHeroPickUpdate(roomCode);
+    }
+
+    /**
+     * 处理客户端进入3D对战页面后的 battle:join 事件。
+     * 返回当前房间所有玩家的初始英雄站位数据。
+     */
+    private void handleBattleJoin(SocketIOClient client, JsonNode payload) {
+        Long userId = getAuthUserId(client);
+        if (userId == null) {
+            sendError(client, "请先登录");
+            return;
+        }
+        String roomCode = payload != null ? payload.path("roomCode").asText(null) : null;
+        if (roomCode == null) {
+            sendError(client, "房间编码不能为空");
+            return;
+        }
+        FishBattleRoomManager.RoomSession session = roomManager.getRoomSession(roomCode);
+        if (session == null) {
+            // 房间内存丢失（后端重启）或对局已结束
+            Map<String, Object> notFound = new LinkedHashMap<>();
+            notFound.put("reason", "对局已结束或服务器已重启，房间不存在");
+            broadcastService.sendToClient(client, "battle:roomNotFound", notFound);
+            return;
+        }
+        if (session.getStatus() < 2) {
+            sendError(client, "对局尚未开始");
+            return;
+        }
+
+        // 构造初始英雄站位数据
+        List<Map<String, Object>> champions = new ArrayList<>();
+        int blueIdx = 0;
+        int redIdx = 0;
+        // 从 spawnLayouts 硬编码出生点（与 map_default 配置一致）
+        double[][] blueSpawns = {{-125,0,-5},{-120,0,-2},{-125,0,0},{-120,0,2},{-125,0,5}};
+        double[][] redSpawns = {{125,0,-5},{120,0,-2},{125,0,0},{120,0,2},{125,0,5}};
+
+        for (FishBattleRoomManager.PlayerConnection p : session.getPlayers().values()) {
+            Map<String, Object> champ = new LinkedHashMap<>();
+            champ.put("odm", p.getUserId());
+            champ.put("playerName", p.getPlayerName());
+            champ.put("heroId", p.getSelectedHeroId());
+            champ.put("team", p.getTeam());
+            champ.put("skinId", p.getSkinId());
+            champ.put("heroModelUrl", p.getHeroModelUrl());
+
+            // 分配出生点
+            double[] spawn;
+            if ("blue".equals(p.getTeam())) {
+                spawn = blueIdx < blueSpawns.length ? blueSpawns[blueIdx++] : blueSpawns[0];
+            } else {
+                spawn = redIdx < redSpawns.length ? redSpawns[redIdx++] : redSpawns[0];
+            }
+            champ.put("positionX", spawn[0]);
+            champ.put("positionY", spawn[1]);
+            champ.put("positionZ", spawn[2]);
+            champions.add(champ);
+        }
+
+        Map<String, Object> battlePayload = new LinkedHashMap<>();
+        battlePayload.put("roomCode", roomCode);
+        battlePayload.put("champions", champions);
+        battlePayload.put("serverTime", System.currentTimeMillis());
+        broadcastService.sendToClient(client, "battle:state", battlePayload);
+
+        log.info("玩家加入对战场景: roomCode={}, userId={}", roomCode, userId);
+    }
+
+    /**
+     * 处理客户端 3D 场景资产加载完毕的 battle:sceneReady 事件。
+     * 当房间内所有在线玩家都完成场景加载后，广播 battle:allSceneReady。
+     */
+    private void handleBattleSceneReady(SocketIOClient client, JsonNode payload) {
+        String sessionId = client.getSessionId().toString();
+        FishBattleRoomManager.PlayerConnection conn = roomManager.getBySessionId(sessionId);
+        if (conn == null) {
+            return;
+        }
+        String roomCode = conn.getRoomCode();
+        FishBattleRoomManager.RoomSession session = roomManager.getRoomSession(roomCode);
+        if (session == null || session.getStatus() < 2) {
+            return;
+        }
+
+        conn.setSceneReady(true);
+        log.info("玩家场景就绪: roomCode={}, userId={}", roomCode, conn.getUserId());
+
+        // 检查是否全员在线玩家都已场景就绪
+        boolean allReady = session.getPlayers().values().stream()
+                .filter(FishBattleRoomManager.PlayerConnection::isOnline)
+                .allMatch(FishBattleRoomManager.PlayerConnection::isSceneReady);
+
+        if (allReady) {
+            log.info("全员场景就绪，广播 battle:allSceneReady: roomCode={}", roomCode);
+            Collection<SocketIOClient> roomClients = roomManager.getRoomClients(roomCode);
+            broadcastService.broadcast(roomClients, "battle:allSceneReady", new java.util.LinkedHashMap<>());
+        }
     }
 
     private void handleGameLoadingProgress(SocketIOClient client, JsonNode payload) {
