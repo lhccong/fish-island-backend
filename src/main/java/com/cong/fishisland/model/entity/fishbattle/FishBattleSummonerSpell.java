@@ -46,6 +46,12 @@ public class FishBattleSummonerSpell implements Serializable {
     private Integer cooldown;
 
     /**
+     * 技能运行时参数配置(JSON)
+     */
+    @TableField("asset_config")
+    private String assetConfig;
+
+    /**
      * 状态（0禁用/1启用）
      */
     private Integer status;

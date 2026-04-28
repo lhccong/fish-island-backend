@@ -1,0 +1,72 @@
+{
+  // ========== cast: 施法参数 ==========
+  "cast": {
+    "type": "target_point",       // 施法目标类型: target_point(指定地点) | self_cast(自身) | target_unit(指定单位) | directional(方向)
+    "range": 10,                  // 施法最大距离（游戏世界坐标单位），self_cast 可为 0
+    "radius": 0,                  // AOE 效果半径（target_point 类型时用于前端指示器和后端命中判定）
+    "width": 0,                   // 线性技能宽度（directional 类型时使用）
+    "castTimeMs": 0,              // 前摇时间（毫秒），0 表示瞬发
+    "backswingMs": 0,             // 后摇时间（毫秒），施法完成后锁定操作的时长
+    "lockMovement": false,        // 施法期间是否锁定移动（true=前摇+后摇期间不可移动）
+    "targetRules": {              // 目标筛选规则（target_unit 类型时使用）
+      "enemyOnly": false,         // 是否仅可选敌方目标
+      "allyOnly": false,          // 是否仅可选友方目标
+      "allowSelf": false          // 是否可以自己为目标
+    }
+  },
+
+  // ========== cooldown: 冷却参数 ==========
+  "cooldown": {
+    "baseMs": 300000               // 基础冷却时间（毫秒），如闪现 300000ms = 5分钟
+  },
+
+  // ========== cost: 资源消耗 ==========
+  "cost": {
+    "resourceType": "none",        // 消耗资源类型: none(无消耗) | mana(法力值)
+    "amount": 0                    // 消耗量
+  },
+
+  // ========== effects: 效果定义 ==========
+  "effects": {
+    // onActivate: 施法瞬间立即触发的效果列表
+    "onActivate": [
+      {
+        "type": "Teleport",        // 效果类型，支持:
+        //   Teleport    - 传送至目标点
+        //   Heal        - 治疗
+        //   ApplyStatus - 施加状态效果(加速/减速/眩晕等)
+        //   Damage      - 造成伤害
+        //   Shield      - 施加护盾
+        //   Dash        - 冲刺位移
+        //   RemoveStatus- 移除状态效果
+        //   Displacement - 击退/拉扯位移
+        //   Knockup     - 击飞
+
+        // ---- 以下为各效果类型的可选参数 ----
+        // Heal 类型参数:
+        "amount": 120,             // 治疗/伤害/护盾的基础数值
+        "adRatio": 0,              // 攻击力加成系数（最终数值 = amount + baseAd * adRatio + baseAp * apRatio）
+        "apRatio": 0,              // 法术强度加成系数
+
+        // ApplyStatus 类型参数:
+        "statusId": "summoner_ghost_speed_up",  // 状态效果标识符
+        "durationMs": 10000,       // 状态持续时间（毫秒）
+        "stacks": 1,               // 施加层数
+
+        // 通用目标参数:
+        "targetMode": "self",      // 效果目标模式: self(自身) | single(单体) | radius(范围) | line(线性) | cone(扇形)
+        "radius": 5,               // radius 模式下的影响范围半径
+        "targetRules": {           // 效果目标筛选规则（覆盖 cast 级别的 targetRules）
+          "allyOnly": true,
+          "allowSelf": false
+        }
+      }
+    ],
+
+    // onImpact: 命中目标时触发的效果（投射物命中等场景）
+    "onImpact": [],
+
+    // onSuccessCast: 施法成功后触发的效果（如叠加被动层数等）
+    "onSuccessCast": []
+  }
+}

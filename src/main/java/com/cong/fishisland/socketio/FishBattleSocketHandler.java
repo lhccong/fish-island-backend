@@ -162,6 +162,12 @@ public class FishBattleSocketHandler {
         fishBattleSocketIOServer.addEventListener("stop", JsonNode.class, (client, data, ackRequest) -> {
             handleBattleStop(client, data);
         });
+        fishBattleSocketIOServer.addEventListener("castSpell", JsonNode.class, (client, data, ackRequest) -> {
+            handleBattleCastSpell(client, data);
+        });
+        fishBattleSocketIOServer.addEventListener("basicAttack", JsonNode.class, (client, data, ackRequest) -> {
+            handleBattleBasicAttack(client, data);
+        });
 
         /* ==================== 表情/语音/动画广播中继 ==================== */
         fishBattleSocketIOServer.addEventListener("champion:animate", JsonNode.class, (client, data, ackRequest) -> {
@@ -420,6 +426,7 @@ public class FishBattleSocketHandler {
             spellItem.put("icon", spell.getIcon());
             spellItem.put("description", spell.getDescription());
             spellItem.put("cooldown", spell.getCooldown());
+            spellItem.put("assetConfig", spell.getAssetConfig());
             spellList.add(spellItem);
         }
         infoPayload.put("summonerSpells", spellList);
@@ -1465,6 +1472,66 @@ public class FishBattleSocketHandler {
                 .clientSeq(clientMoveSequence)
                 .clientTimestamp(clientTimestamp)
                 .serverReceiveTime(System.currentTimeMillis())
+                .clientPositionX(clientPositionX)
+                .clientPositionZ(clientPositionZ)
+                .rawPayload(payload)
+                .build());
+    }
+
+    private void handleBattleCastSpell(SocketIOClient client, JsonNode payload) {
+        enqueueBattleCastInput(client, payload, com.cong.fishisland.model.fishbattle.battle.PlayerInput.Type.CAST_SPELL);
+    }
+
+    private void handleBattleBasicAttack(SocketIOClient client, JsonNode payload) {
+        enqueueBattleCastInput(client, payload, com.cong.fishisland.model.fishbattle.battle.PlayerInput.Type.BASIC_ATTACK);
+    }
+
+    private void enqueueBattleCastInput(SocketIOClient client, JsonNode payload,
+                                        com.cong.fishisland.model.fishbattle.battle.PlayerInput.Type type) {
+        if (payload == null || payload.path("casterId").isMissingNode()) {
+            return;
+        }
+        String championId = payload.path("casterId").asText();
+        com.cong.fishisland.model.fishbattle.battle.PlayerSession session = findBattleSessionByClient(client);
+        if (session == null || !championId.equals(session.getChampionId())) {
+            return;
+        }
+        com.cong.fishisland.model.fishbattle.battle.BattleRoom room =
+                battle3dRoomManager.findRoomBySessionId(client.getSessionId().toString());
+        if (room == null) {
+            return;
+        }
+        Long clientMoveSequence = payload.has("clientMoveSequence") && payload.path("clientMoveSequence").canConvertToLong()
+                ? payload.path("clientMoveSequence").asLong()
+                : null;
+        Long clientTimestamp = payload.has("clientTimestamp") && payload.path("clientTimestamp").canConvertToLong()
+                ? payload.path("clientTimestamp").asLong()
+                : null;
+        Double clientPositionX = payload.has("clientPosition") && payload.path("clientPosition").has("x")
+                ? payload.path("clientPosition").path("x").asDouble()
+                : null;
+        Double clientPositionZ = payload.has("clientPosition") && payload.path("clientPosition").has("z")
+                ? payload.path("clientPosition").path("z").asDouble()
+                : null;
+
+        inputQueue.enqueue(com.cong.fishisland.model.fishbattle.battle.PlayerInput.builder()
+                .type(type)
+                .championId(championId)
+                .roomId(room.getRoomId())
+                .sessionId(client.getSessionId().toString())
+                .clientSeq(clientMoveSequence)
+                .clientTimestamp(clientTimestamp)
+                .serverReceiveTime(System.currentTimeMillis())
+                .requestId(payload.path("requestId").asText(null))
+                .slot(payload.path("slot").asText(null))
+                .skillId(payload.path("skillId").asText(null))
+                .targetEntityId(payload.path("targetEntityId").asText(null))
+                .targetPointX(payload.has("targetPoint") && payload.path("targetPoint").has("x") ? payload.path("targetPoint").path("x").asDouble() : null)
+                .targetPointY(payload.has("targetPoint") && payload.path("targetPoint").has("y") ? payload.path("targetPoint").path("y").asDouble() : null)
+                .targetPointZ(payload.has("targetPoint") && payload.path("targetPoint").has("z") ? payload.path("targetPoint").path("z").asDouble() : null)
+                .targetDirectionX(payload.has("targetDirection") && payload.path("targetDirection").has("x") ? payload.path("targetDirection").path("x").asDouble() : null)
+                .targetDirectionY(payload.has("targetDirection") && payload.path("targetDirection").has("y") ? payload.path("targetDirection").path("y").asDouble() : null)
+                .targetDirectionZ(payload.has("targetDirection") && payload.path("targetDirection").has("z") ? payload.path("targetDirection").path("z").asDouble() : null)
                 .clientPositionX(clientPositionX)
                 .clientPositionZ(clientPositionZ)
                 .rawPayload(payload)

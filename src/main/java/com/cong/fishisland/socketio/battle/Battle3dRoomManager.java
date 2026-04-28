@@ -30,6 +30,7 @@ public class Battle3dRoomManager {
     private final FishBattleHeroService fishBattleHeroService;
     private final FishBattleConfigService fishBattleConfigService;
     private final ObjectMapper objectMapper;
+    private final HeroSkillDefinitionService heroSkillDefinitionService;
 
     /** heroId → FishBattleHero 缓存 */
     private final Map<String, FishBattleHero> heroAttrCache = new ConcurrentHashMap<>();
@@ -233,7 +234,7 @@ public class Battle3dRoomManager {
                     .shield(0D)
                     .flowValue(0D)
                     .baseAd(heroAd)
-                    .skillStates(new LinkedHashMap<String, Map<String, Object>>())
+                    .skillStates(createInitialSkillStates(p.getSpell1(), p.getSpell2()))
                     .activeCastInstanceId(null)
                     .activeCastPhase("idle")
                     .movementLockedUntil(0L)
@@ -350,6 +351,17 @@ public class Battle3dRoomManager {
                 .findFirst();
     }
 
+    public BattleRoom findRoomByChampionId(String championId) {
+        if (championId == null || championId.trim().isEmpty()) {
+            return null;
+        }
+        return battleRooms.values().stream()
+                .filter(battleRoom -> battleRoom.getChampions() != null
+                        && battleRoom.getChampions().stream().anyMatch(item -> championId.equals(item.getId())))
+                .findFirst()
+                .orElse(null);
+    }
+
     public BattleRoom findRoomBySessionId(String sessionId) {
         if (sessionId == null) {
             return null;
@@ -400,9 +412,49 @@ public class Battle3dRoomManager {
 
     private double[] resolveSpawnPosition(String team, int teamIndex) {
         List<double[]> layouts = "blue".equals(team) ? blueSpawns : redSpawns;
+        if (layouts == null || layouts.isEmpty()) {
+            return new double[]{0D, 0D, 0D};
+        }
         if (teamIndex >= 0 && teamIndex < layouts.size()) {
             return layouts.get(teamIndex);
         }
         return layouts.get(0);
     }
+
+    private Map<String, Map<String, Object>> createInitialSkillStates(String spell1, String spell2) {
+        Map<String, Map<String, Object>> skillStates = new LinkedHashMap<String, Map<String, Object>>();
+        appendSingleSkillState(skillStates, heroSkillDefinitionService.findSkillBySlot(null, "basicAttack"));
+        appendSingleSkillState(skillStates, heroSkillDefinitionService.getSummonerSpellDefinition(
+                spell1 != null && !spell1.trim().isEmpty() ? spell1 : "flash",
+                "summonerD"
+        ));
+        appendSingleSkillState(skillStates, heroSkillDefinitionService.getSummonerSpellDefinition(
+                spell2 != null && !spell2.trim().isEmpty() ? spell2 : "heal",
+                "summonerF"
+        ));
+        return skillStates;
+    }
+
+    private void appendSingleSkillState(Map<String, Map<String, Object>> skillStates, JsonNode skill) {
+        if (skill == null || skill.isMissingNode() || !skill.isObject()) {
+            return;
+        }
+        String slot = skill.path("slot").asText(null);
+        if (slot == null || slot.trim().isEmpty()) {
+            return;
+        }
+        Map<String, Object> state = new LinkedHashMap<String, Object>();
+        state.put("slot", slot);
+        state.put("skillId", skill.path("skillId").asText(slot));
+        state.put("name", skill.path("name").asText(slot));
+        state.put("level", skill.path("initialLevel").asInt(1));
+        state.put("maxCooldownMs", skill.path("cooldown").path("baseMs").asLong(0L));
+        state.put("remainingCooldownMs", 0L);
+        state.put("isReady", Boolean.TRUE);
+        state.put("insufficientResource", Boolean.FALSE);
+        state.put("isSecondPhase", Boolean.FALSE);
+        state.put("isCasting", Boolean.FALSE);
+        skillStates.put(slot, state);
+    }
+
 }

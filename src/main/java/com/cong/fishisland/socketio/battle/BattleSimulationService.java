@@ -26,6 +26,9 @@ public class BattleSimulationService {
     private final Battle3dRoomManager battleRoomManager;
     private final Battle3dBroadcastService battleBroadcastService;
     private final InputQueue inputQueue;
+    private final SpellCastHandler spellCastHandler;
+    private final SpellLifecycleService spellLifecycleService;
+    private final StatusEffectService statusEffectService;
 
     /** 地图可走区域边界（从 Battle3dRoomManager 读取，数据源为 DB config_key=map_default） */
     private double mapXMin;
@@ -139,6 +142,9 @@ public class BattleSimulationService {
         room.setTickNumber(currentTick);
 
         drainAndApplyInputs(room, now);
+        tickStatusEffects(room, now);
+        tickSpellStages(room, now);
+        tickCooldowns(room, deltaSeconds);
         tickMovement(room, deltaSeconds, now);
         room.setGameTimer(room.getGameTimer() + deltaSeconds);
 
@@ -179,6 +185,10 @@ public class BattleSimulationService {
                 break;
             case STOP:
                 applyStopInput(champion, input, now);
+                break;
+            case CAST_SPELL:
+            case BASIC_ATTACK:
+                applyCastInput(room, champion, input, now);
                 break;
             default:
                 break;
@@ -233,6 +243,14 @@ public class BattleSimulationService {
         correctPositionFromClient(champion, input);
     }
 
+    private void applyCastInput(BattleRoom room, BattleChampionState champion, PlayerInput input, long now) {
+        if (input.getRawPayload() == null) {
+            return;
+        }
+        champion.setLastMoveCommandServerTime(now);
+        spellCastHandler.handleCastFromQueue(room, champion, input);
+    }
+
     private void correctPositionFromClient(BattleChampionState champion, PlayerInput input) {
         if (input.getClientPositionX() == null || input.getClientPositionZ() == null) {
             return;
@@ -265,6 +283,8 @@ public class BattleSimulationService {
             if (champion.getDead() != null && champion.getDead()) {
                 continue;
             }
+            double effectiveMoveSpeed = resolveEffectiveMoveSpeed(room, champion);
+            champion.setMoveSpeed(effectiveMoveSpeed);
             if (champion.getMovementLockedUntil() != null && champion.getMovementLockedUntil() > now) {
                 champion.setMoveTarget(null);
                 champion.setInputMode("idle");
@@ -294,8 +314,7 @@ public class BattleSimulationService {
                 champion.setIdleStartedAt(now);
                 continue;
             }
-            double speed = champion.getMoveSpeed() != null ? champion.getMoveSpeed() : 3D;
-            double step = Math.min(dist, speed * deltaSeconds);
+            double step = Math.min(dist, effectiveMoveSpeed * deltaSeconds);
             double dirX = dx / dist;
             double dirZ = dz / dist;
             pos.setX(clamp(pos.getX() + dirX * step, mapXMin, mapXMax));
@@ -305,6 +324,92 @@ public class BattleSimulationService {
             champion.setAnimationState("run");
             champion.setInputMode("mouse");
         }
+    }
+
+    private void tickStatusEffects(BattleRoom room, long now) {
+        statusEffectService.cleanupExpired(room.getRoomId(), now);
+    }
+
+    private void tickSpellStages(BattleRoom room, long now) {
+        List<SpellStageTransition> transitions = spellLifecycleService.tickSpellStages(room, now);
+        broadcastSpellTransitions(room, transitions);
+    }
+
+    private void broadcastSpellTransitions(BattleRoom room, List<SpellStageTransition> transitions) {
+        if (transitions == null || transitions.isEmpty()) {
+            return;
+        }
+        for (SpellStageTransition transition : transitions) {
+            Map<String, Object> payload = battleBroadcastService.createBaseCombatEvent(room, "spell-stage", System.currentTimeMillis());
+            payload.put("castInstanceId", transition.getCastInstanceId());
+            payload.put("casterId", transition.getCasterId());
+            payload.put("skillId", transition.getSkillId());
+            payload.put("slot", transition.getSlot());
+            payload.put("previousStage", transition.getPreviousStage());
+            payload.put("nextStage", transition.getNextStage());
+            if (transition.getTargetEntityId() != null) {
+                payload.put("targetEntityId", transition.getTargetEntityId());
+            }
+            if (transition.getTargetPoint() != null) {
+                payload.put("targetPoint", transition.getTargetPoint());
+            }
+            battleBroadcastService.broadcast(room, "spellStageTransition", payload);
+        }
+    }
+
+    private void tickCooldowns(BattleRoom room, double deltaSeconds) {
+        long deltaMs = Math.max(1L, Math.round(deltaSeconds * 1000D));
+        for (BattleChampionState champion : room.getChampions()) {
+            if (champion.getSkillStates() == null) {
+                continue;
+            }
+            for (Map<String, Object> slotState : champion.getSkillStates().values()) {
+                if (slotState == null) {
+                    continue;
+                }
+                long remainingCooldownMs = readLongValue(slotState.get("remainingCooldownMs"), 0L);
+                if (remainingCooldownMs <= 0L) {
+                    if (!Boolean.TRUE.equals(slotState.get("isCasting"))) {
+                        slotState.put("remainingCooldownMs", 0L);
+                        slotState.put("isReady", Boolean.TRUE);
+                    }
+                    continue;
+                }
+                long nextRemaining = Math.max(0L, remainingCooldownMs - deltaMs);
+                slotState.put("remainingCooldownMs", nextRemaining);
+                if (nextRemaining <= 0L && !Boolean.TRUE.equals(slotState.get("isCasting"))) {
+                    slotState.put("isReady", Boolean.TRUE);
+                } else if (nextRemaining > 0L) {
+                    slotState.put("isReady", Boolean.FALSE);
+                }
+            }
+        }
+    }
+
+    private double resolveEffectiveMoveSpeed(BattleRoom room, BattleChampionState champion) {
+        double baseMoveSpeed = champion.getBaseMoveSpeed() != null ? champion.getBaseMoveSpeed() : (champion.getMoveSpeed() != null ? champion.getMoveSpeed() : 3D);
+        double multiplier = 1D;
+        if (statusEffectService.hasStatus(room.getRoomId(), champion.getId(), "summoner_ghost_speed_up")) {
+            multiplier *= 1.35D;
+        }
+        if (statusEffectService.hasStatus(room.getRoomId(), champion.getId(), "generic_move_speed_up")) {
+            multiplier *= 1.15D;
+        }
+        return baseMoveSpeed * multiplier;
+    }
+
+    private long readLongValue(Object value, long fallback) {
+        if (value instanceof Number) {
+            return ((Number) value).longValue();
+        }
+        if (value instanceof String) {
+            try {
+                return Long.parseLong(((String) value).trim());
+            } catch (NumberFormatException ignored) {
+                return fallback;
+            }
+        }
+        return fallback;
     }
 
     // ==================== 快照广播 ====================
