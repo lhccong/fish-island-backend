@@ -16,4 +16,8 @@ public interface SourceTypeConstant {
      * 系统类型
      */
     int SYSTEM = 3;
+    /**
+     * 朋友圈
+     */
+    int MOMENTS = 4;
 }
