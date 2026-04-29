@@ -7,6 +7,7 @@ import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import com.cong.fishisland.common.ErrorCode;
 import com.cong.fishisland.common.exception.BusinessException;
 import com.cong.fishisland.common.exception.ThrowUtils;
+import com.cong.fishisland.constant.PointConstant;
 import com.cong.fishisland.mapper.moments.MomentsCommentMapper;
 import com.cong.fishisland.mapper.moments.MomentsLikeMapper;
 import com.cong.fishisland.mapper.moments.MomentsMapper;
@@ -20,6 +21,11 @@ import com.cong.fishisland.model.entity.moments.MomentsLike;
 import com.cong.fishisland.model.entity.user.User;
 import com.cong.fishisland.model.vo.moments.MomentsCommentVO;
 import com.cong.fishisland.model.vo.moments.MomentsVO;
+import com.cong.fishisland.model.entity.user.UserPoints;
+import com.cong.fishisland.model.enums.user.PointsRecordSourceEnum;
+import com.cong.fishisland.service.UserPointsRecordService;
+import com.cong.fishisland.service.UserPointsService;
+import com.cong.fishisland.utils.RedisUtils;
 import com.cong.fishisland.service.UserService;
 import com.cong.fishisland.service.event.EventRemindHandler;
 import com.cong.fishisland.service.moments.MomentsService;
@@ -30,6 +36,9 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
 
+import java.time.Duration;
+import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.util.*;
 import java.util.stream.Collectors;
 
@@ -48,6 +57,11 @@ public class MomentsServiceImpl extends ServiceImpl<MomentsMapper, Moments>
     private final MomentsCommentMapper momentsCommentMapper;
     private final UserService userService;
     private final EventRemindHandler eventRemindHandler;
+    private final UserPointsService userPointsService;
+    private final UserPointsRecordService userPointsRecordService;
+
+    private static final String MOMENTS_PUBLISH_KEY_PREFIX = "user:moments:publish:";
+    private static final String MOMENTS_LIKE_KEY_PREFIX = "user:moments:like:";
 
     @Override
     public Long publishMoment(MomentsAddRequest request) {
@@ -67,6 +81,21 @@ public class MomentsServiceImpl extends ServiceImpl<MomentsMapper, Moments>
             moments.setVisibility(0);
         }
         save(moments);
+
+        // 发布朋友圈积分奖励（每天一次）
+        String publishKey = MOMENTS_PUBLISH_KEY_PREFIX + userId + ":" + LocalDate.now();
+        if (RedisUtils.get(publishKey) == null) {
+            userPointsService.updatePoints(userId, PointConstant.MOMENTS_PUBLISH_POINT, false);
+            UserPoints publishUserPoints = userPointsService.getById(userId);
+            int beforePoints = publishUserPoints.getPoints() - PointConstant.MOMENTS_PUBLISH_POINT;
+            int usedPoints = publishUserPoints.getUsedPoints() == null ? 0 : publishUserPoints.getUsedPoints();
+            userPointsRecordService.addPointsIncreaseRecord(userId, PointConstant.MOMENTS_PUBLISH_POINT,
+                    PointsRecordSourceEnum.MOMENTS_PUBLISH.getValue(), "发布朋友圈奖励",
+                    beforePoints, publishUserPoints.getPoints(), usedPoints, usedPoints);
+            LocalDateTime nextMidnight = LocalDate.now().plusDays(1).atStartOfDay();
+            RedisUtils.set(publishKey, "1", Duration.between(LocalDateTime.now(), nextMidnight));
+        }
+
         return moments.getId();
     }
 
@@ -97,13 +126,17 @@ public class MomentsServiceImpl extends ServiceImpl<MomentsMapper, Moments>
                 .map(Moments::getId).collect(Collectors.toList());
         Set<Long> likedSet = getLikedSet(userId, momentIds);
 
-        // 批量查询用户信息
+        // 批量查询所有点赞记录，按 momentId 分组
+        Map<Long, List<MomentsLike>> likesMap = getLikesMap(momentIds);
+
+        // 收集所有涉及的用户ID（动态作者 + 点赞用户）
         Set<Long> userIds = page.getRecords().stream()
                 .map(Moments::getUserId).collect(Collectors.toSet());
+        likesMap.values().forEach(likes -> likes.forEach(l -> userIds.add(l.getUserId())));
         Map<Long, User> userMap = getUserMap(userIds);
 
         List<MomentsVO> voList = page.getRecords().stream()
-                .map(m -> toVO(m, likedSet, userMap))
+                .map(m -> toVO(m, likedSet, userMap, likesMap))
                 .collect(Collectors.toList());
 
         Page<MomentsVO> voPage = new Page<>(page.getCurrent(), page.getSize(), page.getTotal());
@@ -144,6 +177,21 @@ public class MomentsServiceImpl extends ServiceImpl<MomentsMapper, Moments>
             // 异步通知（避免通知自己）
             if (!moments.getUserId().equals(userId)) {
                 eventRemindHandler.handleMomentsLike(momentId, userId, moments.getUserId());
+            }
+            // 点赞积分奖励（每天上限5）
+            String likeKey = MOMENTS_LIKE_KEY_PREFIX + userId + ":" + LocalDate.now();
+            int todayLikePoints = Optional.ofNullable(RedisUtils.get(likeKey))
+                    .map(Integer::parseInt).orElse(0);
+            if (todayLikePoints < PointConstant.MAX_DAILY_MOMENTS_LIKE_POINTS) {
+                userPointsService.updatePoints(userId, PointConstant.MOMENTS_LIKE_POINT, false);
+                UserPoints likeUserPoints = userPointsService.getById(userId);
+                int beforePoints = likeUserPoints.getPoints() - PointConstant.MOMENTS_LIKE_POINT;
+                int usedPoints = likeUserPoints.getUsedPoints() == null ? 0 : likeUserPoints.getUsedPoints();
+                userPointsRecordService.addPointsIncreaseRecord(userId, PointConstant.MOMENTS_LIKE_POINT,
+                        PointsRecordSourceEnum.MOMENTS_LIKE.getValue(), "朋友圈点赞奖励",
+                        beforePoints, likeUserPoints.getPoints(), usedPoints, usedPoints);
+                LocalDateTime nextMidnight = LocalDate.now().plusDays(1).atStartOfDay();
+                RedisUtils.inc(likeKey, Duration.between(LocalDateTime.now(), nextMidnight));
             }
             return true;
         }
@@ -263,7 +311,7 @@ public class MomentsServiceImpl extends ServiceImpl<MomentsMapper, Moments>
 
     // ---- helpers ----
 
-    private MomentsVO toVO(Moments m, Set<Long> likedSet, Map<Long, User> userMap) {
+    private MomentsVO toVO(Moments m, Set<Long> likedSet, Map<Long, User> userMap, Map<Long, List<MomentsLike>> likesMap) {
         MomentsVO vo = new MomentsVO();
         BeanUtils.copyProperties(m, vo);
         vo.setLiked(likedSet.contains(m.getId()));
@@ -271,6 +319,17 @@ public class MomentsServiceImpl extends ServiceImpl<MomentsMapper, Moments>
         if (user != null) {
             vo.setUserName(user.getUserName());
             vo.setUserAvatar(user.getUserAvatar());
+        }
+        List<MomentsLike> likes = likesMap.getOrDefault(m.getId(), Collections.emptyList());
+        if (!likes.isEmpty()) {
+            String names = likes.stream()
+                    .map(l -> {
+                        User u = userMap.get(l.getUserId());
+                        return u != null ? u.getUserName() : null;
+                    })
+                    .filter(Objects::nonNull)
+                    .collect(Collectors.joining(","));
+            vo.setLikeUserNames(names);
         }
         return vo;
     }
@@ -311,5 +370,16 @@ public class MomentsServiceImpl extends ServiceImpl<MomentsMapper, Moments>
         }
         return userService.listByIds(userIds).stream()
                 .collect(Collectors.toMap(User::getId, u -> u));
+    }
+
+    private Map<Long, List<MomentsLike>> getLikesMap(List<Long> momentIds) {
+        if (momentIds.isEmpty()) {
+            return Collections.emptyMap();
+        }
+        return momentsLikeMapper.selectList(
+                new LambdaQueryWrapper<MomentsLike>()
+                        .in(MomentsLike::getMomentId, momentIds))
+                .stream()
+                .collect(Collectors.groupingBy(MomentsLike::getMomentId));
     }
 }

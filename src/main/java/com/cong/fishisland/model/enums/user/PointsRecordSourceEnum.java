@@ -25,6 +25,8 @@ public enum PointsRecordSourceEnum {
     AVATAR_FRAME_EXCHANGE("avatar_frame_exchange", "兑换头像框"),
     VOTE_CREATE("vote_create", "创建投票"),
     TOWER_CLIMB("tower_climb", "爬塔奖励"),
+    MOMENTS_PUBLISH("moments_publish", "发布朋友圈"),
+    MOMENTS_LIKE("moments_like", "朋友圈点赞"),
     OTHER("other", "其他");
 
     private final String value;

@@ -42,7 +42,7 @@ public class UserPointsServiceImpl extends ServiceImpl<UserPointsMapper, UserPoi
 
     private static final String SIGN_IN_KEY_PREFIX = "user:signin:";
     private static final String SPEAK_KEY_PREFIX = "user:speak:";
-    private static final int MAX_DAILY_SPEAK_POINTS = 20;
+    private static final int MAX_DAILY_SPEAK_POINTS = 10;
 
 
     @Override

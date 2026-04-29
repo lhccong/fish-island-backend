@@ -51,6 +51,9 @@ public class MomentsVO implements Serializable {
     @ApiModelProperty(value = "当前登录用户是否已点赞")
     private Boolean liked;
 
+    @ApiModelProperty(value = "点赞用户名称，逗号拼接")
+    private String likeUserNames;
+
     @ApiModelProperty(value = "发布时间")
     private Date createTime;
 
