@@ -368,6 +368,32 @@ public class MomentsServiceImpl extends ServiceImpl<MomentsMapper, Moments>
         return voPage;
     }
 
+    @Override
+    public MomentsVO getMomentDetail(Long id) {
+        ThrowUtils.throwIf(id == null, ErrorCode.PARAMS_ERROR, "动态ID不能为空");
+        Moments moments = getById(id);
+        ThrowUtils.throwIf(moments == null, ErrorCode.NOT_FOUND_ERROR);
+
+        long userId = StpUtil.getLoginIdAsLong();
+        // 仅自己可见时，非本人不能查看
+        ThrowUtils.throwIf(
+                moments.getVisibility() != null && moments.getVisibility() == 1
+                        && !moments.getUserId().equals(userId),
+                ErrorCode.NO_AUTH_ERROR
+        );
+
+        List<Long> momentIds = Collections.singletonList(id);
+        Set<Long> likedSet = getLikedSet(userId, momentIds);
+        Map<Long, List<MomentsLike>> likesMap = getLikesMap(momentIds);
+
+        Set<Long> userIds = new HashSet<>();
+        userIds.add(moments.getUserId());
+        likesMap.getOrDefault(id, Collections.emptyList()).forEach(l -> userIds.add(l.getUserId()));
+        Map<Long, User> userMap = getUserMap(userIds);
+
+        return toVO(moments, likedSet, userMap, likesMap);
+    }
+
     // ---- helpers ----
 
     private MomentsVO toVO(Moments m, Set<Long> likedSet, Map<Long, User> userMap, Map<Long, List<MomentsLike>> likesMap) {

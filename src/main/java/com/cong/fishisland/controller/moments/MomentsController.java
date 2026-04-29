@@ -117,4 +117,13 @@ public class MomentsController {
     public BaseResponse<Page<MomentsCommentVO>> listComments(@RequestBody MomentsCommentQueryRequest request) {
         return ResultUtils.success(momentsService.listComments(request));
     }
+
+    /**
+     * 查询朋友圈动态详情
+     */
+    @GetMapping("/detail")
+    @ApiOperation("查询朋友圈动态详情")
+    public BaseResponse<MomentsVO> getMomentDetail(@RequestParam Long id) {
+        return ResultUtils.success(momentsService.getMomentDetail(id));
+    }
 }

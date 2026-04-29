@@ -65,4 +65,9 @@ public interface MomentsService extends IService<Moments> {
      * 获取动态评论列表（树形结构，仅顶级评论分页，子评论全量挂载）
      */
     Page<MomentsCommentVO> listComments(MomentsCommentQueryRequest request);
+
+    /**
+     * 查询朋友圈动态详情
+     */
+    MomentsVO getMomentDetail(Long id);
 }
