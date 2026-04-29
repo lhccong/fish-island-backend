@@ -6,6 +6,8 @@ import com.cong.fishisland.model.dto.moments.MomentsAddRequest;
 import com.cong.fishisland.model.dto.moments.MomentsCommentAddRequest;
 import com.cong.fishisland.model.dto.moments.MomentsCommentQueryRequest;
 import com.cong.fishisland.model.dto.moments.MomentsQueryRequest;
+import com.cong.fishisland.model.dto.moments.MomentsRewardRequest;
+import com.cong.fishisland.model.dto.moments.MomentsUpdateRequest;
 import com.cong.fishisland.model.entity.moments.Moments;
 import com.cong.fishisland.model.vo.moments.MomentsCommentVO;
 import com.cong.fishisland.model.vo.moments.MomentsVO;
@@ -23,7 +25,12 @@ public interface MomentsService extends IService<Moments> {
     Long publishMoment(MomentsAddRequest request);
 
     /**
-     * 删除动态（仅本人）
+     * 修改动态（本人或管理员）
+     */
+    void updateMoment(MomentsUpdateRequest request);
+
+    /**
+     * 删除动态（本人或管理员）
      */
     void deleteMoment(Long momentId);
 
@@ -31,6 +38,11 @@ public interface MomentsService extends IService<Moments> {
      * 分页查询动态列表
      */
     Page<MomentsVO> listMoments(MomentsQueryRequest request);
+
+    /**
+     * 打赏动态（消耗打赏者的 usedPoints，增加作者的 usedPoints）
+     */
+    void rewardMoment(MomentsRewardRequest request);
 
     /**
      * 点赞 / 取消点赞

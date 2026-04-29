@@ -41,4 +41,12 @@ public interface UserPointsService extends IService<UserPoints> {
      * @param description 描述
      */
     void updateUsedPoints(Long userId, Integer points, String sourceType, String sourceId, String description);
+
+    /**
+     * 校验用户可用积分是否充足（可用积分 = points - usedPoints），不足则抛出异常
+     *
+     * @param userId         用户ID
+     * @param requiredPoints 需要的积分数量
+     */
+    void checkAvailablePoints(Long userId, Integer requiredPoints);
 }

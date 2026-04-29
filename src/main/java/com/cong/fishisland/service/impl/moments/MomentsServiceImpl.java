@@ -15,6 +15,8 @@ import com.cong.fishisland.model.dto.moments.MomentsAddRequest;
 import com.cong.fishisland.model.dto.moments.MomentsCommentAddRequest;
 import com.cong.fishisland.model.dto.moments.MomentsCommentQueryRequest;
 import com.cong.fishisland.model.dto.moments.MomentsQueryRequest;
+import com.cong.fishisland.model.dto.moments.MomentsRewardRequest;
+import com.cong.fishisland.model.dto.moments.MomentsUpdateRequest;
 import com.cong.fishisland.model.entity.moments.Moments;
 import com.cong.fishisland.model.entity.moments.MomentsComment;
 import com.cong.fishisland.model.entity.moments.MomentsLike;
@@ -100,11 +102,68 @@ public class MomentsServiceImpl extends ServiceImpl<MomentsMapper, Moments>
     }
 
     @Override
+    @Transactional(rollbackFor = Exception.class)
+    public void rewardMoment(MomentsRewardRequest request) {
+        ThrowUtils.throwIf(request.getMomentId() == null, ErrorCode.PARAMS_ERROR, "动态ID不能为空");
+        ThrowUtils.throwIf(request.getPoints() == null
+                        || request.getPoints() < PointConstant.MOMENTS_REWARD_MIN_POINT
+                        || request.getPoints() > PointConstant.MOMENTS_REWARD_MAX_POINT,
+                ErrorCode.PARAMS_ERROR, "打赏积分数量不合法");
+
+        long fromUserId = StpUtil.getLoginIdAsLong();
+        Moments moments = getById(request.getMomentId());
+        ThrowUtils.throwIf(moments == null, ErrorCode.NOT_FOUND_ERROR);
+        ThrowUtils.throwIf(moments.getUserId().equals(fromUserId), ErrorCode.PARAMS_ERROR, "不能打赏自己的动态");
+
+        // 校验打赏者可用积分是否充足（可用积分 = points - usedPoints）
+        userPointsService.checkAvailablePoints(fromUserId, request.getPoints());
+
+        String momentIdStr = String.valueOf(request.getMomentId());
+
+        // 扣除打赏者 usedPoints
+        userPointsService.updateUsedPoints(fromUserId, request.getPoints(),
+                PointsRecordSourceEnum.MOMENTS_REWARD.getValue(), momentIdStr,
+                "打赏朋友圈动态");
+
+        // 增加作者 usedPoints
+        userPointsService.updateUsedPoints(moments.getUserId(), -request.getPoints(),
+                PointsRecordSourceEnum.MOMENTS_REWARD.getValue(), momentIdStr,
+                "收到朋友圈打赏");
+    }
+
+    @Override
+    public void updateMoment(MomentsUpdateRequest request) {
+        ThrowUtils.throwIf(request.getId() == null, ErrorCode.PARAMS_ERROR, "动态ID不能为空");
+        ThrowUtils.throwIf(
+                !StringUtils.hasText(request.getContent()) &&
+                        (request.getMediaJson() == null || request.getMediaJson().isEmpty()),
+                ErrorCode.PARAMS_ERROR, "内容和媒体资源不能同时为空"
+        );
+
+        long userId = StpUtil.getLoginIdAsLong();
+        Moments moments = getById(request.getId());
+        ThrowUtils.throwIf(moments == null, ErrorCode.NOT_FOUND_ERROR);
+        // 本人或管理员可修改
+        ThrowUtils.throwIf(
+                !moments.getUserId().equals(userId) && !userService.isAdmin(),
+                ErrorCode.NO_AUTH_ERROR
+        );
+
+        Moments update = new Moments();
+        BeanUtils.copyProperties(request, update);
+        updateById(update);
+    }
+
+    @Override
     public void deleteMoment(Long momentId) {
         long userId = StpUtil.getLoginIdAsLong();
         Moments moments = getById(momentId);
         ThrowUtils.throwIf(moments == null, ErrorCode.NOT_FOUND_ERROR);
-        ThrowUtils.throwIf(!moments.getUserId().equals(userId), ErrorCode.NO_AUTH_ERROR);
+        // 本人或管理员可删除
+        ThrowUtils.throwIf(
+                !moments.getUserId().equals(userId) && !userService.isAdmin(),
+                ErrorCode.NO_AUTH_ERROR
+        );
         removeById(momentId);
     }
 

@@ -8,6 +8,8 @@ import com.cong.fishisland.model.dto.moments.MomentsCommentAddRequest;
 import com.cong.fishisland.model.dto.moments.MomentsCommentQueryRequest;
 import com.cong.fishisland.model.dto.moments.MomentsLikeRequest;
 import com.cong.fishisland.model.dto.moments.MomentsQueryRequest;
+import com.cong.fishisland.model.dto.moments.MomentsRewardRequest;
+import com.cong.fishisland.model.dto.moments.MomentsUpdateRequest;
 import com.cong.fishisland.model.vo.moments.MomentsCommentVO;
 import com.cong.fishisland.model.vo.moments.MomentsVO;
 import com.cong.fishisland.service.moments.MomentsService;
@@ -41,10 +43,20 @@ public class MomentsController {
     }
 
     /**
-     * 删除动态
+     * 修改动态（本人或管理员）
+     */
+    @PostMapping("/update")
+    @ApiOperation("修改朋友圈动态（本人或管理员）")
+    public BaseResponse<Boolean> updateMoment(@RequestBody MomentsUpdateRequest request) {
+        momentsService.updateMoment(request);
+        return ResultUtils.success(true);
+    }
+
+    /**
+     * 删除动态（本人或管理员）
      */
     @PostMapping("/delete")
-    @ApiOperation("删除朋友圈动态")
+    @ApiOperation("删除朋友圈动态（本人或管理员）")
     public BaseResponse<Boolean> deleteMoment(@RequestBody DeleteRequest deleteRequest) {
         momentsService.deleteMoment(Long.parseLong(deleteRequest.getId()));
         return ResultUtils.success(true);
@@ -57,6 +69,16 @@ public class MomentsController {
     @ApiOperation("分页查询朋友圈动态")
     public BaseResponse<Page<MomentsVO>> listMoments(@RequestBody MomentsQueryRequest request) {
         return ResultUtils.success(momentsService.listMoments(request));
+    }
+
+    /**
+     * 打赏动态
+     */
+    @PostMapping("/reward")
+    @ApiOperation("打赏朋友圈动态（消耗 usedPoints）")
+    public BaseResponse<Boolean> rewardMoment(@RequestBody MomentsRewardRequest request) {
+        momentsService.rewardMoment(request);
+        return ResultUtils.success(true);
     }
 
     /**

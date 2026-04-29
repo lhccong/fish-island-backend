@@ -258,6 +258,15 @@ public class UserPointsServiceImpl extends ServiceImpl<UserPointsMapper, UserPoi
         }
     }
 
+    @Override
+    public void checkAvailablePoints(Long userId, Integer requiredPoints) {
+        UserPoints userPoints = this.getById(userId);
+        ThrowUtils.throwIf(userPoints == null, ErrorCode.NOT_FOUND_ERROR, "积分信息不存在");
+        int total = userPoints.getPoints() == null ? 0 : userPoints.getPoints();
+        int used = userPoints.getUsedPoints() == null ? 0 : userPoints.getUsedPoints();
+        ThrowUtils.throwIf(total - used < requiredPoints, ErrorCode.OPERATION_ERROR, "积分不足");
+    }
+
     public boolean isUserVip(Long userId) {
         if (userId == null) {
             return false;

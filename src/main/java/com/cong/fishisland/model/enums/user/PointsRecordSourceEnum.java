@@ -27,6 +27,7 @@ public enum PointsRecordSourceEnum {
     TOWER_CLIMB("tower_climb", "爬塔奖励"),
     MOMENTS_PUBLISH("moments_publish", "发布朋友圈"),
     MOMENTS_LIKE("moments_like", "朋友圈点赞"),
+    MOMENTS_REWARD("moments_reward", "朋友圈打赏"),
     OTHER("other", "其他");
 
     private final String value;

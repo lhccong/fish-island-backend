@@ -32,4 +32,14 @@ public interface PointConstant {
      * 每日朋友圈点赞积分上限
      */
     Integer MAX_DAILY_MOMENTS_LIKE_POINTS = 5;
+
+    /**
+     * 朋友圈打赏最小积分
+     */
+    Integer MOMENTS_REWARD_MIN_POINT = 1;
+
+    /**
+     * 朋友圈打赏最大积分
+     */
+    Integer MOMENTS_REWARD_MAX_POINT = 20;
 }
