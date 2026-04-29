@@ -2,6 +2,7 @@ package com.cong.fishisland.socketio.battle;
 
 import com.cong.fishisland.model.fishbattle.battle.BattleChampionState;
 import com.cong.fishisland.model.fishbattle.battle.BattleHealthRelicState;
+import com.cong.fishisland.model.fishbattle.battle.BattleMinionState;
 import com.cong.fishisland.model.fishbattle.battle.BattleStructureState;
 import com.cong.fishisland.model.fishbattle.battle.BattleRoom;
 import com.cong.fishisland.model.fishbattle.battle.BattleVector3;
@@ -60,6 +61,7 @@ public class Battle3dRoomManager {
     private double mapZMax = 19.6;
 
     private JsonNode latestMapConfigRoot;
+    private JsonNode latestGameConfigRoot;
 
     @PostConstruct
     public void init() {
@@ -76,6 +78,7 @@ public class Battle3dRoomManager {
 
         // 初始加载地图配置（启动时读一次防止空指针，每局开始时会重新读取最新 DB 配置）
         loadMapConfig();
+        loadGameConfig();
     }
 
     /**
@@ -124,6 +127,21 @@ public class Battle3dRoomManager {
         } catch (Exception e) {
             latestMapConfigRoot = null;
             log.warn("地图配置解析失败，使用默认值: {}", e.getMessage());
+        }
+    }
+
+    private void loadGameConfig() {
+        try {
+            String configJson = fishBattleConfigService.getConfigData("game_default");
+            if (configJson == null || configJson.isEmpty()) {
+                latestGameConfigRoot = null;
+                log.warn("游戏主配置 game_default 未找到");
+                return;
+            }
+            latestGameConfigRoot = objectMapper.readTree(configJson);
+        } catch (Exception e) {
+            latestGameConfigRoot = null;
+            log.warn("游戏主配置解析失败: {}", e.getMessage());
         }
     }
 
@@ -191,6 +209,7 @@ public class Battle3dRoomManager {
                                             Collection<com.cong.fishisland.socketio.FishBattleRoomManager.PlayerConnection> players) {
         // 每局开始时重新从 DB 读取最新配置，确保修改数据库后下一局即时生效
         loadMapConfig();
+        loadGameConfig();
         refreshHeroAttrCache();
         BattleRoom battleRoom = BattleRoom.empty(roomCode);
         Map<Long, String> userMapping = new LinkedHashMap<>();
@@ -205,47 +224,69 @@ public class Battle3dRoomManager {
             }
             String team = p.getTeam();
             int teamIndex = "blue".equals(team) ? blueIndex++ : redIndex++;
-            String championId = team + "_" + teamIndex;
+             String championId = team + "_" + teamIndex;
 
-            double[] spawn = resolveSpawnPosition(team, teamIndex);
+             double[] spawn = resolveSpawnPosition(team, teamIndex);
+            BattleVector3 spawnPosition = BattleVector3.builder().x(spawn[0]).y(spawn[1]).z(spawn[2]).build();
 
-            FishBattleHero heroAttr = resolveHeroAttributes(heroId);
-            double heroHp = heroAttr != null && heroAttr.getBaseHp() != null ? heroAttr.getBaseHp().doubleValue() : 1000D;
-            double heroMp = heroAttr != null && heroAttr.getBaseMp() != null ? heroAttr.getBaseMp().doubleValue() : 600D;
-            double heroAd = heroAttr != null && heroAttr.getBaseAd() != null ? heroAttr.getBaseAd().doubleValue() : 60D;
-            double heroMoveSpeed = heroAttr != null && heroAttr.getMoveSpeed() != null ? heroAttr.getMoveSpeed().doubleValue() / 100.0 : 3D;
-
+             FishBattleHero hero = resolveHeroAttributes(heroId);
+             double heroHp = hero != null && hero.getBaseHp() != null ? hero.getBaseHp().doubleValue() : 1000D;
+             double heroMp = hero != null && hero.getBaseMp() != null ? hero.getBaseMp().doubleValue() : 500D;
+            double heroAd = hero != null && hero.getBaseAd() != null ? hero.getBaseAd().doubleValue() : 0D;
+            double heroMoveSpeed = hero != null && hero.getMoveSpeed() != null ? hero.getMoveSpeed() / 100.0 : 3.0D;
+            double heroAttackRange = hero != null && hero.getAttackRange() != null ? hero.getAttackRange().doubleValue() : 0D;
+            double heroAttackSpeed = hero != null && hero.getAttackSpeed() != null ? hero.getAttackSpeed().doubleValue() : 0D;
             String effectiveModelUrl = p.getSkinModelUrl() != null ? p.getSkinModelUrl() : p.getHeroModelUrl();
 
             battleRoom.getChampions().add(BattleChampionState.builder()
                     .id(championId)
                     .heroId(heroId)
-                    .skin(p.getSkinModelUrl())
-                    .modelUrl(effectiveModelUrl)
-                    .playerName(p.getPlayerName())
-                    .team(team)
+                     .skin(p.getSkinModelUrl())
+                     .modelUrl(effectiveModelUrl)
+                     .playerName(p.getPlayerName())
+                     .team(team)
                     .position(BattleVector3.builder().x(spawn[0]).y(spawn[1]).z(spawn[2]).build())
-                    .rotation("blue".equals(team) ? 0D : Math.PI)
-                    .moveSpeed(heroMoveSpeed)
-                    .baseMoveSpeed(heroMoveSpeed)
-                    .moveTarget(null)
-                    .animationState("idle")
+                    .spawnPosition(spawnPosition)
+                     .rotation("blue".equals(team) ? 0D : Math.PI)
+                     .moveSpeed(heroMoveSpeed)
+                     .baseMoveSpeed(heroMoveSpeed)
+                     .moveTarget(null)
+                     .animationState("idle")
                     .inputMode("idle")
                     .dead(Boolean.FALSE)
                     .isDead(Boolean.FALSE)
-                    .hp(heroHp)
-                    .maxHp(heroHp)
-                    .mp(heroMp)
-                    .maxMp(heroMp)
-                    .shield(0D)
-                    .flowValue(0D)
-                    .baseAd(heroAd)
-                    .skillStates(createInitialSkillStates(p.getSpell1(), p.getSpell2()))
+                     .hp(heroHp)
+                     .maxHp(heroHp)
+                     .mp(heroMp)
+                     .maxMp(heroMp)
+                    .level(1)
+                    .kills(0)
+                    .deaths(0)
+                    .assists(0)
+                    .damageDealt(0D)
+                    .damageTaken(0D)
+                    .respawnTimer(0D)
+                    .respawnAt(null)
+                    .respawnDurationMs(0L)
+                    .deadAt(0L)
+                     .shield(0D)
+                     .flowValue(0D)
+                     .baseAd(heroAd)
+                     .attackRange(heroAttackRange)
+                     .attackSpeed(heroAttackSpeed)
+                    .attackMoveTarget(null)
+                    .currentAttackTargetId(null)
+                    .currentAttackTargetType(null)
+                    .skillStates(createInitialSkillStates(p.getSpell1(), p.getSpell2(), heroAttackSpeed))
                     .activeCastInstanceId(null)
-                    .activeCastPhase("idle")
-                    .movementLockedUntil(0L)
-                    .idleStartedAt(System.currentTimeMillis())
-                    .build());
+                     .activeCastPhase("idle")
+                     .movementLockedUntil(0L)
+                     .idleStartedAt(System.currentTimeMillis())
+                     .lastBasicAttackAt(0L)
+                    .lastDamagedByChampionId(null)
+                    .lastDamagedAt(0L)
+                    .recentDamageByChampion(new LinkedHashMap<String, Long>())
+                     .build());
 
             userMapping.put(p.getUserId(), championId);
         }
@@ -367,6 +408,24 @@ public class Battle3dRoomManager {
                 .findFirst();
     }
 
+    public Optional<BattleMinionState> findMinion(BattleRoom battleRoom, String minionId) {
+        if (battleRoom == null || minionId == null || minionId.trim().isEmpty() || battleRoom.getMinions() == null) {
+            return Optional.empty();
+        }
+        return battleRoom.getMinions().stream()
+                .filter(item -> item != null && minionId.equals(item.getId()))
+                .findFirst();
+    }
+
+    public Optional<BattleStructureState> findStructure(BattleRoom battleRoom, String structureId) {
+        if (battleRoom == null || structureId == null || structureId.trim().isEmpty() || battleRoom.getStructures() == null) {
+            return Optional.empty();
+        }
+        return battleRoom.getStructures().stream()
+                .filter(item -> item != null && structureId.equals(item.getId()))
+                .findFirst();
+    }
+
     public BattleRoom findRoomByChampionId(String championId) {
         if (championId == null || championId.trim().isEmpty()) {
             return null;
@@ -374,6 +433,21 @@ public class Battle3dRoomManager {
         return battleRooms.values().stream()
                 .filter(battleRoom -> battleRoom.getChampions() != null
                         && battleRoom.getChampions().stream().anyMatch(item -> championId.equals(item.getId())))
+                .findFirst()
+                .orElse(null);
+    }
+
+    public BattleRoom findRoomByEntityId(String entityId) {
+        if (entityId == null || entityId.trim().isEmpty()) {
+            return null;
+        }
+        return battleRooms.values().stream()
+                .filter(battleRoom -> (battleRoom.getChampions() != null
+                        && battleRoom.getChampions().stream().anyMatch(item -> item != null && entityId.equals(item.getId())))
+                        || (battleRoom.getMinions() != null
+                        && battleRoom.getMinions().stream().anyMatch(item -> item != null && entityId.equals(item.getId())))
+                        || (battleRoom.getStructures() != null
+                        && battleRoom.getStructures().stream().anyMatch(item -> item != null && entityId.equals(item.getId()))))
                 .findFirst()
                 .orElse(null);
     }
@@ -428,6 +502,10 @@ public class Battle3dRoomManager {
 
     public JsonNode getLatestMapConfigRoot() {
         return latestMapConfigRoot;
+    }
+
+    public JsonNode getLatestGameConfigRoot() {
+        return latestGameConfigRoot;
     }
 
     private double[] resolveSpawnPosition(String team, int teamIndex) {
@@ -517,9 +595,9 @@ public class Battle3dRoomManager {
                     .maxHp(maxHp)
                     .isDestroyed(Boolean.FALSE)
                     .armor(node.path("armor").asDouble(0D))
-                    .attackDamage(node.path("attackDamage").asDouble(isTower ? 150D : 0D))
-                    .attackRange(node.path("attackRange").asDouble(isTower ? 20D : 0D))
-                    .attackSpeed(node.path("attackSpeed").asDouble(isTower ? 1D : 0D))
+                    .attackDamage(node.path("attackDamage").asDouble(0D))
+                    .attackRange(node.path("attackRange").asDouble(0D))
+                    .attackSpeed(node.path("attackSpeed").asDouble(0D))
                     .lastAttackAt(0L)
                     .targetEntityId(null)
                     .build());
@@ -537,21 +615,21 @@ public class Battle3dRoomManager {
                 .build();
     }
 
-    private Map<String, Map<String, Object>> createInitialSkillStates(String spell1, String spell2) {
+    private Map<String, Map<String, Object>> createInitialSkillStates(String spell1, String spell2, double heroAttackSpeed) {
         Map<String, Map<String, Object>> skillStates = new LinkedHashMap<String, Map<String, Object>>();
-        appendSingleSkillState(skillStates, heroSkillDefinitionService.findSkillBySlot(null, "basicAttack"));
+        appendSingleSkillState(skillStates, heroSkillDefinitionService.findSkillBySlot(null, "basicAttack"), heroAttackSpeed);
         appendSingleSkillState(skillStates, heroSkillDefinitionService.getSummonerSpellDefinition(
                 spell1 != null && !spell1.trim().isEmpty() ? spell1 : "flash",
                 "summonerD"
-        ));
+        ), 0D);
         appendSingleSkillState(skillStates, heroSkillDefinitionService.getSummonerSpellDefinition(
                 spell2 != null && !spell2.trim().isEmpty() ? spell2 : "heal",
                 "summonerF"
-        ));
+        ), 0D);
         return skillStates;
     }
 
-    private void appendSingleSkillState(Map<String, Map<String, Object>> skillStates, JsonNode skill) {
+    private void appendSingleSkillState(Map<String, Map<String, Object>> skillStates, JsonNode skill, double heroAttackSpeed) {
         if (skill == null || skill.isMissingNode() || !skill.isObject()) {
             return;
         }
@@ -559,18 +637,29 @@ public class Battle3dRoomManager {
         if (slot == null || slot.trim().isEmpty()) {
             return;
         }
+        long cooldownMs = resolveInitialCooldownMs(slot, skill, heroAttackSpeed);
         Map<String, Object> state = new LinkedHashMap<String, Object>();
         state.put("slot", slot);
         state.put("skillId", skill.path("skillId").asText(slot));
         state.put("name", skill.path("name").asText(slot));
         state.put("level", skill.path("initialLevel").asInt(1));
-        state.put("maxCooldownMs", skill.path("cooldown").path("baseMs").asLong(0L));
+        state.put("maxCooldownMs", cooldownMs);
         state.put("remainingCooldownMs", 0L);
         state.put("isReady", Boolean.TRUE);
         state.put("insufficientResource", Boolean.FALSE);
         state.put("isSecondPhase", Boolean.FALSE);
         state.put("isCasting", Boolean.FALSE);
         skillStates.put(slot, state);
+    }
+
+    private long resolveInitialCooldownMs(String slot, JsonNode skill, double heroAttackSpeed) {
+        if ("basicAttack".equals(slot)) {
+            if (heroAttackSpeed <= 0D) {
+                return 0L;
+            }
+            return Math.max(1L, (long) Math.round(1000D / heroAttackSpeed));
+        }
+        return skill.path("cooldown").path("baseMs").asLong(0L);
     }
 
 }

@@ -2,9 +2,12 @@ package com.cong.fishisland.socketio.battle;
 
 import com.cong.fishisland.model.fishbattle.battle.ActiveSpellInstance;
 import com.cong.fishisland.model.fishbattle.battle.BattleChampionState;
+import com.cong.fishisland.model.fishbattle.battle.BattleMinionState;
 import com.cong.fishisland.model.fishbattle.battle.BattleRoom;
+import com.cong.fishisland.model.fishbattle.battle.BattleStructureState;
 import com.cong.fishisland.model.fishbattle.battle.BattleVector3;
 import com.cong.fishisland.model.fishbattle.battle.CastValidationResult;
+import com.cong.fishisland.model.fishbattle.battle.PendingAttackState;
 import com.cong.fishisland.model.fishbattle.battle.SpellCastRequest;
 import com.cong.fishisland.model.fishbattle.battle.SpellStageTransition;
 import com.fasterxml.jackson.databind.JsonNode;
@@ -25,10 +28,13 @@ import java.util.concurrent.CopyOnWriteArrayList;
 @Service
 @RequiredArgsConstructor
 public class SpellLifecycleService {
+    private static final double HERO_BASIC_PROJECTILE_SPEED = 28D;
+
     private final SpellCastValidationService spellCastValidationService;
     private final HeroSkillDefinitionService heroSkillDefinitionService;
     private final EffectAtomicExecutor effectAtomicExecutor;
     private final Battle3dRoomManager battleRoomManager;
+    private final Battle3dBroadcastService battleBroadcastService;
 
     private final Map<String, List<ActiveSpellInstance>> activeCasts = new ConcurrentHashMap<String, List<ActiveSpellInstance>>();
 
@@ -77,6 +83,21 @@ public class SpellLifecycleService {
             caster.setMovementLockedUntil(Math.max(caster.getMovementLockedUntil() != null ? caster.getMovementLockedUntil() : 0L, now + castTimeMs + backswingMs));
             caster.setMoveTarget(null);
             caster.setInputMode("idle");
+        }
+
+        if ("basicAttack".equals(instance.getSlot())) {
+            Map<String, Object> animationRequest = new LinkedHashMap<String, Object>();
+            animationRequest.put("clipName", "basicAttack");
+            animationRequest.put("actionSlot", "basicAttack");
+            animationRequest.put("durationMs", castTimeMs + backswingMs);
+            animationRequest.put("lockMovement", lockMovement);
+            animationRequest.put("movementLockDurationMs", castTimeMs + backswingMs);
+            animationRequest.put("nonce", now);
+
+            Map<String, Object> payload = new LinkedHashMap<String, Object>();
+            payload.put("championId", caster.getId());
+            payload.put("request", animationRequest);
+            battleBroadcastService.broadcast(room, "champion:animate", payload);
         }
 
         if (castTimeMs <= 0L) {
@@ -222,13 +243,150 @@ public class SpellLifecycleService {
 
     private void executeDamageEffect(BattleRoom room, ActiveSpellInstance instance, BattleChampionState caster,
                                      JsonNode effect, JsonNode castDef) {
-        double amount = effect.path("amount").asDouble(effect.path("base").asDouble(0D));
+        double amount = resolveDamageAmount(caster, instance, effect);
         String damageType = effect.path("damageType").asText("physical");
         String targetMode = resolveTargetMode(effect, castDef, "single");
+        if (instance != null && "basicAttack".equals(instance.getSlot())
+                && ("single".equals(targetMode) || "target_unit".equals(targetMode))) {
+            enqueueChampionBasicAttack(room, instance, caster, amount, damageType);
+            return;
+        }
+        if ("single".equals(targetMode) || "target_unit".equals(targetMode)) {
+            Object target = resolveAttackableTarget(room, instance.getTargetEntityId());
+            if (target instanceof BattleChampionState) {
+                effectAtomicExecutor.applyDamage(caster.getId(), instance.getCastInstanceId(), instance.getSkillId(), instance.getSlot(),
+                        (BattleChampionState) target, amount, damageType);
+                return;
+            }
+            if (target instanceof BattleMinionState) {
+                BattleMinionState minion = (BattleMinionState) target;
+                if (!Boolean.TRUE.equals(minion.getDead()) && minion.getHp() != null) {
+                    minion.setHp(Math.max(0D, minion.getHp() - amount));
+                    if (minion.getHp() <= 0D) {
+                        minion.setDead(Boolean.TRUE);
+                        minion.setDeadAt(System.currentTimeMillis());
+                        minion.setAnimationState("death");
+                    }
+                }
+                return;
+            }
+            if (target instanceof BattleStructureState) {
+                effectAtomicExecutor.applyDamageToStructure(caster.getId(), instance.getCastInstanceId(), instance.getSkillId(), instance.getSlot(),
+                        (BattleStructureState) target, amount);
+                return;
+            }
+        }
         List<BattleChampionState> targets = resolveTargets(room, instance, caster, effect, targetMode);
         for (BattleChampionState target : targets) {
             effectAtomicExecutor.applyDamage(caster.getId(), instance.getCastInstanceId(), instance.getSkillId(), instance.getSlot(), target, amount, damageType);
         }
+    }
+
+    private void enqueueChampionBasicAttack(BattleRoom room, ActiveSpellInstance instance, BattleChampionState caster,
+                                            double amount, String damageType) {
+        if (room == null || instance == null || caster == null || instance.getTargetEntityId() == null || amount <= 0D) {
+            return;
+        }
+        Object target = resolveAttackableTarget(room, instance.getTargetEntityId());
+        if (target == null) {
+            return;
+        }
+        BattleVector3 casterPosition = caster.getPosition();
+        BattleVector3 targetPosition = resolveTargetPosition(target);
+        if (casterPosition == null || targetPosition == null) {
+            return;
+        }
+        long impactDelayMs = computeProjectileFlightDelayMs(casterPosition, targetPosition,
+                resolveTargetImpactRadius(target), HERO_BASIC_PROJECTILE_SPEED, 80L);
+        if (room.getPendingAttacks() == null) {
+            room.setPendingAttacks(new CopyOnWriteArrayList<PendingAttackState>());
+        }
+        room.getPendingAttacks().add(PendingAttackState.builder()
+                .sourceEntityId(caster.getId())
+                .sourceType("champion")
+                .castInstanceId(instance.getCastInstanceId())
+                .slot(instance.getSlot())
+                .targetEntityId(resolveTargetId(target))
+                .targetType(resolveTargetType(target))
+                .skillId(instance.getSkillId())
+                .damage(amount)
+                .damageType(damageType)
+                .impactAt(System.currentTimeMillis() + impactDelayMs)
+                .build());
+
+        Map<String, Object> fields = new LinkedHashMap<String, Object>();
+        fields.put("casterId", caster.getId());
+        fields.put("castInstanceId", instance.getCastInstanceId());
+        fields.put("skillId", instance.getSkillId());
+        fields.put("slot", instance.getSlot());
+        fields.put("targetId", resolveTargetId(target));
+        fields.put("targetType", resolveTargetType(target));
+        fields.put("attackerPosition", casterPosition);
+        fields.put("impactDelayMs", impactDelayMs);
+        battleBroadcastService.broadcastCombatEvent(room, "heroAttack", "hero-atk", System.currentTimeMillis(), fields);
+    }
+
+    private long computeProjectileFlightDelayMs(BattleVector3 sourcePosition, BattleVector3 targetPosition,
+                                                double targetImpactRadius, double speed, long minimumDelayMs) {
+        if (sourcePosition == null || targetPosition == null || speed <= 0D) {
+            return minimumDelayMs;
+        }
+        double dx = targetPosition.getX() - sourcePosition.getX();
+        double dy = targetPosition.getY() - sourcePosition.getY();
+        double dz = targetPosition.getZ() - sourcePosition.getZ();
+        double distance = Math.max(0D, Math.sqrt(dx * dx + dy * dy + dz * dz) - Math.max(0D, targetImpactRadius));
+        return Math.max(minimumDelayMs, (long) ((distance / speed) * 1000D));
+    }
+
+    private double resolveTargetImpactRadius(Object target) {
+        if (target instanceof BattleMinionState) {
+            Double collisionRadius = ((BattleMinionState) target).getCollisionRadius();
+            return collisionRadius != null ? collisionRadius : 0D;
+        }
+        if (target instanceof BattleStructureState) {
+            Double collisionRadius = ((BattleStructureState) target).getCollisionRadius();
+            return collisionRadius != null ? collisionRadius : 0D;
+        }
+        return 0D;
+    }
+
+    private BattleVector3 resolveTargetPosition(Object target) {
+        if (target instanceof BattleChampionState) {
+            return ((BattleChampionState) target).getPosition();
+        }
+        if (target instanceof BattleMinionState) {
+            return ((BattleMinionState) target).getPosition();
+        }
+        if (target instanceof BattleStructureState) {
+            return ((BattleStructureState) target).getPosition();
+        }
+        return null;
+    }
+
+    private String resolveTargetId(Object target) {
+        if (target instanceof BattleChampionState) {
+            return ((BattleChampionState) target).getId();
+        }
+        if (target instanceof BattleMinionState) {
+            return ((BattleMinionState) target).getId();
+        }
+        if (target instanceof BattleStructureState) {
+            return ((BattleStructureState) target).getId();
+        }
+        return null;
+    }
+
+    private String resolveTargetType(Object target) {
+        if (target instanceof BattleChampionState) {
+            return "champion";
+        }
+        if (target instanceof BattleMinionState) {
+            return "minion";
+        }
+        if (target instanceof BattleStructureState) {
+            return "structure";
+        }
+        return null;
     }
 
     private void executeTeleportEffect(BattleChampionState caster, ActiveSpellInstance instance) {
@@ -310,7 +468,7 @@ public class SpellLifecycleService {
     private void applySkillCostAndCooldown(BattleChampionState caster, String slot, JsonNode skillDef) {
         Map<String, Map<String, Object>> skillStates = ensureSkillStates(caster);
         Map<String, Object> slotState = ensureSlotState(skillStates, slot, skillDef.path("skillId").asText(slot));
-        long cooldownMs = skillDef.path("cooldown").path("baseMs").asLong(0L);
+        long cooldownMs = resolveCooldownMs(caster, slot, skillDef);
         slotState.put("slot", slot);
         slotState.put("skillId", skillDef.path("skillId").asText(slot));
         slotState.put("name", skillDef.path("name").asText(slot));
@@ -327,6 +485,24 @@ public class SpellLifecycleService {
             double amount = cost.path("amount").asDouble(0D);
             caster.setMp(Math.max(0D, caster.getMp() - amount));
         }
+    }
+
+    private double resolveDamageAmount(BattleChampionState caster, ActiveSpellInstance instance, JsonNode effect) {
+        if (instance != null && "basicAttack".equals(instance.getSlot())) {
+            return caster != null && caster.getBaseAd() != null ? caster.getBaseAd() : 0D;
+        }
+        return effect.path("amount").asDouble(effect.path("base").asDouble(0D));
+    }
+
+    private long resolveCooldownMs(BattleChampionState caster, String slot, JsonNode skillDef) {
+        if ("basicAttack".equals(slot)) {
+            double attackSpeed = caster != null && caster.getAttackSpeed() != null ? caster.getAttackSpeed() : 0D;
+            if (attackSpeed <= 0D) {
+                return 0L;
+            }
+            return Math.max(1L, (long) Math.round(1000D / attackSpeed));
+        }
+        return skillDef.path("cooldown").path("baseMs").asLong(0L);
     }
 
     private Map<String, Map<String, Object>> ensureSkillStates(BattleChampionState caster) {
@@ -429,6 +605,25 @@ public class SpellLifecycleService {
 
     private boolean isSameTeam(BattleChampionState a, BattleChampionState b) {
         return a != null && b != null && a.getTeam() != null && a.getTeam().equals(b.getTeam());
+    }
+
+    private Object resolveAttackableTarget(BattleRoom room, String targetEntityId) {
+        if (targetEntityId == null || targetEntityId.trim().isEmpty()) {
+            return null;
+        }
+        BattleChampionState champion = battleRoomManager.findChampion(room, targetEntityId).orElse(null);
+        if (champion != null && !Boolean.TRUE.equals(champion.getDead())) {
+            return champion;
+        }
+        BattleMinionState minion = battleRoomManager.findMinion(room, targetEntityId).orElse(null);
+        if (minion != null && !Boolean.TRUE.equals(minion.getDead())) {
+            return minion;
+        }
+        BattleStructureState structure = battleRoomManager.findStructure(room, targetEntityId).orElse(null);
+        if (structure != null && !Boolean.TRUE.equals(structure.getIsDestroyed())) {
+            return structure;
+        }
+        return null;
     }
 
     private double distance(BattleVector3 a, BattleVector3 b) {

@@ -38,6 +38,16 @@ public class BattleRoom {
     private Double gameTimer;
 
     /**
+     * 蓝队总击杀数。
+     */
+    private Integer blueKills;
+
+    /**
+     * 红队总击杀数。
+     */
+    private Integer redKills;
+
+    /**
      * 服务端 tick 帧号（从 0 单调递增），随快照广播给客户端。
      * 客户端用于区分快照时序、对齐插值。
      */
@@ -86,6 +96,8 @@ public class BattleRoom {
                 .createdAt(System.currentTimeMillis())
                 .sequence(new AtomicLong(0))
                 .gameTimer(0D)
+                .blueKills(0)
+                .redKills(0)
                 .tickNumber(0L)
                 .champions(new CopyOnWriteArrayList<BattleChampionState>())
                 .minions(new CopyOnWriteArrayList<BattleMinionState>())

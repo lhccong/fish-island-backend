@@ -43,6 +43,8 @@ public class BattleSimulationService {
     private static final double MINION_Z_CONVERGE_FACTOR = 0.35D;
     private static final long MINION_DEATH_CLEANUP_MS = 1500L;
     private static final int MAX_CATCHUP_TICKS = 4;
+    private static final boolean DEFAULT_SIMPLE_VISION_ENABLED = true;
+    private static final double DEFAULT_SIGHT_RADIUS = 35D;
 
     private static final String[][] STRUCTURE_ATTACK_ORDER = {
             {"tower", "outer"},
@@ -183,7 +185,9 @@ public class BattleSimulationService {
         tickCooldowns(room, deltaSeconds);
         tickMinions(room, now, deltaSeconds, context);
         tickTowers(room, now, context);
+        tickChampionAttackMove(room, now);
         resolvePendingAttacks(room, now);
+        tickChampionRespawns(room, now);
         tickMovement(room, deltaSeconds, now);
         tickHealthRelics(room, now);
         room.setGameTimer(room.getGameTimer() + deltaSeconds);
@@ -239,6 +243,9 @@ public class BattleSimulationService {
         if (input.getTargetX() == null || input.getTargetZ() == null) {
             return;
         }
+        champion.setAttackMoveTarget(null);
+        champion.setCurrentAttackTargetId(null);
+        champion.setCurrentAttackTargetType(null);
         if (champion.getMovementLockedUntil() != null && champion.getMovementLockedUntil() > now) {
             champion.setMoveTarget(null);
             champion.setInputMode("idle");
@@ -269,6 +276,9 @@ public class BattleSimulationService {
 
     private void applyStopInput(BattleChampionState champion, PlayerInput input, long now) {
         champion.setMoveTarget(null);
+        champion.setAttackMoveTarget(null);
+        champion.setCurrentAttackTargetId(null);
+        champion.setCurrentAttackTargetType(null);
         champion.setInputMode("idle");
         champion.setAnimationState("idle");
         champion.setIdleStartedAt(now);
@@ -287,8 +297,61 @@ public class BattleSimulationService {
         if (input.getRawPayload() == null) {
             return;
         }
+        if (input.getType() == PlayerInput.Type.BASIC_ATTACK) {
+            if ((input.getTargetEntityId() == null || input.getTargetEntityId().trim().isEmpty())
+                    && input.getTargetPointX() != null && input.getTargetPointZ() != null) {
+                applyAttackMoveInput(champion, input, now);
+                return;
+            }
+            applyBasicAttackTargetInput(room, champion, input, now);
+            return;
+        }
         champion.setLastMoveCommandServerTime(now);
         spellCastHandler.handleCastFromQueue(room, champion, input);
+    }
+
+    private void applyAttackMoveInput(BattleChampionState champion, PlayerInput input, long now) {
+        if (champion == null || input == null || input.getTargetPointX() == null || input.getTargetPointZ() == null) {
+            return;
+        }
+        double clampedX = clamp(input.getTargetPointX(), mapXMin, mapXMax);
+        double clampedZ = clamp(input.getTargetPointZ(), mapZMin, mapZMax);
+        BattleVector3 targetPoint = BattleVector3.builder().x(clampedX).y(0D).z(clampedZ).build();
+        champion.setAttackMoveTarget(targetPoint);
+        champion.setCurrentAttackTargetId(null);
+        champion.setCurrentAttackTargetType(null);
+        champion.setLastMoveCommandServerTime(now);
+        if (champion.getMovementLockedUntil() != null && champion.getMovementLockedUntil() > now) {
+            champion.setMoveTarget(null);
+            champion.setInputMode("idle");
+        } else {
+            champion.setMoveTarget(BattleVector3.builder().x(clampedX).y(0D).z(clampedZ).build());
+            champion.setInputMode("mouse");
+        }
+        acknowledgeMovementInput(champion, input, now);
+    }
+
+    private void applyBasicAttackTargetInput(BattleRoom room, BattleChampionState champion, PlayerInput input, long now) {
+        if (room == null || champion == null || input == null) {
+            return;
+        }
+        Object target = resolveTargetEntityById(room, input.getTargetEntityId(), null);
+        if (!isValidEnemyTarget(room, champion, target)) {
+            champion.setCurrentAttackTargetId(null);
+            champion.setCurrentAttackTargetType(null);
+            acknowledgeMovementInput(champion, input, now);
+            return;
+        }
+        champion.setAttackMoveTarget(null);
+        champion.setCurrentAttackTargetId(resolveTargetId(target));
+        champion.setCurrentAttackTargetType(resolveTargetType(target));
+        BattleVector3 targetPosition = resolveTargetPosition(target);
+        if (targetPosition != null && (champion.getMovementLockedUntil() == null || champion.getMovementLockedUntil() <= now)) {
+            champion.setMoveTarget(copyVector(targetPosition));
+            champion.setInputMode("mouse");
+        }
+        champion.setLastMoveCommandServerTime(now);
+        acknowledgeMovementInput(champion, input, now);
     }
 
     private void correctPositionFromClient(BattleChampionState champion, PlayerInput input) {
@@ -366,6 +429,94 @@ public class BattleSimulationService {
         }
     }
 
+    private void tickChampionAttackMove(BattleRoom room, long now) {
+        if (room == null || room.getChampions() == null) {
+            return;
+        }
+        for (BattleChampionState champion : room.getChampions()) {
+            if (champion == null) {
+                continue;
+            }
+            if (Boolean.TRUE.equals(champion.getDead()) || champion.getPosition() == null) {
+                champion.setAttackMoveTarget(null);
+                champion.setCurrentAttackTargetId(null);
+                champion.setCurrentAttackTargetType(null);
+                continue;
+            }
+            BattleVector3 attackMoveTarget = champion.getAttackMoveTarget();
+            String previousTargetId = champion.getCurrentAttackTargetId();
+            Object currentTarget = resolveCurrentChampionAttackTarget(room, champion);
+            if (attackMoveTarget == null && currentTarget == null) {
+                if (previousTargetId != null) {
+                    champion.setMoveTarget(null);
+                    champion.setInputMode("idle");
+                    if (!Boolean.TRUE.equals(champion.getDead())) {
+                        champion.setAnimationState("idle");
+                        champion.setIdleStartedAt(now);
+                    }
+                }
+                continue;
+            }
+            if (champion.getActiveCastPhase() != null
+                    && !"idle".equals(champion.getActiveCastPhase())
+                    && !"finished".equals(champion.getActiveCastPhase())) {
+                continue;
+            }
+            if (!canChampionBasicAttack(champion)) {
+                champion.setCurrentAttackTargetId(null);
+                champion.setCurrentAttackTargetType(null);
+                currentTarget = null;
+            }
+            if (currentTarget == null) {
+                currentTarget = findChampionAttackMoveTarget(room, champion);
+                if (currentTarget != null) {
+                    champion.setCurrentAttackTargetId(resolveTargetId(currentTarget));
+                    champion.setCurrentAttackTargetType(resolveTargetType(currentTarget));
+                }
+            }
+            if (currentTarget == null) {
+                if (attackMoveTarget != null && distanceSq(champion.getPosition(), attackMoveTarget) <= 0.08D * 0.08D) {
+                    champion.setAttackMoveTarget(null);
+                    champion.setMoveTarget(null);
+                    champion.setInputMode("idle");
+                    champion.setAnimationState("idle");
+                    champion.setIdleStartedAt(now);
+                    continue;
+                }
+                if (attackMoveTarget != null && (champion.getMovementLockedUntil() == null || champion.getMovementLockedUntil() <= now)) {
+                    champion.setMoveTarget(copyVector(attackMoveTarget));
+                    champion.setInputMode("mouse");
+                }
+                continue;
+            }
+            BattleVector3 targetPosition = resolveTargetPosition(currentTarget);
+            if (targetPosition == null) {
+                champion.setCurrentAttackTargetId(null);
+                champion.setCurrentAttackTargetType(null);
+                continue;
+            }
+            faceChampionTowards(champion, targetPosition);
+            double totalAttackRange = resolveChampionAttackRange(champion)
+                    + resolveCollisionRadius(currentTarget);
+            if (distanceSq(champion.getPosition(), targetPosition) <= totalAttackRange * totalAttackRange) {
+                champion.setMoveTarget(null);
+                champion.setInputMode("idle");
+                if (triggerChampionBasicAttack(room, champion, currentTarget, now)) {
+                    champion.setAnimationState("attack");
+                    champion.setLastBasicAttackAt(now);
+                } else if ("run".equals(champion.getAnimationState())) {
+                    champion.setAnimationState("idle");
+                    champion.setIdleStartedAt(now);
+                }
+                continue;
+            }
+            if (champion.getMovementLockedUntil() == null || champion.getMovementLockedUntil() <= now) {
+                champion.setMoveTarget(copyVector(targetPosition));
+                champion.setInputMode("mouse");
+            }
+        }
+    }
+
     private void tickStatusEffects(BattleRoom room, long now) {
         statusEffectService.cleanupExpired(room.getRoomId(), now);
     }
@@ -422,6 +573,59 @@ public class BattleSimulationService {
                 } else if (nextRemaining > 0L) {
                     slotState.put("isReady", Boolean.FALSE);
                 }
+            }
+        }
+    }
+
+    private void tickChampionRespawns(BattleRoom room, long now) {
+        if (room == null || room.getChampions() == null) {
+            return;
+        }
+        for (BattleChampionState champion : room.getChampions()) {
+            if (champion == null) {
+                continue;
+            }
+            if (!Boolean.TRUE.equals(champion.getDead())) {
+                champion.setRespawnTimer(0D);
+                continue;
+            }
+            Long respawnAt = champion.getRespawnAt();
+            if (respawnAt == null || respawnAt <= 0L) {
+                continue;
+            }
+            double remainingSeconds = Math.max(0D, (respawnAt - now) / 1000D);
+            champion.setRespawnTimer(remainingSeconds);
+            if (now < respawnAt) {
+                continue;
+            }
+            BattleVector3 spawnPosition = champion.getSpawnPosition() != null
+                    ? copyVector(champion.getSpawnPosition())
+                    : copyVector(champion.getPosition());
+            if (spawnPosition != null) {
+                champion.setPosition(spawnPosition);
+            }
+            champion.setHp(champion.getMaxHp());
+            champion.setMp(champion.getMaxMp());
+            champion.setShield(0D);
+            champion.setDead(Boolean.FALSE);
+            champion.setIsDead(Boolean.FALSE);
+            champion.setRespawnAt(null);
+            champion.setRespawnDurationMs(0L);
+            champion.setRespawnTimer(0D);
+            champion.setMoveTarget(null);
+            champion.setAttackMoveTarget(null);
+            champion.setCurrentAttackTargetId(null);
+            champion.setCurrentAttackTargetType(null);
+            champion.setActiveCastInstanceId(null);
+            champion.setActiveCastPhase("idle");
+            champion.setInputMode("idle");
+            champion.setAnimationState("idle");
+            champion.setMovementLockedUntil(0L);
+            champion.setIdleStartedAt(now);
+            champion.setLastDamagedByChampionId(null);
+            champion.setLastDamagedAt(0L);
+            if (champion.getRecentDamageByChampion() != null) {
+                champion.getRecentDamageByChampion().clear();
             }
         }
     }
@@ -517,7 +721,10 @@ public class BattleSimulationService {
     }
 
     private Object findMinionTarget(BattleRoom room, BattleMinionState minion, TickComputationContext context) {
-        double acquisitionRange = minion.getAcquisitionRange() != null ? minion.getAcquisitionRange() : 5.5D;
+        double acquisitionRange = minion.getAcquisitionRange() != null ? minion.getAcquisitionRange() : 0D;
+        if (acquisitionRange <= 0D) {
+            return null;
+        }
         BattleMinionState enemyMinion = findNearestEnemyMinion(room, minion, acquisitionRange);
         if (enemyMinion != null) {
             return enemyMinion;
@@ -526,7 +733,7 @@ public class BattleSimulationService {
         if (enemyChampion != null) {
             return enemyChampion;
         }
-        return findNearestEnemyStructure(room, minion, acquisitionRange + 4D);
+        return findNearestEnemyStructure(room, minion, acquisitionRange);
     }
 
     private BattleMinionState findNearestEnemyMinion(BattleRoom room, BattleMinionState source, double maxRange) {
@@ -607,6 +814,223 @@ public class BattleSimulationService {
         return null;
     }
 
+    private Object resolveCurrentChampionAttackTarget(BattleRoom room, BattleChampionState champion) {
+        if (champion == null || champion.getCurrentAttackTargetId() == null) {
+            return null;
+        }
+        Object target = resolveTargetEntityById(room, champion.getCurrentAttackTargetId(), champion.getCurrentAttackTargetType());
+        if (!isValidEnemyTarget(room, champion, target)) {
+            champion.setCurrentAttackTargetId(null);
+            champion.setCurrentAttackTargetType(null);
+            return null;
+        }
+        return target;
+    }
+
+    private Object resolveTargetEntityById(BattleRoom room, String targetEntityId, String targetType) {
+        if (targetEntityId == null || targetEntityId.trim().isEmpty()) {
+            return null;
+        }
+        if (targetType == null || "champion".equals(targetType)) {
+            BattleChampionState champion = findChampionById(room, targetEntityId);
+            if (champion != null) {
+                return champion;
+            }
+        }
+        if (targetType == null || "minion".equals(targetType)) {
+            BattleMinionState minion = findMinionById(room, targetEntityId);
+            if (minion != null) {
+                return minion;
+            }
+        }
+        if (targetType == null || "structure".equals(targetType)) {
+            BattleStructureState structure = findStructureById(room, targetEntityId);
+            if (structure != null) {
+                return structure;
+            }
+        }
+        return null;
+    }
+
+    private boolean isTargetVisibleToChampion(BattleRoom room, BattleChampionState viewer, Object target) {
+        if (viewer == null || target == null) {
+            return false;
+        }
+        if (!(target instanceof BattleChampionState)) {
+            return true;
+        }
+        BattleChampionState targetChampion = (BattleChampionState) target;
+        if (viewer.getId() != null && viewer.getId().equals(targetChampion.getId())) {
+            return true;
+        }
+        if (viewer.getTeam() != null && viewer.getTeam().equals(targetChampion.getTeam())) {
+            return true;
+        }
+        if (viewer.getPosition() == null || targetChampion.getPosition() == null) {
+            return false;
+        }
+        if (isSimpleVisionEnabled()) {
+            double sightRadiusSq = resolveConfiguredSightRadiusSq();
+            if (distanceSq(viewer.getPosition(), targetChampion.getPosition()) > sightRadiusSq) {
+                return false;
+            }
+        }
+        int targetBushIndex = getBushIndex(targetChampion.getPosition().getX(), targetChampion.getPosition().getZ());
+        if (targetBushIndex < 0) {
+            return true;
+        }
+        for (BattleChampionState ally : room.getChampions()) {
+            if (ally == null || ally.getPosition() == null || Boolean.TRUE.equals(ally.getDead())) {
+                continue;
+            }
+            if (viewer.getTeam() == null || !viewer.getTeam().equals(ally.getTeam())) {
+                continue;
+            }
+            int allyBushIndex = getBushIndex(ally.getPosition().getX(), ally.getPosition().getZ());
+            if (allyBushIndex == targetBushIndex) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private boolean isValidEnemyTarget(BattleRoom room, BattleChampionState champion, Object target) {
+        if (champion == null || target == null) {
+            return false;
+        }
+        String championTeam = champion.getTeam();
+        if (target instanceof BattleChampionState) {
+            BattleChampionState targetChampion = (BattleChampionState) target;
+            return !Boolean.TRUE.equals(targetChampion.getDead())
+                    && targetChampion.getTeam() != null
+                    && !targetChampion.getTeam().equals(championTeam)
+                    && isTargetVisibleToChampion(room, champion, targetChampion);
+        }
+        if (target instanceof BattleMinionState) {
+            BattleMinionState targetMinion = (BattleMinionState) target;
+            return !Boolean.TRUE.equals(targetMinion.getDead())
+                    && targetMinion.getTeam() != null
+                    && !targetMinion.getTeam().equals(championTeam);
+        }
+        if (target instanceof BattleStructureState) {
+            BattleStructureState targetStructure = (BattleStructureState) target;
+            return !Boolean.TRUE.equals(targetStructure.getIsDestroyed())
+                    && targetStructure.getTeam() != null
+                    && !targetStructure.getTeam().equals(championTeam)
+                    && !isStructureProtected(room, targetStructure);
+        }
+        return false;
+    }
+
+    private Object findChampionAttackMoveTarget(BattleRoom room, BattleChampionState champion) {
+        double championAttackRange = resolveChampionAttackRange(champion);
+        if (championAttackRange <= 0D) {
+            return null;
+        }
+        double maxRange = championAttackRange;
+        double maxRangeSq = maxRange * maxRange;
+        BattleChampionState nearestChampion = null;
+        double nearestChampionDistSq = maxRangeSq;
+        for (BattleChampionState candidate : room.getChampions()) {
+            if (!isValidEnemyTarget(room, champion, candidate) || candidate.getPosition() == null) {
+                continue;
+            }
+            double distSq = distanceSq(champion.getPosition(), candidate.getPosition());
+            if (distSq <= nearestChampionDistSq) {
+                nearestChampion = candidate;
+                nearestChampionDistSq = distSq;
+            }
+        }
+        if (nearestChampion != null) {
+            return nearestChampion;
+        }
+        BattleMinionState nearestMinion = null;
+        double nearestMinionDistSq = maxRangeSq;
+        if (room.getMinions() != null) {
+            for (BattleMinionState candidate : room.getMinions()) {
+                if (!isValidEnemyTarget(room, champion, candidate) || candidate.getPosition() == null) {
+                    continue;
+                }
+                double distSq = distanceSq(champion.getPosition(), candidate.getPosition());
+                if (distSq <= nearestMinionDistSq) {
+                    nearestMinion = candidate;
+                    nearestMinionDistSq = distSq;
+                }
+            }
+        }
+        if (nearestMinion != null) {
+            return nearestMinion;
+        }
+        BattleStructureState nearestStructure = null;
+        double nearestStructureDistSq = maxRangeSq;
+        if (room.getStructures() != null) {
+            for (BattleStructureState candidate : room.getStructures()) {
+                if (!isValidEnemyTarget(room, champion, candidate) || candidate.getPosition() == null) {
+                    continue;
+                }
+                double distSq = distanceSq(champion.getPosition(), candidate.getPosition());
+                if (distSq <= nearestStructureDistSq) {
+                    nearestStructure = candidate;
+                    nearestStructureDistSq = distSq;
+                }
+            }
+        }
+        return nearestStructure;
+    }
+
+    private boolean triggerChampionBasicAttack(BattleRoom room, BattleChampionState champion, Object target, long now) {
+        if (room == null || champion == null || target == null || !canChampionBasicAttack(champion)) {
+            return false;
+        }
+        String targetId = resolveTargetId(target);
+        if (targetId == null || targetId.trim().isEmpty()) {
+            return false;
+        }
+        SpellCastRequest request = SpellCastRequest.builder()
+                .roomId(room.getRoomId())
+                .casterId(champion.getId())
+                .slot("basicAttack")
+                .targetEntityId(targetId)
+                .clientTimestamp(now)
+                .build();
+        CastValidationResult result = spellLifecycleService.validate(room, request);
+        if (result == null || !result.isPassed()) {
+            return false;
+        }
+        spellLifecycleService.create(room, request);
+        return true;
+    }
+
+    private boolean canChampionBasicAttack(BattleChampionState champion) {
+        return champion != null
+                && resolveChampionAttackRange(champion) > 0D
+                && champion.getAttackSpeed() != null
+                && champion.getAttackSpeed() > 0D;
+    }
+
+    private double resolveChampionAttackRange(BattleChampionState champion) {
+        return champion != null && champion.getAttackRange() != null ? champion.getAttackRange() : 0D;
+    }
+
+    private void faceChampionTowards(BattleChampionState champion, BattleVector3 targetPosition) {
+        if (champion == null || champion.getPosition() == null || targetPosition == null) {
+            return;
+        }
+        double dx = targetPosition.getX() - champion.getPosition().getX();
+        double dz = targetPosition.getZ() - champion.getPosition().getZ();
+        if (Math.abs(dx) < 0.001D && Math.abs(dz) < 0.001D) {
+            return;
+        }
+        champion.setRotation(Math.atan2(dx, dz));
+    }
+
+    private BattleVector3 copyVector(BattleVector3 value) {
+        if (value == null) {
+            return null;
+        }
+        return BattleVector3.builder().x(value.getX()).y(value.getY()).z(value.getZ()).build();
+    }
+
     private void tickMinionCombat(BattleRoom room, BattleMinionState minion, Object target, long now, double deltaSeconds) {
         BattleVector3 targetPosition = resolveTargetPosition(target);
         if (targetPosition == null) {
@@ -618,12 +1042,18 @@ public class BattleSimulationService {
         double dx = targetPosition.getX() - minion.getPosition().getX();
         double dz = targetPosition.getZ() - minion.getPosition().getZ();
         double distance = Math.sqrt(dx * dx + dz * dz);
-        double attackRange = (minion.getAttackRange() != null ? minion.getAttackRange() : 1.35D)
+        double attackRange = (minion.getAttackRange() != null ? minion.getAttackRange() : 0D)
                 + resolveCollisionRadius(target);
         if (distance <= attackRange) {
             minion.setAnimationState("attack");
             faceTowards(minion, targetPosition);
-            long attackCooldownMs = minion.getAttackCooldownMs() != null ? minion.getAttackCooldownMs() : 1200L;
+            double attackSpeed = minion.getAttackSpeed() != null ? minion.getAttackSpeed() : 0D;
+            long attackCooldownMs = attackSpeed > 0D
+                    ? Math.max(1L, (long) Math.round(1000D / attackSpeed))
+                    : (minion.getAttackCooldownMs() != null ? minion.getAttackCooldownMs() : 0L);
+            if (attackCooldownMs <= 0L) {
+                return;
+            }
             long lastAttackAt = minion.getLastAttackAt() != null ? minion.getLastAttackAt() : 0L;
             if (now - lastAttackAt >= attackCooldownMs) {
                 applyMinionAttack(room, minion, target, now);
@@ -706,7 +1136,10 @@ public class BattleSimulationService {
     }
 
     private void applyMinionAttack(BattleRoom room, BattleMinionState minion, Object target, long now) {
-        double damage = minion.getAttackDamage() != null ? minion.getAttackDamage() : 42D;
+        double damage = minion.getAttackDamage() != null ? minion.getAttackDamage() : 0D;
+        if (damage <= 0D) {
+            return;
+        }
         String targetId = resolveTargetId(target);
         String targetType = resolveTargetType(target);
         if (targetId == null || targetType == null) {
@@ -725,6 +1158,8 @@ public class BattleSimulationService {
         enqueuePendingAttack(room, PendingAttackState.builder()
                 .sourceEntityId(minion.getId())
                 .sourceType("minion")
+                .castInstanceId(null)
+                .slot(null)
                 .targetEntityId(targetId)
                 .targetType(targetType)
                 .skillId("minion_basic")
@@ -895,7 +1330,10 @@ public class BattleSimulationService {
     }
 
     private void applyTowerAttack(BattleRoom room, BattleStructureState tower, Object target, long now) {
-        double damage = tower.getAttackDamage() != null ? tower.getAttackDamage() : 150D;
+        double damage = tower.getAttackDamage() != null ? tower.getAttackDamage() : 0D;
+        if (damage <= 0D) {
+            return;
+        }
         String targetId = resolveTargetId(target);
         String targetType = resolveTargetType(target);
         if (targetId == null || targetType == null) return;
@@ -906,6 +1344,8 @@ public class BattleSimulationService {
         enqueuePendingAttack(room, PendingAttackState.builder()
                 .sourceEntityId(tower.getId())
                 .sourceType("structure")
+                .castInstanceId(null)
+                .slot(null)
                 .targetEntityId(targetId)
                 .targetType(targetType)
                 .skillId("tower_basic")
@@ -983,9 +1423,9 @@ public class BattleSimulationService {
             }
             effectAtomicExecutor.applyDamage(
                     pendingAttack.getSourceEntityId(),
-                    null,
+                    pendingAttack.getCastInstanceId(),
                     pendingAttack.getSkillId(),
-                    null,
+                    pendingAttack.getSlot(),
                     champion,
                     damage,
                     pendingAttack.getDamageType() != null ? pendingAttack.getDamageType() : "physical"
@@ -997,12 +1437,15 @@ public class BattleSimulationService {
             if (minion == null || Boolean.TRUE.equals(minion.getDead()) || minion.getHp() == null) {
                 return;
             }
-            minion.setHp(Math.max(0D, minion.getHp() - damage));
-            if (minion.getHp() <= 0D) {
-                minion.setDead(Boolean.TRUE);
-                minion.setDeadAt(now);
-                minion.setAnimationState("death");
-            }
+            effectAtomicExecutor.applyDamageToMinion(
+                    pendingAttack.getSourceEntityId(),
+                    pendingAttack.getCastInstanceId(),
+                    pendingAttack.getSkillId(),
+                    pendingAttack.getSlot(),
+                    minion,
+                    damage,
+                    pendingAttack.getDamageType() != null ? pendingAttack.getDamageType() : "physical"
+            );
             return;
         }
         if ("structure".equals(targetType)) {
@@ -1015,9 +1458,9 @@ public class BattleSimulationService {
             }
             effectAtomicExecutor.applyDamageToStructure(
                     pendingAttack.getSourceEntityId(),
-                    null,
+                    pendingAttack.getCastInstanceId(),
                     pendingAttack.getSkillId(),
-                    null,
+                    pendingAttack.getSlot(),
                     structure,
                     damage
             );
@@ -1187,6 +1630,8 @@ public class BattleSimulationService {
                 : spawnPointRoot.path("meleeX").asDouble("blue".equals(team) ? -105D : 105D);
         String modelUrl = typeRoot.path("modelUrl").path(team).asText(null);
         double hp = typeRoot.path("hp").asDouble(300D);
+        long legacyAttackCooldownMs = typeRoot.path("attackCooldownMs").asLong(0L);
+        double attackSpeed = typeRoot.path("attackSpeed").asDouble(legacyAttackCooldownMs > 0L ? (1000D / legacyAttackCooldownMs) : 0D);
         return BattleMinionState.builder()
                 .id(team + "_minion_" + waveSequence + "_" + minionType + "_" + index)
                 .team(team)
@@ -1201,7 +1646,8 @@ public class BattleSimulationService {
                 .attackDamage(typeRoot.path("attackDamage").asDouble(0D))
                 .attackRange(typeRoot.path("attackRange").asDouble(0D))
                 .acquisitionRange(typeRoot.path("acquisitionRange").asDouble(0D))
-                .attackCooldownMs(typeRoot.path("attackCooldownMs").asLong(1000L))
+                .attackSpeed(attackSpeed)
+                .attackCooldownMs(legacyAttackCooldownMs)
                 .lastAttackAt(now)
                 .dead(Boolean.FALSE)
                 .deadAt(0L)
@@ -1256,6 +1702,8 @@ public class BattleSimulationService {
         snapshotBase.put("serverTime", now);
         snapshotBase.put("serverTick", room.getTickNumber());
         snapshotBase.put("gameTimer", room.getGameTimer());
+        snapshotBase.put("blueKills", room.getBlueKills() != null ? room.getBlueKills() : 0);
+        snapshotBase.put("redKills", room.getRedKills() != null ? room.getRedKills() : 0);
 
         List<Map<String, Object>> championList = buildChampionSnapshotEntities(room);
         List<Map<String, Object>> minionList = buildMinionSnapshotEntities(room);
@@ -1278,11 +1726,12 @@ public class BattleSimulationService {
 
             // 按玩家视角过滤草丛中的敌方英雄
             boolean isSpectator = Boolean.TRUE.equals(playerSession.getSpectator());
+            BattleChampionState viewerChampion = findChampionById(room, playerSession.getChampionId());
             String viewerTeam = champTeamMap.getOrDefault(playerSession.getChampionId(), "");
             List<Map<String, Object>> visibleChampions =
                     isSpectator || viewerTeam.isEmpty()
                             ? championList
-                            : filterChampionsByVision(championList, room, viewerTeam);
+                            : filterChampionsByVision(championList, room, viewerChampion, viewerTeam);
 
             snapshot.put("champions", visibleChampions);
             snapshot.put("minions", minionList);
@@ -1348,8 +1797,20 @@ public class BattleSimulationService {
         entity.put("maxHp", champion.getMaxHp());
         entity.put("mp", champion.getMp());
         entity.put("maxMp", champion.getMaxMp());
+        entity.put("level", champion.getLevel() != null ? champion.getLevel() : 1);
+        entity.put("kills", champion.getKills() != null ? champion.getKills() : 0);
+        entity.put("deaths", champion.getDeaths() != null ? champion.getDeaths() : 0);
+        entity.put("assists", champion.getAssists() != null ? champion.getAssists() : 0);
+        entity.put("damageDealt", champion.getDamageDealt() != null ? champion.getDamageDealt() : 0D);
+        entity.put("damageTaken", champion.getDamageTaken() != null ? champion.getDamageTaken() : 0D);
+        entity.put("respawnTimer", champion.getRespawnTimer() != null ? champion.getRespawnTimer() : 0D);
         entity.put("shield", champion.getShield());
         entity.put("flowValue", champion.getFlowValue());
+        entity.put("attackRange", champion.getAttackRange());
+        entity.put("attackSpeed", champion.getAttackSpeed());
+        entity.put("attackMoveTarget", champion.getAttackMoveTarget());
+        entity.put("currentAttackTargetId", champion.getCurrentAttackTargetId());
+        entity.put("currentAttackTargetType", champion.getCurrentAttackTargetType());
         entity.put("skillStates", champion.getSkillStates());
         entity.put("activeCastInstanceId", champion.getActiveCastInstanceId());
         entity.put("activeCastPhase", champion.getActiveCastPhase());
@@ -1359,6 +1820,7 @@ public class BattleSimulationService {
         entity.put("lastMoveCommandClientTime", champion.getLastMoveCommandClientTime());
         entity.put("lastMoveCommandServerTime", champion.getLastMoveCommandServerTime());
         entity.put("lastProcessedInputSeq", champion.getLastProcessedInputSeq());
+        entity.put("visibleInSnapshot", Boolean.TRUE);
         return entity;
     }
 
@@ -1496,8 +1958,10 @@ public class BattleSimulationService {
     private List<Map<String, Object>> filterChampionsByVision(
             List<Map<String, Object>> allChampions,
             BattleRoom room,
+            BattleChampionState viewerChampion,
             String viewerTeam) {
-        if (bushColliders == null || bushColliders.length == 0) return allChampions;
+        boolean simpleVisionEnabled = isSimpleVisionEnabled();
+        double sightRadiusSq = resolveConfiguredSightRadiusSq();
 
         Set<Integer> alliedBushIndices = new HashSet<Integer>();
         for (BattleChampionState c : room.getChampions()) {
@@ -1517,14 +1981,67 @@ public class BattleSimulationService {
             Object posObj = snap.get("position");
             if (posObj instanceof BattleVector3) {
                 BattleVector3 pos = (BattleVector3) posObj;
+                if (simpleVisionEnabled && viewerChampion != null && viewerChampion.getPosition() != null) {
+                    double dSq = distanceSq(viewerChampion.getPosition(), pos);
+                    if (dSq > sightRadiusSq) {
+                        Map<String, Object> hidden = new LinkedHashMap<String, Object>(snap);
+                        hidden.put("visibleInSnapshot", Boolean.FALSE);
+                        hidden.put("position", null);
+                        hidden.put("rotation", null);
+                        hidden.put("moveTarget", null);
+                        hidden.put("animationState", null);
+                        hidden.put("inputMode", null);
+                        hidden.put("attackMoveTarget", null);
+                        hidden.put("currentAttackTargetId", null);
+                        hidden.put("currentAttackTargetType", null);
+                        filtered.add(hidden);
+                        continue;
+                    }
+                }
                 int bi = getBushIndex(pos.getX(), pos.getZ());
                 if (bi >= 0 && !alliedBushIndices.contains(bi)) {
+                    Map<String, Object> hidden = new LinkedHashMap<String, Object>(snap);
+                    hidden.put("visibleInSnapshot", Boolean.FALSE);
+                    hidden.put("position", null);
+                    hidden.put("rotation", null);
+                    hidden.put("moveTarget", null);
+                    hidden.put("animationState", null);
+                    hidden.put("inputMode", null);
+                    hidden.put("attackMoveTarget", null);
+                    hidden.put("currentAttackTargetId", null);
+                    hidden.put("currentAttackTargetType", null);
+                    filtered.add(hidden);
                     continue;
                 }
             }
             filtered.add(snap);
         }
         return filtered;
+    }
+
+    private boolean isSimpleVisionEnabled() {
+        JsonNode root = battleRoomManager.getLatestGameConfigRoot();
+        if (root == null || root.isMissingNode()) {
+            return DEFAULT_SIMPLE_VISION_ENABLED;
+        }
+        return root.path("vision").path("enabled").asBoolean(DEFAULT_SIMPLE_VISION_ENABLED);
+    }
+
+    private double resolveConfiguredSightRadiusSq() {
+        double sightRadius = resolveConfiguredSightRadius();
+        return sightRadius * sightRadius;
+    }
+
+    private double resolveConfiguredSightRadius() {
+        JsonNode root = battleRoomManager.getLatestGameConfigRoot();
+        if (root == null || root.isMissingNode()) {
+            return DEFAULT_SIGHT_RADIUS;
+        }
+        double sightRadius = root.path("vision").path("sightRadius").asDouble(DEFAULT_SIGHT_RADIUS);
+        if (!Double.isFinite(sightRadius) || sightRadius < 0D) {
+            return DEFAULT_SIGHT_RADIUS;
+        }
+        return sightRadius;
     }
 
     // ==================== 草丛视野上下文缓存 ====================

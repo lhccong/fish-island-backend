@@ -38,6 +38,9 @@ public class BattleChampionState {
     /** 当前世界坐标。 */
     private BattleVector3 position;
 
+    /** 英雄复活后回到的出生点坐标。 */
+    private BattleVector3 spawnPosition;
+
     /** 当前朝向角度（弧度），基于 atan2(dirX, dirZ)。 */
     private Double rotation;
 
@@ -74,6 +77,36 @@ public class BattleChampionState {
     /** 最大法力值。 */
     private Double maxMp;
 
+    /** 当前等级。 */
+    private Integer level;
+
+    /** 当前击杀数。 */
+    private Integer kills;
+
+    /** 当前死亡数。 */
+    private Integer deaths;
+
+    /** 当前助攻数。 */
+    private Integer assists;
+
+    /** 当前累计造成伤害。 */
+    private Double damageDealt;
+
+    /** 当前累计承受伤害。 */
+    private Double damageTaken;
+
+    /** 距离复活剩余时间（秒，快照输出字段）。 */
+    private Double respawnTimer;
+
+    /** 复活时间点（毫秒时间戳）。 */
+    private Long respawnAt;
+
+    /** 本次死亡对应的复活时长。 */
+    private Long respawnDurationMs;
+
+    /** 最近一次死亡时间戳。 */
+    private Long deadAt;
+
     /** 当前护盾值（吸收伤害后优先扣减护盾）。 */
     private Double shield;
 
@@ -98,6 +131,15 @@ public class BattleChampionState {
     /** 攻击速度（每秒攻击次数）。 */
     private Double attackSpeed;
 
+    /** 攻击移动目标点（A+左键点地后记录的权威目标点）。 */
+    private BattleVector3 attackMoveTarget;
+
+    /** 当前自动攻击锁定的目标实体 ID。 */
+    private String currentAttackTargetId;
+
+    /** 当前自动攻击锁定的目标实体类型：champion / minion / structure。 */
+    private String currentAttackTargetType;
+
     /** 各技能槽位的冷却/等级运行时状态，key 为槽位名（Q/W/E/R/passive）。 */
     private Map<String, Map<String, Object>> skillStates;
 
@@ -116,13 +158,25 @@ public class BattleChampionState {
     /** 本英雄最近一次对敌方英雄造成伤害的时间戳（ms），用于防御塔仇恨 P1 判定。 */
     private Long lastAttackedEnemyChampionAt;
 
+    /** 最近一次发起普攻的时间戳（ms），用于攻击间隔节流。 */
+    private Long lastBasicAttackAt;
+
+    /** 最近一次对该英雄造成伤害的敌方英雄 ID。 */
+    private String lastDamagedByChampionId;
+
+    /** 最近一次受到敌方英雄伤害的时间戳。 */
+    private Long lastDamagedAt;
+
+    /** 近期受伤来源映射，用于助攻窗口判定。 */
+    private Map<String, Long> recentDamageByChampion;
+
     /** 最后处理的移动指令序列号（用于去重与排序）。 */
     private Long lastProcessedMoveSequence;
 
     /** 最后一条移动指令的客户端时间戳。 */
     private Long lastMoveCommandClientTime;
 
-    /** 最后一条移动指令的服务端接收时间戳。 */
+    /** 最后一条移动指令被服务端接收/处理时记录的时间戳。 */
     private Long lastMoveCommandServerTime;
 
     /**

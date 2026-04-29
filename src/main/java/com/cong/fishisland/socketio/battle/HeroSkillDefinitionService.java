@@ -237,7 +237,10 @@ public class HeroSkillDefinitionService {
     }
 
     private ObjectNode createBasicAttackDefinition() {
-        ObjectNode skill = createBaseDefinition("template_basic_attack", "basicAttack", "普攻", 800L, "target_unit", 4D);
+        ObjectNode skill = createBaseDefinition("template_basic_attack", "basicAttack", "普攻", 0L, "target_unit", 0D);
+        skill.with("cast").put("castTimeMs", 100L);
+        skill.with("cast").put("backswingMs", 120L);
+        skill.with("cast").put("lockMovement", true);
         ObjectNode rules = skill.with("cast").putObject("targetRules");
         rules.put("enemyOnly", true);
         rules.put("allowSelf", false);
@@ -246,7 +249,7 @@ public class HeroSkillDefinitionService {
         ObjectNode damage = JsonNodeFactory.instance.objectNode();
         damage.put("type", "Damage");
         damage.put("damageType", "physical");
-        damage.put("amount", 50D);
+        damage.put("amount", 0D);
         damage.put("targetMode", "single");
         onImpact.add(damage);
         skill.with("effects").set("onImpact", onImpact);

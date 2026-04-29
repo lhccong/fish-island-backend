@@ -12,6 +12,8 @@ import lombok.NoArgsConstructor;
 public class PendingAttackState {
     private String sourceEntityId;
     private String sourceType;
+    private String castInstanceId;
+    private String slot;
     private String targetEntityId;
     private String targetType;
     private String skillId;

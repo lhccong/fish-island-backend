@@ -50,6 +50,8 @@ public class BattleMinionState {
     /** 索敌范围，在此距离内搜索最近敌方目标。 */
     private Double acquisitionRange;
 
+    private Double attackSpeed;
+
     /** 两次攻击之间的冷却时间，单位毫秒。 */
     private Long attackCooldownMs;
 
