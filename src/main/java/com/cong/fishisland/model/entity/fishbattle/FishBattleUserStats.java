@@ -102,5 +102,11 @@ public class FishBattleUserStats implements Serializable {
     private Date updateTime;
 
     @TableField(exist = false)
+    private String userName;
+
+    @TableField(exist = false)
+    private String userAvatar;
+
+    @TableField(exist = false)
     private static final long serialVersionUID = 1L;
 }

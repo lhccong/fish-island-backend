@@ -37,6 +37,7 @@ public class FishBattleSocketHandler {
     private final FishBattleHeroSkinService fishBattleHeroSkinService;
     private final FishBattleSummonerSpellService fishBattleSummonerSpellService;
     private final UserService userService;
+    private final com.cong.fishisland.service.fishbattle.FishBattleUserStatsService fishBattleUserStatsService;
     private final com.cong.fishisland.service.fishbattle.FishBattleRoomService fishBattleRoomService;
     private final com.cong.fishisland.config.fishbattle.FishBattleServerProperties fishBattleServerProperties;
     private final com.cong.fishisland.socketio.battle.Battle3dRoomManager battle3dRoomManager;
@@ -85,6 +86,9 @@ public class FishBattleSocketHandler {
         /* ==================== 房间操作事件 ==================== */
         fishBattleSocketIOServer.addEventListener("room:create", JsonNode.class, (client, data, ackRequest) -> {
             handleRoomCreate(client, data);
+        });
+        fishBattleSocketIOServer.addEventListener("room:quickMatch", JsonNode.class, (client, data, ackRequest) -> {
+            handleQuickMatch(client);
         });
         fishBattleSocketIOServer.addEventListener("room:getInfo", JsonNode.class, (client, data, ackRequest) -> {
             handleRoomGetInfo(client, data);
@@ -354,6 +358,12 @@ public class FishBattleSocketHandler {
             return;
         }
 
+        // 检查每日对局上限
+        if (fishBattleUserStatsService.isDailyLimitReached(userId)) {
+            sendError(client, "今日对局次数已达上限（20局），明天再来吧！");
+            return;
+        }
+
         // 防重复：检查该用户是否已在其他房间中
         String existingRoom = roomManager.findRoomByUserId(userId);
         if (existingRoom != null) {
@@ -386,6 +396,84 @@ public class FishBattleSocketHandler {
         broadcastService.sendToClient(client, "room:created", createdPayload);
 
         // 广播给大厅所有人：新房间创建 + 概览更新（房间数变化）
+        broadcastLobbyRoomCreated(session.getRoomCode());
+        broadcastLobbyOverview();
+    }
+
+    private void handleQuickMatch(SocketIOClient client) {
+        Long userId = getAuthUserId(client);
+        if (userId == null) {
+            sendError(client, "请先登录");
+            return;
+        }
+
+        // 检查每日对局上限
+        if (fishBattleUserStatsService.isDailyLimitReached(userId)) {
+            sendError(client, "今日对局次数已达上限（20局），明天再来吧！");
+            return;
+        }
+
+        // 检查是否已在房间
+        String existingRoom = roomManager.findRoomByUserId(userId);
+        if (existingRoom != null) {
+            sendErrorWithRoom(client, buildExistingRoomMessage(existingRoom), existingRoom);
+            return;
+        }
+
+        User currentUser = userService.getById(userId);
+        String playerName = currentUser != null && currentUser.getUserName() != null
+                ? currentUser.getUserName() : "未知玩家";
+        String userAvatar = currentUser != null ? currentUser.getUserAvatar() : null;
+
+        // 尝试找到一个有空位的等待中房间
+        String availableRoom = roomManager.findAvailableRoom();
+        if (availableRoom != null) {
+            // 自动分配队伍和位置
+            long blueCount = roomManager.getTeamCount(availableRoom, "blue");
+            long redCount = roomManager.getTeamCount(availableRoom, "red");
+            String team = blueCount <= redCount ? "blue" : "red";
+            int slotIndex = findFirstEmptySlot(availableRoom, team);
+
+            FishBattleRoomManager.PlayerConnection conn = roomManager.joinRoom(
+                    availableRoom, userId, playerName, userAvatar, team, slotIndex, client);
+            if (conn != null) {
+                // 回传匹配成功（前端跳转到该房间）
+                Map<String, Object> matchedPayload = new LinkedHashMap<>();
+                matchedPayload.put("roomCode", availableRoom);
+                matchedPayload.put("matched", true);
+                matchedPayload.put("serverTime", System.currentTimeMillis());
+                broadcastService.sendToClient(client, "room:matched", matchedPayload);
+
+                // 广播新玩家加入
+                Collection<SocketIOClient> roomClients = roomManager.getRoomClients(availableRoom);
+                Map<String, Object> broadcastPayload = new LinkedHashMap<>();
+                broadcastPayload.put("userId", userId);
+                broadcastPayload.put("playerName", playerName);
+                broadcastPayload.put("serverTime", System.currentTimeMillis());
+                broadcastService.broadcast(roomClients, "room:playerJoined", broadcastPayload);
+                broadcastPlayersSnapshot(availableRoom);
+                broadcastLobbyRoomUpdated(availableRoom);
+                broadcastLobbyOverview();
+                return;
+            }
+        }
+
+        // 没有可用房间，创建新房间
+        FishBattleRoomManager.RoomSession session = roomManager.createRoom(
+                "快速匹配房间", "classic", true, userId, playerName);
+
+        Map<String, Object> createdPayload = new LinkedHashMap<>();
+        createdPayload.put("roomCode", session.getRoomCode());
+        createdPayload.put("roomName", session.getRoomName());
+        createdPayload.put("gameMode", session.getGameMode());
+        createdPayload.put("maxPlayers", session.getMaxPlayers());
+        createdPayload.put("aiFillEnabled", session.isAiFillEnabled() ? 1 : 0);
+        createdPayload.put("creatorId", session.getCreatorId());
+        createdPayload.put("creatorName", session.getCreatorName());
+        createdPayload.put("matched", false);
+        createdPayload.put("serverTime", System.currentTimeMillis());
+        broadcastService.sendToClient(client, "room:matched", createdPayload);
+
         broadcastLobbyRoomCreated(session.getRoomCode());
         broadcastLobbyOverview();
     }
@@ -503,6 +591,12 @@ public class FishBattleSocketHandler {
 
         if (roomCode == null) {
             sendError(client, "参数不完整");
+            return;
+        }
+
+        // 检查每日对局上限
+        if (fishBattleUserStatsService.isDailyLimitReached(userId)) {
+            sendError(client, "今日对局次数已达上限（20局），明天再来吧！");
             return;
         }
 
@@ -1370,7 +1464,7 @@ public class FishBattleSocketHandler {
             return;
         }
         try {
-            battle3dRoomManager.createRoomFromPlayers(roomCode, session.getPlayers().values());
+            battle3dRoomManager.createRoomFromPlayers(roomCode, session.getDbRoomId(), session.getPlayers().values());
             log.info("战斗房间已创建: roomCode={}", roomCode);
         } catch (Exception e) {
             log.error("战斗房间创建失败: roomCode={}", roomCode, e);

@@ -75,6 +75,26 @@ public class BattleRoom {
     private List<BattleHealthRelicState> healthRelics;
 
     /**
+     * 关联的 DB 房间 ID（fish_battle_room.id）。
+     */
+    private Long dbRoomId;
+
+    /**
+     * 游戏阶段：playing / ended。
+     */
+    private String gamePhase;
+
+    /**
+     * 获胜队伍：blue / red，仅 gamePhase=ended 时有值。
+     */
+    private String winnerTeam;
+
+    /**
+     * 游戏结束时间戳，用于结束后延迟清理。
+     */
+    private Long gameEndAt;
+
+    /**
      * 下一波小兵生成时间戳，到达后生成一波并重新计时。
      */
     private Long nextMinionSpawnAt;
@@ -100,6 +120,9 @@ public class BattleRoom {
                 .blueKills(0)
                 .redKills(0)
                 .tickNumber(0L)
+                .gamePhase("playing")
+                .winnerTeam(null)
+                .gameEndAt(null)
                 .champions(new ArrayList<BattleChampionState>())
                 .minions(new ArrayList<BattleMinionState>())
                 .structures(new ArrayList<BattleStructureState>())

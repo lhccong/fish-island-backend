@@ -3,11 +3,13 @@ package com.cong.fishisland.controller.fishbattle;
 import com.baomidou.mybatisplus.core.metadata.IPage;
 import com.cong.fishisland.common.BaseResponse;
 import com.cong.fishisland.common.ResultUtils;
+import com.cong.fishisland.model.entity.fishbattle.FishBattleHero;
 import com.cong.fishisland.model.entity.fishbattle.FishBattlePlayerStats;
 import com.cong.fishisland.model.entity.fishbattle.FishBattleUserStats;
 import com.cong.fishisland.model.entity.user.User;
 import com.cong.fishisland.service.UserService;
 import com.cong.fishisland.service.fishbattle.FishBattleGameService;
+import com.cong.fishisland.service.fishbattle.FishBattleHeroService;
 import com.cong.fishisland.service.fishbattle.FishBattlePlayerStatsService;
 import com.cong.fishisland.service.fishbattle.FishBattleRoomService;
 import com.cong.fishisland.service.fishbattle.FishBattleUserStatsService;
@@ -36,6 +38,7 @@ public class FishBattleStatsController {
 
     private final FishBattleUserStatsService fishBattleUserStatsService;
     private final FishBattlePlayerStatsService fishBattlePlayerStatsService;
+    private final FishBattleHeroService fishBattleHeroService;
     private final FishBattleGameService fishBattleGameService;
     private final FishBattleRoomManager fishBattleRoomManager;
     private final FishBattleRoomService fishBattleRoomService;
@@ -55,14 +58,60 @@ public class FishBattleStatsController {
             @RequestParam(defaultValue = "1") int current,
             @RequestParam(defaultValue = "10") int pageSize) {
         User loginUser = userService.getLoginUser();
-        return ResultUtils.success(fishBattlePlayerStatsService.pageByUserId(loginUser.getId(), current, pageSize));
+        IPage<FishBattlePlayerStats> page = fishBattlePlayerStatsService.pageByUserId(loginUser.getId(), current, pageSize);
+        // 填充英雄中文名
+        if (!page.getRecords().isEmpty()) {
+            Map<String, String> heroNameMap = new HashMap<>();
+            for (FishBattleHero h : fishBattleHeroService.listEnabledHeroes()) {
+                heroNameMap.put(h.getHeroId(), h.getName());
+            }
+            for (FishBattlePlayerStats ps : page.getRecords()) {
+                ps.setHeroName(heroNameMap.getOrDefault(ps.getHeroId(), ps.getHeroId()));
+            }
+        }
+        return ResultUtils.success(page);
     }
 
     @ApiOperation("获取排行榜")
     @GetMapping("/leaderboard")
     public BaseResponse<List<FishBattleUserStats>> getLeaderboard(
             @RequestParam(defaultValue = "50") int limit) {
-        return ResultUtils.success(fishBattleUserStatsService.getLeaderboard(limit));
+        List<FishBattleUserStats> list = fishBattleUserStatsService.getLeaderboard(limit);
+        // 批量填充用户昵称和头像
+        if (!list.isEmpty()) {
+            List<Long> userIds = new java.util.ArrayList<>();
+            for (FishBattleUserStats s : list) {
+                if (s.getUserId() != null) userIds.add(s.getUserId());
+            }
+            if (!userIds.isEmpty()) {
+                List<User> users = userService.listByIds(userIds);
+                Map<Long, User> userMap = new HashMap<>();
+                for (User u : users) {
+                    userMap.put(u.getId(), u);
+                }
+                for (FishBattleUserStats s : list) {
+                    User u = userMap.get(s.getUserId());
+                    if (u != null) {
+                        s.setUserName(u.getUserName());
+                        s.setUserAvatar(u.getUserAvatar());
+                    }
+                }
+            }
+        }
+        return ResultUtils.success(list);
+    }
+
+    @ApiOperation("获取指定玩家统计数据")
+    @GetMapping("/user/{userId}")
+    public BaseResponse<FishBattleUserStats> getOtherUserStats(@org.springframework.web.bind.annotation.PathVariable Long userId) {
+        FishBattleUserStats stats = fishBattleUserStatsService.getOrInitByUserId(userId);
+        // 填充昵称和头像
+        User u = userService.getById(userId);
+        if (u != null) {
+            stats.setUserName(u.getUserName());
+            stats.setUserAvatar(u.getUserAvatar());
+        }
+        return ResultUtils.success(stats);
     }
 
     @ApiOperation("获取概览数据（在线人数/总对局数/战斗中玩家）")

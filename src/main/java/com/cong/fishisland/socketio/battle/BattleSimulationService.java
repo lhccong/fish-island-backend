@@ -1,6 +1,17 @@
 package com.cong.fishisland.socketio.battle;
 
 import com.cong.fishisland.model.fishbattle.battle.*;
+import com.cong.fishisland.model.entity.fishbattle.FishBattleGame;
+import com.cong.fishisland.model.entity.fishbattle.FishBattlePlayerStats;
+import com.cong.fishisland.service.fishbattle.FishBattleGameService;
+import com.cong.fishisland.service.fishbattle.FishBattlePlayerStatsService;
+import com.cong.fishisland.service.fishbattle.FishBattleRoomService;
+import com.cong.fishisland.service.fishbattle.FishBattleUserStatsService;
+import com.cong.fishisland.service.UserPointsService;
+import com.cong.fishisland.service.UserPointsRecordService;
+import com.cong.fishisland.model.entity.user.UserPoints;
+import static com.cong.fishisland.model.enums.user.PointsRecordSourceEnum.FISH_BATTLE;
+import com.cong.fishisland.model.entity.fishbattle.FishBattleUserStats;
 import com.cong.fishisland.config.fishbattle.FishBattleServerProperties;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -33,6 +44,13 @@ public class BattleSimulationService {
     private final StatusEffectService statusEffectService;
     private final EffectAtomicExecutor effectAtomicExecutor;
     private final FishBattleServerProperties fishBattleServerProperties;
+    private final FishBattleGameService fishBattleGameService;
+    private final FishBattlePlayerStatsService fishBattlePlayerStatsService;
+    private final FishBattleRoomService fishBattleRoomService;
+    private final FishBattleUserStatsService fishBattleUserStatsService;
+    private final UserPointsService userPointsService;
+    private final UserPointsRecordService userPointsRecordService;
+    private final com.cong.fishisland.socketio.FishBattleRoomManager fishBattleRoomManager;
 
     private static final double MINION_REACHED_TARGET_EPSILON = 0.15D;
     private static final double CHAMPION_COLLISION_RADIUS = 0.5D;
@@ -142,6 +160,8 @@ public class BattleSimulationService {
             return;
         }
         inputQueue.cleanupRoom(roomCode);
+        statusEffectService.cleanupRoom(roomCode);
+        spellLifecycleService.cleanupRoom(roomCode);
         battleRoomManager.destroyRoom(roomCode);
         log.info("战斗房间及关联数据已销毁: roomCode={}", roomCode);
     }
@@ -189,6 +209,21 @@ public class BattleSimulationService {
         if (room == null) {
             return;
         }
+        /* 游戏已结束：仅继续广播快照（让前端看到最终状态），不再推进模拟 */
+        if ("ended".equals(room.getGamePhase())) {
+            long currentTick = (room.getTickNumber() != null ? room.getTickNumber() : 0L) + 1;
+            room.setTickNumber(currentTick);
+            if (snapshotEveryNTicks <= 1 || currentTick % snapshotEveryNTicks == 0) {
+                TickComputationContext ctx = new TickComputationContext();
+                initTickContext(room, ctx);
+                emitSnapshot(room, now, ctx);
+            }
+            /* 结束 15 秒后销毁房间（清理所有关联内存数据） */
+            if (room.getGameEndAt() != null && now - room.getGameEndAt() > 15_000L) {
+                destroyRoom(room.getRoomId());
+            }
+            return;
+        }
         long currentTick = (room.getTickNumber() != null ? room.getTickNumber() : 0L) + 1;
         room.setTickNumber(currentTick);
         TickComputationContext context = new TickComputationContext();
@@ -206,6 +241,9 @@ public class BattleSimulationService {
         tickMovement(room, deltaSeconds, now);
         tickHealthRelics(room, now);
         room.setGameTimer(room.getGameTimer() + deltaSeconds);
+
+        /* 检测水晶枢纽被摧毁 → 游戏结束 */
+        checkGameEnd(room, now, context);
 
         if (snapshotEveryNTicks <= 1 || currentTick % snapshotEveryNTicks == 0) {
             emitSnapshot(room, now, context);
@@ -484,6 +522,7 @@ public class BattleSimulationService {
             double dirZ = dz / dist;
             pos.setX(clamp(pos.getX() + dirX * step, mapXMin, mapXMax));
             pos.setZ(clamp(pos.getZ() + dirZ * step, mapZMin, mapZMax));
+            resolveChampionStructureCollision(pos);
             double desiredRotation = Math.atan2(dirX, dirZ);
             champion.setRotation(desiredRotation);
             champion.setAnimationState("run");
@@ -754,6 +793,238 @@ public class BattleSimulationService {
         }
         JsonNode first = items.size() > 0 ? items.get(0) : null;
         return Math.max(1000L, first != null ? first.path("respawnMs").asLong(30000L) : 30000L);
+    }
+
+    // ==================== 游戏结束检测 ====================
+
+    private void checkGameEnd(BattleRoom room, long now, TickComputationContext context) {
+        if (room.getStructures() == null) return;
+        String destroyedNexusTeam = null;
+        for (BattleStructureState s : room.getStructures()) {
+            if (s == null) continue;
+            if ("nexus".equals(s.getType()) && Boolean.TRUE.equals(s.getIsDestroyed())) {
+                destroyedNexusTeam = s.getTeam();
+                break;
+            }
+        }
+        if (destroyedNexusTeam == null) return;
+
+        String winnerTeam = "blue".equals(destroyedNexusTeam) ? "red" : "blue";
+        room.setGamePhase("ended");
+        room.setWinnerTeam(winnerTeam);
+        room.setGameEndAt(now);
+
+        log.info("游戏结束: roomId={}, winner={}", room.getRoomId(), winnerTeam);
+
+        /* 广播 battle:gameEnd 事件 */
+        Map<String, Object> endPayload = new LinkedHashMap<String, Object>();
+        endPayload.put("winnerTeam", winnerTeam);
+        endPayload.put("reason", "nexus_destroyed");
+        endPayload.put("gameTimer", room.getGameTimer());
+        endPayload.put("blueKills", room.getBlueKills());
+        endPayload.put("redKills", room.getRedKills());
+        endPayload.put("serverTime", now);
+
+        /* 保存对局记录并取得 gameId */
+        Long gameId = saveGameRecord(room, winnerTeam, now);
+        endPayload.put("gameId", gameId);
+
+        battleBroadcastService.broadcast(room, "battle:gameEnd", endPayload);
+    }
+
+    private Long saveGameRecord(BattleRoom room, String winnerTeam, long now) {
+        try {
+            /* ── 1. fish_battle_game 对局记录 ── */
+            FishBattleGame game = new FishBattleGame();
+            game.setRoomId(room.getDbRoomId());
+            game.setGameMode("5v5");
+            game.setWinningTeam(winnerTeam);
+            game.setBlueKills(room.getBlueKills() != null ? room.getBlueKills() : 0);
+            game.setRedKills(room.getRedKills() != null ? room.getRedKills() : 0);
+            game.setDurationSeconds(room.getGameTimer() != null ? (int) Math.round(room.getGameTimer()) : 0);
+            game.setEndReason("crystal_destroyed");
+            game.setStartTime(new java.util.Date(room.getCreatedAt() != null ? room.getCreatedAt() : now));
+            game.setEndTime(new java.util.Date(now));
+            fishBattleGameService.save(game);
+            Long gameId = game.getId();
+
+            /* ── 2. fish_battle_player_stats 每玩家统计 ── */
+            Map<String, BattleChampionState> champById = new HashMap<String, BattleChampionState>();
+            if (room.getChampions() != null) {
+                for (BattleChampionState c : room.getChampions()) {
+                    if (c != null) champById.put(c.getId(), c);
+                }
+            }
+
+            Long mvpUserId = null;
+            double mvpScore = Double.NEGATIVE_INFINITY;
+
+            List<FishBattlePlayerStats> statsList = new ArrayList<FishBattlePlayerStats>();
+            for (PlayerSession ps : room.getPlayers()) {
+                if (ps == null || Boolean.TRUE.equals(ps.getSpectator())) continue;
+                BattleChampionState champ = champById.get(ps.getChampionId());
+                if (champ == null) continue;
+
+                FishBattlePlayerStats stats = new FishBattlePlayerStats();
+                stats.setGameId(gameId);
+                stats.setUserId(ps.getUserId());
+                stats.setHeroId(champ.getHeroId());
+                stats.setTeam(champ.getTeam());
+                stats.setKills(champ.getKills() != null ? champ.getKills() : 0);
+                stats.setDeaths(champ.getDeaths() != null ? champ.getDeaths() : 0);
+                stats.setAssists(champ.getAssists() != null ? champ.getAssists() : 0);
+                stats.setDamageDealt(champ.getDamageDealt() != null ? (int) Math.round(champ.getDamageDealt()) : 0);
+                stats.setDamageTaken(champ.getDamageTaken() != null ? (int) Math.round(champ.getDamageTaken()) : 0);
+                stats.setHealing(0);
+                boolean isWin = winnerTeam.equals(champ.getTeam());
+                stats.setIsWin(isWin ? 1 : 0);
+                stats.setLikes(0);
+                stats.setPointsEarned(isWin ? 25 : 20);
+                stats.setIsMvp(0);
+                statsList.add(stats);
+
+                if (isWin) {
+                    double score = stats.getKills() * 3.0 + stats.getAssists() * 2.0 - stats.getDeaths();
+                    if (score > mvpScore) {
+                        mvpScore = score;
+                        mvpUserId = ps.getUserId();
+                    }
+                }
+            }
+
+            /* 标记 MVP */
+            for (FishBattlePlayerStats st : statsList) {
+                if (st.getUserId() != null && st.getUserId().equals(mvpUserId)) {
+                    st.setIsMvp(1);
+                    st.setPointsEarned(st.getPointsEarned() + 5);
+                }
+            }
+            if (!statsList.isEmpty()) {
+                fishBattlePlayerStatsService.saveBatch(statsList);
+            }
+
+            /* 回填 MVP */
+            if (mvpUserId != null) {
+                game.setMvpUserId(mvpUserId);
+                fishBattleGameService.updateById(game);
+            }
+
+            /* ── 3. fish_battle_user_stats 累计统计 ── */
+            for (FishBattlePlayerStats st : statsList) {
+                try {
+                    if (st.getUserId() == null) continue;
+                    FishBattleUserStats userStats = fishBattleUserStatsService.getOrInitByUserId(st.getUserId());
+                    userStats.setTotalGames((userStats.getTotalGames() != null ? userStats.getTotalGames() : 0) + 1);
+                    userStats.setTotalKills((userStats.getTotalKills() != null ? userStats.getTotalKills() : 0) + st.getKills());
+                    userStats.setTotalDeaths((userStats.getTotalDeaths() != null ? userStats.getTotalDeaths() : 0) + st.getDeaths());
+                    userStats.setTotalAssists((userStats.getTotalAssists() != null ? userStats.getTotalAssists() : 0) + st.getAssists());
+                    boolean win = st.getIsWin() != null && st.getIsWin() == 1;
+                    if (win) {
+                        userStats.setWins((userStats.getWins() != null ? userStats.getWins() : 0) + 1);
+                        int streak = userStats.getCurrentStreak() != null ? userStats.getCurrentStreak() : 0;
+                        userStats.setCurrentStreak(streak >= 0 ? streak + 1 : 1);
+                    } else {
+                        userStats.setLosses((userStats.getLosses() != null ? userStats.getLosses() : 0) + 1);
+                        int streak = userStats.getCurrentStreak() != null ? userStats.getCurrentStreak() : 0;
+                        userStats.setCurrentStreak(streak <= 0 ? streak - 1 : -1);
+                    }
+                    int maxStreak = userStats.getMaxStreak() != null ? userStats.getMaxStreak() : 0;
+                    int currentStreak = userStats.getCurrentStreak() != null ? userStats.getCurrentStreak() : 0;
+                    if (currentStreak > maxStreak) {
+                        userStats.setMaxStreak(currentStreak);
+                    }
+                    if (st.getIsMvp() != null && st.getIsMvp() == 1) {
+                        userStats.setMvpCount((userStats.getMvpCount() != null ? userStats.getMvpCount() : 0) + 1);
+                    }
+                    // 更新今日对局次数
+                    java.time.LocalDate today = java.time.LocalDate.now();
+                    java.time.LocalDate statsDate = userStats.getTodayDate() != null
+                            ? userStats.getTodayDate().toInstant().atZone(java.time.ZoneId.systemDefault()).toLocalDate()
+                            : null;
+                    if (!today.equals(statsDate)) {
+                        userStats.setTodayGames(1);
+                        userStats.setTodayDate(java.sql.Date.valueOf(today));
+                    } else {
+                        userStats.setTodayGames((userStats.getTodayGames() != null ? userStats.getTodayGames() : 0) + 1);
+                    }
+                    fishBattleUserStatsService.updateById(userStats);
+                } catch (Exception e) {
+                    log.error("更新玩家累计统计失败: userId={}", st.getUserId(), e);
+                }
+            }
+
+            /* ── 4. 异步对接用户积分系统（避免阻塞结算主流程） ── */
+            final List<FishBattlePlayerStats> pointsList = new ArrayList<>(statsList);
+            java.util.concurrent.CompletableFuture.runAsync(() -> {
+                try {
+                    // 收集需要加分的玩家
+                    List<Long> userIds = new ArrayList<>();
+                    Map<Long, FishBattlePlayerStats> statsMap = new HashMap<>();
+                    for (FishBattlePlayerStats st : pointsList) {
+                        if (st.getUserId() != null && st.getPointsEarned() != null && st.getPointsEarned() > 0) {
+                            userIds.add(st.getUserId());
+                            statsMap.put(st.getUserId(), st);
+                        }
+                    }
+                    if (userIds.isEmpty()) return;
+
+                    // 批量获取积分快照
+                    List<UserPoints> beforeList = userPointsService.listByIds(userIds);
+                    Map<Long, UserPoints> beforeMap = new HashMap<>();
+                    for (UserPoints up : beforeList) {
+                        beforeMap.put(up.getUserId(), up);
+                    }
+
+                    // 逐个更新积分（updatePoints 内部有 level 计算，无法批量）
+                    for (Long uid : userIds) {
+                        try {
+                            FishBattlePlayerStats st = statsMap.get(uid);
+                            int earned = st.getPointsEarned();
+                            userPointsService.updatePoints(uid, earned, false);
+
+                            UserPoints before = beforeMap.get(uid);
+                            int beforePts = before != null ? before.getPoints() : 0;
+                            int usedPts = before != null && before.getUsedPoints() != null ? before.getUsedPoints() : 0;
+                            String desc = "摸鱼大乱斗对局奖励（基础20" +
+                                    (st.getIsWin() != null && st.getIsWin() == 1 ? "+胜利5" : "") +
+                                    (st.getIsMvp() != null && st.getIsMvp() == 1 ? "+MVP5" : "") + "）";
+                            userPointsRecordService.addPointsIncreaseRecord(
+                                    uid, earned, FISH_BATTLE.getValue(), desc,
+                                    beforePts, beforePts + earned, usedPts, usedPts);
+                        } catch (Exception e) {
+                            log.error("对接用户积分系统失败: userId={}", uid, e);
+                        }
+                    }
+                } catch (Exception e) {
+                    log.error("异步对接用户积分系统整体失败", e);
+                }
+            });
+
+            /* ── 5. fish_battle_room 标记已结束 ── */
+            if (room.getDbRoomId() != null) {
+                try {
+                    fishBattleRoomService.updateRoomStatus(room.getDbRoomId(), 3);
+                } catch (Exception e) {
+                    log.error("更新DB房间状态失败: dbRoomId={}", room.getDbRoomId(), e);
+                }
+            }
+
+            /* ── 6. 大厅内存房间标记已结束 ── */
+            try {
+                com.cong.fishisland.socketio.FishBattleRoomManager.RoomSession lobbySession =
+                        fishBattleRoomManager.getRoomSession(room.getRoomId());
+                if (lobbySession != null) {
+                    lobbySession.setStatus(3);
+                }
+            } catch (Exception e) {
+                log.error("标记大厅房间已结束失败: roomCode={}", room.getRoomId(), e);
+            }
+
+            return gameId;
+        } catch (Exception e) {
+            log.error("保存对局记录失败: roomId={}", room.getRoomId(), e);
+            return null;
+        }
     }
 
     // ==================== 小兵 AI ====================
@@ -1285,6 +1556,31 @@ public class BattleSimulationService {
                     pos.setX(pos.getX() + tangentX * 0.1D);
                     pos.setZ(pos.getZ() + tangentZ * 0.1D);
                 }
+            } else if (distSq <= 1e-8) {
+                pos.setX(cx + minDist);
+            }
+        }
+    }
+
+    private void resolveChampionStructureCollision(BattleVector3 pos) {
+        if (structureColliders == null) return;
+        for (int i = 0; i < structureColliders.length; i++) {
+            double[] collider = structureColliders[i];
+            double cx = collider[0];
+            double cz = collider[1];
+            double structureRadius = collider[2];
+            double minDist = structureRadius + CHAMPION_COLLISION_RADIUS;
+
+            double dx = pos.getX() - cx;
+            double dz = pos.getZ() - cz;
+            double distSq = dx * dx + dz * dz;
+            double minDistSq = minDist * minDist;
+
+            if (distSq < minDistSq && distSq > 1e-8) {
+                double dist = Math.sqrt(distSq);
+                double pushFactor = minDist / dist;
+                pos.setX(cx + dx * pushFactor);
+                pos.setZ(cz + dz * pushFactor);
             } else if (distSq <= 1e-8) {
                 pos.setX(cx + minDist);
             }

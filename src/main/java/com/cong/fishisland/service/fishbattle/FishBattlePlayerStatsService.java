@@ -24,5 +24,5 @@ public interface FishBattlePlayerStatsService extends IService<FishBattlePlayerS
     /**
      * 点赞
      */
-    boolean likePlayer(Long gameId, Long targetUserId);
+    boolean likePlayer(Long gameId, Long targetUserId, Long currentUserId);
 }

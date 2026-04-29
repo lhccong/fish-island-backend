@@ -203,6 +203,18 @@ public class FishBattleRoomManager {
     }
 
     /**
+     * 查找一个可加入的等待中房间（status=0 且人数未满），用于快速匹配
+     * @return roomCode，未找到返回 null
+     */
+    public String findAvailableRoom() {
+        return rooms.values().stream()
+                .filter(s -> s.getStatus() == 0 && s.getPlayers().size() < s.getMaxPlayers())
+                .max(Comparator.comparingInt(s -> s.getPlayers().size())) // 优先选人多的房间
+                .map(RoomSession::getRoomCode)
+                .orElse(null);
+    }
+
+    /**
      * 检查房间是否存在
      */
     public boolean roomExists(String roomCode) {
@@ -683,20 +695,19 @@ public class FishBattleRoomManager {
      */
     public List<Map<String, Object>> getFightingPlayersSnapshot() {
         // 按 userId 去重，仅包含在线玩家
-        Map<Long, String> uniquePlayers = new LinkedHashMap<>();
+        Map<Long, Map<String, Object>> uniquePlayers = new LinkedHashMap<>();
         rooms.values().stream()
                 .filter(s -> s.getStatus() == 1 || s.getStatus() == 2)
                 .flatMap(s -> s.getPlayers().values().stream())
                 .filter(PlayerConnection::isOnline)
-                .forEach(p -> uniquePlayers.putIfAbsent(p.getUserId(), p.getPlayerName()));
-        return uniquePlayers.entrySet().stream()
-                .map(e -> {
+                .forEach(p -> uniquePlayers.computeIfAbsent(p.getUserId(), k -> {
                     Map<String, Object> item = new LinkedHashMap<>();
-                    item.put("userId", e.getKey());
-                    item.put("userName", e.getValue());
+                    item.put("userId", p.getUserId());
+                    item.put("userName", p.getPlayerName());
+                    item.put("userAvatar", p.getUserAvatar());
                     return item;
-                })
-                .collect(Collectors.toList());
+                }));
+        return new ArrayList<>(uniquePlayers.values());
     }
 
     /**

@@ -100,6 +100,18 @@ public class FishBattlePlayerStats implements Serializable {
     @TableField("create_time")
     private Date createTime;
 
+    /** 英雄中文名（非持久化，API 返回时填充） */
+    @TableField(exist = false)
+    private String heroName;
+
+    /** 玩家昵称（非持久化，API 返回时填充） */
+    @TableField(exist = false)
+    private String playerName;
+
+    /** 玩家头像（非持久化，API 返回时填充） */
+    @TableField(exist = false)
+    private String userAvatar;
+
     @TableField(exist = false)
     private static final long serialVersionUID = 1L;
 }

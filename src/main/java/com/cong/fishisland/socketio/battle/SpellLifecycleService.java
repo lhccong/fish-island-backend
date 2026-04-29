@@ -538,6 +538,15 @@ public class SpellLifecycleService {
         return heroSkillDefinitionService.findSkillBySlot(heroId, slot);
     }
 
+    /**
+     * 清除指定房间的所有活跃施法实例。在房间销毁时调用，防止内存泄漏。
+     */
+    public void cleanupRoom(String roomId) {
+        if (roomId != null) {
+            activeCasts.remove(roomId);
+        }
+    }
+
     private List<ActiveSpellInstance> getRoomCasts(String roomId) {
         return activeCasts.computeIfAbsent(roomId, key -> new CopyOnWriteArrayList<ActiveSpellInstance>());
     }

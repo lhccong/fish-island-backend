@@ -205,13 +205,14 @@ public class Battle3dRoomManager {
      * 基于真实选英雄数据创建战斗房间。
      * 每次创建时重新读取 DB 地图配置，确保修改数据库后下一局即时生效。
      */
-    public BattleRoom createRoomFromPlayers(String roomCode,
+    public BattleRoom createRoomFromPlayers(String roomCode, Long dbRoomId,
                                             Collection<com.cong.fishisland.socketio.FishBattleRoomManager.PlayerConnection> players) {
         // 每局开始时重新从 DB 读取最新配置，确保修改数据库后下一局即时生效
         loadMapConfig();
         loadGameConfig();
         refreshHeroAttrCache();
         BattleRoom battleRoom = BattleRoom.empty(roomCode);
+        battleRoom.setDbRoomId(dbRoomId);
         Map<Long, String> userMapping = new LinkedHashMap<>();
 
         int blueIndex = 0;
