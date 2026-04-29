@@ -299,7 +299,7 @@ public class SpellLifecycleService {
         long impactDelayMs = computeProjectileFlightDelayMs(casterPosition, targetPosition,
                 resolveTargetImpactRadius(target), HERO_BASIC_PROJECTILE_SPEED, 80L);
         if (room.getPendingAttacks() == null) {
-            room.setPendingAttacks(new CopyOnWriteArrayList<PendingAttackState>());
+            room.setPendingAttacks(new java.util.ArrayList<PendingAttackState>());
         }
         room.getPendingAttacks().add(PendingAttackState.builder()
                 .sourceEntityId(caster.getId())

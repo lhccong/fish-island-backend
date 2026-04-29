@@ -9,7 +9,6 @@ import org.springframework.stereotype.Service;
 import javax.annotation.PostConstruct;
 import javax.annotation.PreDestroy;
 import java.util.*;
-import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ScheduledFuture;
@@ -70,6 +69,21 @@ public class BattleSimulationService {
     private static final class TickComputationContext {
         private final Map<String, Set<String>> teamBushIds = new HashMap<String, Set<String>>();
         private final Map<String, String> championBushIds = new HashMap<String, String>();
+
+        // ── Phase 2: 实体 ID → 实例索引 ──
+        private Map<String, BattleChampionState> championById = Collections.emptyMap();
+        private Map<String, BattleMinionState> minionById = Collections.emptyMap();
+        private Map<String, BattleStructureState> structureById = Collections.emptyMap();
+
+        // ── Phase 3: 按队伍预分区的存活实体列表 ──
+        private List<BattleChampionState> blueChampionsAlive = Collections.emptyList();
+        private List<BattleChampionState> redChampionsAlive = Collections.emptyList();
+        private List<BattleMinionState> blueMinionsAlive = Collections.emptyList();
+        private List<BattleMinionState> redMinionsAlive = Collections.emptyList();
+
+        // ── Phase 4: 视野配置缓存 ──
+        private Boolean simpleVisionEnabled;
+        private Double sightRadiusSq;
     }
 
     private ScheduledExecutorService scheduler;
@@ -178,8 +192,9 @@ public class BattleSimulationService {
         long currentTick = (room.getTickNumber() != null ? room.getTickNumber() : 0L) + 1;
         room.setTickNumber(currentTick);
         TickComputationContext context = new TickComputationContext();
+        initTickContext(room, context);
 
-        drainAndApplyInputs(room, now);
+        drainAndApplyInputs(room, now, context);
         tickStatusEffects(room, now);
         tickSpellStages(room, now);
         tickCooldowns(room, deltaSeconds);
@@ -197,27 +212,74 @@ public class BattleSimulationService {
         }
     }
 
-    // ==================== 输入处理 ====================
+    private void initTickContext(BattleRoom room, TickComputationContext context) {
+        // 英雄索引 + 按队伍分区
+        List<BattleChampionState> champions = room.getChampions();
+        if (champions != null && !champions.isEmpty()) {
+            Map<String, BattleChampionState> cById = new HashMap<String, BattleChampionState>(champions.size() * 2);
+            List<BattleChampionState> blueAlive = new ArrayList<BattleChampionState>();
+            List<BattleChampionState> redAlive = new ArrayList<BattleChampionState>();
+            for (BattleChampionState c : champions) {
+                if (c == null) continue;
+                if (c.getId() != null) cById.put(c.getId(), c);
+                if (!Boolean.TRUE.equals(c.getDead()) && c.getPosition() != null) {
+                    if ("blue".equals(c.getTeam())) blueAlive.add(c);
+                    else if ("red".equals(c.getTeam())) redAlive.add(c);
+                }
+            }
+            context.championById = cById;
+            context.blueChampionsAlive = blueAlive;
+            context.redChampionsAlive = redAlive;
+        }
 
-    private void drainAndApplyInputs(BattleRoom room, long now) {
-        List<PlayerInput> inputs = inputQueue.drainByRoom(room.getRoomId());
-        for (PlayerInput input : inputs) {
-            applySingleInput(room, input, now);
+        // 小兵索引 + 按队伍分区
+        List<BattleMinionState> minions = room.getMinions();
+        if (minions != null && !minions.isEmpty()) {
+            Map<String, BattleMinionState> mById = new HashMap<String, BattleMinionState>(minions.size() * 2);
+            List<BattleMinionState> blueAlive = new ArrayList<BattleMinionState>();
+            List<BattleMinionState> redAlive = new ArrayList<BattleMinionState>();
+            for (BattleMinionState m : minions) {
+                if (m == null) continue;
+                if (m.getId() != null) mById.put(m.getId(), m);
+                if (!Boolean.TRUE.equals(m.getDead()) && m.getPosition() != null) {
+                    if ("blue".equals(m.getTeam())) blueAlive.add(m);
+                    else if ("red".equals(m.getTeam())) redAlive.add(m);
+                }
+            }
+            context.minionById = mById;
+            context.blueMinionsAlive = blueAlive;
+            context.redMinionsAlive = redAlive;
+        }
+
+        // 建筑索引
+        List<BattleStructureState> structures = room.getStructures();
+        if (structures != null && !structures.isEmpty()) {
+            Map<String, BattleStructureState> sById = new HashMap<String, BattleStructureState>(structures.size() * 2);
+            for (BattleStructureState s : structures) {
+                if (s != null && s.getId() != null) sById.put(s.getId(), s);
+            }
+            context.structureById = sById;
         }
     }
 
-    private void applySingleInput(BattleRoom room, PlayerInput input, long now) {
+    // ==================== 输入处理 ====================
+
+    private void drainAndApplyInputs(BattleRoom room, long now, TickComputationContext context) {
+        List<PlayerInput> inputs = inputQueue.drainByRoom(room.getRoomId());
+        for (PlayerInput input : inputs) {
+            applySingleInput(room, input, now, context);
+        }
+    }
+
+    private void applySingleInput(BattleRoom room, PlayerInput input, long now, TickComputationContext context) {
         if (input == null || input.getChampionId() == null) {
             return;
         }
         String championId = input.getChampionId();
-        Optional<BattleChampionState> championOpt = room.getChampions().stream()
-                .filter(c -> championId.equals(c.getId()))
-                .findFirst();
-        if (!championOpt.isPresent()) {
+        BattleChampionState champion = findChampionById(context, championId);
+        if (champion == null) {
             return;
         }
-        BattleChampionState champion = championOpt.get();
 
         if (Boolean.TRUE.equals(champion.getDead())) {
             return;
@@ -725,7 +787,7 @@ public class BattleSimulationService {
         if (acquisitionRange <= 0D) {
             return null;
         }
-        BattleMinionState enemyMinion = findNearestEnemyMinion(room, minion, acquisitionRange);
+        BattleMinionState enemyMinion = findNearestEnemyMinion(minion, acquisitionRange, context);
         if (enemyMinion != null) {
             return enemyMinion;
         }
@@ -736,16 +798,13 @@ public class BattleSimulationService {
         return findNearestEnemyStructure(room, minion, acquisitionRange);
     }
 
-    private BattleMinionState findNearestEnemyMinion(BattleRoom room, BattleMinionState source, double maxRange) {
+    private BattleMinionState findNearestEnemyMinion(BattleMinionState source, double maxRange, TickComputationContext context) {
+        List<BattleMinionState> enemyMinions = "blue".equals(source.getTeam())
+                ? context.redMinionsAlive : context.blueMinionsAlive;
         BattleMinionState nearest = null;
         double nearestDistSq = maxRange * maxRange;
-        for (BattleMinionState candidate : room.getMinions()) {
-            if (candidate == null || candidate == source || Boolean.TRUE.equals(candidate.getDead())) {
-                continue;
-            }
-            if (source.getTeam() != null && source.getTeam().equals(candidate.getTeam())) {
-                continue;
-            }
+        for (BattleMinionState candidate : enemyMinions) {
+            if (candidate == source) continue;
             double distSq = distanceSq(source.getPosition(), candidate.getPosition());
             if (distSq <= nearestDistSq) {
                 nearest = candidate;
@@ -756,16 +815,12 @@ public class BattleSimulationService {
     }
 
     private BattleChampionState findNearestEnemyChampion(BattleRoom room, BattleMinionState source, double maxRange, TickComputationContext context) {
+        List<BattleChampionState> enemyChampions = "blue".equals(source.getTeam())
+                ? context.redChampionsAlive : context.blueChampionsAlive;
         BattleChampionState nearest = null;
         double nearestDistSq = maxRange * maxRange;
         Set<String> allyBushIds = resolveTeamBushIds(room, source.getTeam(), context);
-        for (BattleChampionState candidate : room.getChampions()) {
-            if (candidate == null || candidate.getPosition() == null || Boolean.TRUE.equals(candidate.getDead())) {
-                continue;
-            }
-            if (source.getTeam() != null && source.getTeam().equals(candidate.getTeam())) {
-                continue;
-            }
+        for (BattleChampionState candidate : enemyChampions) {
             String candidateBush = resolveChampionBushId(candidate, context);
             if (candidateBush != null && !allyBushIds.contains(candidateBush)) {
                 continue;
@@ -1279,31 +1334,37 @@ public class BattleSimulationService {
     private Object findTowerTarget(BattleRoom room, BattleStructureState tower,
                                     String enemyTeam, double rangeSq, TickComputationContext context) {
         Set<String> allyBushIds = resolveTeamBushIds(room, tower.getTeam(), context);
+        long now = System.currentTimeMillis();
 
-        /* P1: 近 6 秒攻击过己方英雄的敌方英雄 */
+        /* P1+P3 合并: 单次遍历敌方英雄，同时记录仇恨目标和最近目标 */
+        List<BattleChampionState> enemyChampions = "blue".equals(enemyTeam)
+                ? context.blueChampionsAlive : context.redChampionsAlive;
         BattleChampionState aggroChamp = null;
         double aggroDistSq = rangeSq;
-        for (BattleChampionState c : room.getChampions()) {
-            if (c == null || c.getPosition() == null || Boolean.TRUE.equals(c.getDead())) continue;
-            if (!enemyTeam.equals(c.getTeam())) continue;
+        BattleChampionState nearestChamp = null;
+        double nearestChampDistSq = rangeSq;
+        for (BattleChampionState c : enemyChampions) {
             String cBush = resolveChampionBushId(c, context);
             if (cBush != null && !allyBushIds.contains(cBush)) continue;
-            Long lastAttackedAt = c.getLastAttackedEnemyChampionAt();
-            if (lastAttackedAt == null || (System.currentTimeMillis() - lastAttackedAt) > 6000L) continue;
             double dSq = distanceSq(tower.getPosition(), c.getPosition());
-            if (dSq <= aggroDistSq) {
+            if (dSq <= nearestChampDistSq) {
+                nearestChamp = c;
+                nearestChampDistSq = dSq;
+            }
+            Long lastAttackedAt = c.getLastAttackedEnemyChampionAt();
+            if (lastAttackedAt != null && (now - lastAttackedAt) <= 6000L && dSq <= aggroDistSq) {
                 aggroChamp = c;
                 aggroDistSq = dSq;
             }
         }
         if (aggroChamp != null) return aggroChamp;
 
-        /* P2: 最近的敌方小兵 */
+        /* P2: 最近的敌方小兵（使用预分区列表） */
+        List<BattleMinionState> enemyMinions = "blue".equals(enemyTeam)
+                ? context.blueMinionsAlive : context.redMinionsAlive;
         BattleMinionState nearestMinion = null;
         double nearestMinionDistSq = rangeSq;
-        for (BattleMinionState m : room.getMinions()) {
-            if (m == null || Boolean.TRUE.equals(m.getDead()) || m.getPosition() == null) continue;
-            if (!enemyTeam.equals(m.getTeam())) continue;
+        for (BattleMinionState m : enemyMinions) {
             double dSq = distanceSq(tower.getPosition(), m.getPosition());
             if (dSq <= nearestMinionDistSq) {
                 nearestMinion = m;
@@ -1312,20 +1373,7 @@ public class BattleSimulationService {
         }
         if (nearestMinion != null) return nearestMinion;
 
-        /* P3: 最近的敌方英雄 */
-        BattleChampionState nearestChamp = null;
-        double nearestChampDistSq = rangeSq;
-        for (BattleChampionState c : room.getChampions()) {
-            if (c == null || c.getPosition() == null || Boolean.TRUE.equals(c.getDead())) continue;
-            if (!enemyTeam.equals(c.getTeam())) continue;
-            String cBush = resolveChampionBushId(c, context);
-            if (cBush != null && !allyBushIds.contains(cBush)) continue;
-            double dSq = distanceSq(tower.getPosition(), c.getPosition());
-            if (dSq <= nearestChampDistSq) {
-                nearestChamp = c;
-                nearestChampDistSq = dSq;
-            }
-        }
+        /* P3: 无小兵可攻击时回退到最近英雄（已在上面的单次遍历中计算） */
         return nearestChamp;
     }
 
@@ -1371,7 +1419,7 @@ public class BattleSimulationService {
             return;
         }
         if (room.getPendingAttacks() == null) {
-            room.setPendingAttacks(new CopyOnWriteArrayList<PendingAttackState>());
+            room.setPendingAttacks(new ArrayList<PendingAttackState>());
         }
         room.getPendingAttacks().add(pendingAttack);
     }
@@ -1389,10 +1437,11 @@ public class BattleSimulationService {
         if (room == null || room.getPendingAttacks() == null || room.getPendingAttacks().isEmpty()) {
             return;
         }
-        List<PendingAttackState> resolvedAttacks = new ArrayList<PendingAttackState>();
-        for (PendingAttackState pendingAttack : room.getPendingAttacks()) {
+        Iterator<PendingAttackState> it = room.getPendingAttacks().iterator();
+        while (it.hasNext()) {
+            PendingAttackState pendingAttack = it.next();
             if (pendingAttack == null) {
-                resolvedAttacks.add(null);
+                it.remove();
                 continue;
             }
             Long impactAt = pendingAttack.getImpactAt();
@@ -1400,10 +1449,7 @@ public class BattleSimulationService {
                 continue;
             }
             applyPendingAttack(room, pendingAttack, now);
-            resolvedAttacks.add(pendingAttack);
-        }
-        if (!resolvedAttacks.isEmpty()) {
-            room.getPendingAttacks().removeAll(resolvedAttacks);
+            it.remove();
         }
     }
 
@@ -1560,6 +1606,11 @@ public class BattleSimulationService {
         return null;
     }
 
+    private BattleChampionState findChampionById(TickComputationContext context, String championId) {
+        if (context == null || championId == null) return null;
+        return context.championById.get(championId);
+    }
+
     private BattleMinionState findMinionById(BattleRoom room, String minionId) {
         if (room == null || room.getMinions() == null || minionId == null) return null;
         for (BattleMinionState m : room.getMinions()) {
@@ -1568,12 +1619,22 @@ public class BattleSimulationService {
         return null;
     }
 
+    private BattleMinionState findMinionById(TickComputationContext context, String minionId) {
+        if (context == null || minionId == null) return null;
+        return context.minionById.get(minionId);
+    }
+
     private BattleStructureState findStructureById(BattleRoom room, String structureId) {
         if (room == null || room.getStructures() == null || structureId == null) return null;
         for (BattleStructureState s : room.getStructures()) {
             if (s != null && structureId.equals(s.getId())) return s;
         }
         return null;
+    }
+
+    private BattleStructureState findStructureById(TickComputationContext context, String structureId) {
+        if (context == null || structureId == null) return null;
+        return context.structureById.get(structureId);
     }
 
     private double distanceSq(BattleVector3 a, BattleVector3 b) {
@@ -1709,16 +1770,24 @@ public class BattleSimulationService {
         List<Map<String, Object>> minionList = buildMinionSnapshotEntities(room);
         Map<String, List<Map<String, Object>>> structureSnapshot = buildStructureSnapshotEntities(room);
         List<Map<String, Object>> healthRelicList = buildHealthRelicSnapshotEntities(room);
-        List<Map<String, Object>> playerList = buildPlayerSnapshotEntities(room);
+        List<Map<String, Object>> playerList = buildPlayerSnapshotEntities(room, context);
 
         if (room.getPlayers() == null || room.getPlayers().isEmpty()) {
             return;
         }
 
-        // 构建 championId → team 映射，用于查询玩家所属队伍
-        Map<String, String> champTeamMap = new HashMap<String, String>();
-        for (BattleChampionState c : room.getChampions()) {
-            if (c != null) champTeamMap.put(c.getId(), c.getTeam());
+        // 缓存视野配置到 context，避免 per-player 循环中重复解析 JSON
+        if (context.simpleVisionEnabled == null) {
+            context.simpleVisionEnabled = isSimpleVisionEnabled();
+        }
+        if (context.sightRadiusSq == null) {
+            context.sightRadiusSq = resolveConfiguredSightRadiusSq();
+        }
+
+        // 使用 context 的 championById 构建 championId → team 映射，避免重复遍历
+        Map<String, String> champTeamMap = new HashMap<String, String>(context.championById.size() * 2);
+        for (Map.Entry<String, BattleChampionState> entry : context.championById.entrySet()) {
+            champTeamMap.put(entry.getKey(), entry.getValue().getTeam());
         }
 
         for (PlayerSession playerSession : room.getPlayers()) {
@@ -1726,12 +1795,12 @@ public class BattleSimulationService {
 
             // 按玩家视角过滤草丛中的敌方英雄
             boolean isSpectator = Boolean.TRUE.equals(playerSession.getSpectator());
-            BattleChampionState viewerChampion = findChampionById(room, playerSession.getChampionId());
+            BattleChampionState viewerChampion = findChampionById(context, playerSession.getChampionId());
             String viewerTeam = champTeamMap.getOrDefault(playerSession.getChampionId(), "");
             List<Map<String, Object>> visibleChampions =
                     isSpectator || viewerTeam.isEmpty()
                             ? championList
-                            : filterChampionsByVision(championList, room, viewerChampion, viewerTeam);
+                            : filterChampionsByVision(championList, room, viewerChampion, viewerTeam, context);
 
             snapshot.put("champions", visibleChampions);
             snapshot.put("minions", minionList);
@@ -1886,21 +1955,18 @@ public class BattleSimulationService {
         return result;
     }
 
-    private List<Map<String, Object>> buildPlayerSnapshotEntities(BattleRoom room) {
+    private List<Map<String, Object>> buildPlayerSnapshotEntities(BattleRoom room, TickComputationContext context) {
         List<Map<String, Object>> playerList = new ArrayList<Map<String, Object>>();
         if (room == null || room.getPlayers() == null) {
             return playerList;
-        }
-        Map<String, String> championTeamMap = new HashMap<String, String>();
-        for (BattleChampionState champion : room.getChampions()) {
-            championTeamMap.put(champion.getId(), champion.getTeam());
         }
         for (PlayerSession ps : room.getPlayers()) {
             Map<String, Object> pMap = new LinkedHashMap<String, Object>();
             pMap.put("socketId", ps.getSessionId());
             pMap.put("playerName", ps.getPlayerName());
             pMap.put("championId", ps.getChampionId());
-            pMap.put("team", championTeamMap.getOrDefault(ps.getChampionId(), ""));
+            BattleChampionState c = findChampionById(context, ps.getChampionId());
+            pMap.put("team", c != null ? c.getTeam() : "");
             pMap.put("isSpectator", Boolean.TRUE.equals(ps.getSpectator()));
             playerList.add(pMap);
         }
@@ -1959,14 +2025,16 @@ public class BattleSimulationService {
             List<Map<String, Object>> allChampions,
             BattleRoom room,
             BattleChampionState viewerChampion,
-            String viewerTeam) {
-        boolean simpleVisionEnabled = isSimpleVisionEnabled();
-        double sightRadiusSq = resolveConfiguredSightRadiusSq();
+            String viewerTeam,
+            TickComputationContext context) {
+        boolean simpleVisionEnabled = context.simpleVisionEnabled != null ? context.simpleVisionEnabled : isSimpleVisionEnabled();
+        double sightRadiusSq = context.sightRadiusSq != null ? context.sightRadiusSq : resolveConfiguredSightRadiusSq();
 
+        // 使用预分区的存活友方英雄列表计算草丛索引
+        List<BattleChampionState> alliedAlive = "blue".equals(viewerTeam)
+                ? context.blueChampionsAlive : context.redChampionsAlive;
         Set<Integer> alliedBushIndices = new HashSet<Integer>();
-        for (BattleChampionState c : room.getChampions()) {
-            if (c == null || Boolean.TRUE.equals(c.getDead()) || c.getPosition() == null) continue;
-            if (!viewerTeam.equals(c.getTeam())) continue;
+        for (BattleChampionState c : alliedAlive) {
             int bi = getBushIndex(c.getPosition().getX(), c.getPosition().getZ());
             if (bi >= 0) alliedBushIndices.add(bi);
         }
@@ -1984,39 +2052,33 @@ public class BattleSimulationService {
                 if (simpleVisionEnabled && viewerChampion != null && viewerChampion.getPosition() != null) {
                     double dSq = distanceSq(viewerChampion.getPosition(), pos);
                     if (dSq > sightRadiusSq) {
-                        Map<String, Object> hidden = new LinkedHashMap<String, Object>(snap);
-                        hidden.put("visibleInSnapshot", Boolean.FALSE);
-                        hidden.put("position", null);
-                        hidden.put("rotation", null);
-                        hidden.put("moveTarget", null);
-                        hidden.put("animationState", null);
-                        hidden.put("inputMode", null);
-                        hidden.put("attackMoveTarget", null);
-                        hidden.put("currentAttackTargetId", null);
-                        hidden.put("currentAttackTargetType", null);
-                        filtered.add(hidden);
+                        filtered.add(buildHiddenChampionSnapshot(snap));
                         continue;
                     }
                 }
                 int bi = getBushIndex(pos.getX(), pos.getZ());
                 if (bi >= 0 && !alliedBushIndices.contains(bi)) {
-                    Map<String, Object> hidden = new LinkedHashMap<String, Object>(snap);
-                    hidden.put("visibleInSnapshot", Boolean.FALSE);
-                    hidden.put("position", null);
-                    hidden.put("rotation", null);
-                    hidden.put("moveTarget", null);
-                    hidden.put("animationState", null);
-                    hidden.put("inputMode", null);
-                    hidden.put("attackMoveTarget", null);
-                    hidden.put("currentAttackTargetId", null);
-                    hidden.put("currentAttackTargetType", null);
-                    filtered.add(hidden);
+                    filtered.add(buildHiddenChampionSnapshot(snap));
                     continue;
                 }
             }
             filtered.add(snap);
         }
         return filtered;
+    }
+
+    private Map<String, Object> buildHiddenChampionSnapshot(Map<String, Object> snap) {
+        Map<String, Object> hidden = new LinkedHashMap<String, Object>(snap);
+        hidden.put("visibleInSnapshot", Boolean.FALSE);
+        hidden.put("position", null);
+        hidden.put("rotation", null);
+        hidden.put("moveTarget", null);
+        hidden.put("animationState", null);
+        hidden.put("inputMode", null);
+        hidden.put("attackMoveTarget", null);
+        hidden.put("currentAttackTargetId", null);
+        hidden.put("currentAttackTargetType", null);
+        return hidden;
     }
 
     private boolean isSimpleVisionEnabled() {

@@ -5,6 +5,7 @@ import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.atomic.AtomicLong;
@@ -99,13 +100,13 @@ public class BattleRoom {
                 .blueKills(0)
                 .redKills(0)
                 .tickNumber(0L)
-                .champions(new CopyOnWriteArrayList<BattleChampionState>())
-                .minions(new CopyOnWriteArrayList<BattleMinionState>())
-                .structures(new CopyOnWriteArrayList<BattleStructureState>())
-                .healthRelics(new CopyOnWriteArrayList<BattleHealthRelicState>())
+                .champions(new ArrayList<BattleChampionState>())
+                .minions(new ArrayList<BattleMinionState>())
+                .structures(new ArrayList<BattleStructureState>())
+                .healthRelics(new ArrayList<BattleHealthRelicState>())
                 .nextMinionSpawnAt(System.currentTimeMillis() + 5000L)
                 .minionWaveSequence(0L)
-                .pendingAttacks(new CopyOnWriteArrayList<PendingAttackState>())
+                .pendingAttacks(new ArrayList<PendingAttackState>())
                 .players(new CopyOnWriteArrayList<PlayerSession>())
                 .build();
     }
