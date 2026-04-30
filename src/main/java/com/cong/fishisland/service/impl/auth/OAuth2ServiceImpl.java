@@ -138,7 +138,6 @@ public class OAuth2ServiceImpl implements OAuth2Service {
         vo.setUsername(user.getUserAccount());
         vo.setName(user.getUserName());
         vo.setAvatar(user.getUserAvatar());
-        vo.setEmail(user.getEmail());
         return vo;
     }
 

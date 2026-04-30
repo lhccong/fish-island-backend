@@ -27,8 +27,6 @@ public class OAuth2UserInfoVO implements Serializable {
     @ApiModelProperty(value = "用户头像")
     private String avatar;
 
-    @ApiModelProperty(value = "用户邮箱")
-    private String email;
 
     private static final long serialVersionUID = 1L;
 }
