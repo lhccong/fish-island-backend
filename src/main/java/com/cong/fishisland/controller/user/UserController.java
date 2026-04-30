@@ -467,6 +467,7 @@ public class UserController {
         }
         user.setUserAvatar(userUpdateMyRequest.getUserAvatar());
         user.setUserProfile(userProfile);
+        user.setMomentsBgUrl(userUpdateMyRequest.getMomentsBgUrl());
         user.setId(loginUser.getId());
         if (!StringUtils.isAllBlank(user.getUserName(), user.getUserAvatar(), userProfile)) {
             boolean result = userService.updateById(user);

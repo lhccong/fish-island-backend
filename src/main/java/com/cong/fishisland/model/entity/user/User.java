@@ -89,6 +89,11 @@ public class User implements Serializable {
     private String titleIdList;
 
     /**
+     * 朋友圈背景图
+     */
+    private String momentsBgUrl;
+
+    /**
      * 创建时间
      */
     private Date createTime;

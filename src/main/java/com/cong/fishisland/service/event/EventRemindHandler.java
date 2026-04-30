@@ -150,7 +150,7 @@ public class EventRemindHandler {
                                      String content, Boolean isReply) {
         EventRemind event = new EventRemind();
         event.setAction(isReply ? ActionTypeConstant.REPLY : ActionTypeConstant.COMMENT);
-        event.setSourceId(commentId);
+        event.setSourceId(momentId);
         event.setSourceType(SourceTypeConstant.MOMENTS);
         event.setSourceContent(content);
         event.setUrl(String.valueOf(momentId));
@@ -159,6 +159,24 @@ public class EventRemindHandler {
         event.setRemindTime(new Date());
         eventRemindService.save(event);
         log.info("保存朋友圈评论事件: commentId={}, momentId={}, senderId={}, recipientId={}", commentId, momentId, senderId, recipientId);
+    }
+
+    /**
+     * 异步处理朋友圈打赏事件
+     */
+    @Async("eventRemindExecutor")
+    public void handleMomentsReward(Long momentId, Long senderId, Long recipientId, Integer points) {
+        EventRemind event = new EventRemind();
+        event.setAction(ActionTypeConstant.SYSTEM);
+        event.setSourceId(momentId);
+        event.setSourceType(SourceTypeConstant.SYSTEM);
+        event.setSourceContent("用户打赏了你 " + points + " 积分");
+        event.setUrl(String.valueOf(momentId));
+        event.setSenderId(senderId);
+        event.setRecipientId(recipientId);
+        event.setRemindTime(new Date());
+        eventRemindService.save(event);
+        log.info("保存打赏朋友圈事件: momentId={}, senderId={}, recipientId={}, points={}", momentId, senderId, recipientId, points);
     }
 
     /**

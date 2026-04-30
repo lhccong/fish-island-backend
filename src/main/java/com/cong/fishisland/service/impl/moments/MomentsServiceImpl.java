@@ -129,6 +129,9 @@ public class MomentsServiceImpl extends ServiceImpl<MomentsMapper, Moments>
         userPointsService.updateUsedPoints(moments.getUserId(), -request.getPoints(),
                 PointsRecordSourceEnum.MOMENTS_REWARD.getValue(), momentIdStr,
                 "收到朋友圈打赏");
+
+        // 通知被打赏者
+        eventRemindHandler.handleMomentsReward(request.getMomentId(), fromUserId, moments.getUserId(), request.getPoints());
     }
 
     @Override
