@@ -511,11 +511,11 @@ public class UserController {
     /**
      * 签到
      *
-     * @return {@link BaseResponse }<{@link Boolean }>
+     * @return {@link BaseResponse }<{@link SignInVO }>
      */
     @PostMapping("/signIn")
     @ApiOperation(value = "签到")
-    public BaseResponse<Boolean> signIn() {
+    public BaseResponse<SignInVO> signIn() {
         return ResultUtils.success(userPointsService.signIn());
     }
 
