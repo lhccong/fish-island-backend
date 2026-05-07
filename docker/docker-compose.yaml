@@ -1,0 +1,98 @@
+services:
+  fish-island-backend:
+    image: 39.105.4.252:5000/fish-island-backend:0.0.1
+    env_file: .env
+    container_name: fish-island-backend
+    restart: always
+    environment:
+      - SPRING_PROFILES_ACTIVE=dev
+      - MINIO_ENDPOINT=http://${MINIO_HOST}:${MINIO_PORT}
+      - MINIO_ACCESS_KEY=${MINIO_USER}
+      - MINIO_SECRET_KEY=${MINIO_PASSWORD}
+      - MINIO_BUCKET_NAME=fish
+      - SPRING_DATASOURCE_URL=jdbc:mysql://${MYSQL_HOST}:${MYSQL_PORT}/${MYSQL_DBNAME}?useSSL=false&serverTimezone=Asia/Shanghai&allowPublicKeyRetrieval=true
+      - SPRING_DATASOURCE_USERNAME=root
+      - SPRING_DATASOURCE_PASSWORD=${MYSQL_PASSWORD}
+      - SPRING_REDIS_HOST=${REDIS_HOST}
+      - SPRING_REDIS_PORT=${REDIS_PORT}
+      - SPRING_REDIS_PASSWORD=${REDIS_PASSWORD}
+    depends_on:
+      - db_mysql
+      - minio
+      - redis
+    ports:
+      - ${FISH_ISLAND_BACKEND_PORT}:8123
+    networks:
+      - fish-island-network
+
+  db_mysql:
+    image: mysql:8.0
+    env_file: .env
+    container_name: db_mysql
+    restart: unless-stopped
+    environment:
+      MYSQL_DATABASE: ${MYSQL_DBNAME}
+      MYSQL_ROOT_PASSWORD: ${MYSQL_PASSWORD}
+    volumes:
+      - mysql_data:/var/lib/mysql
+      - ../sql:/docker-entrypoint-initdb.d
+      # - ./init.sql:/data/application/init.sql
+    ports:
+      - ${MYSQL_PORT}:3306
+    healthcheck:
+      test: [ "CMD", "mysqladmin" ,"ping", "-uroot", "-p${MYSQL_PASSWORD}" ]
+      interval: 10s
+      timeout: 10s
+      retries: 120
+    networks:
+      - fish-island-network
+
+  minio:
+    image: minio/minio:latest
+    command: [ "server", "--console-address", ":9001", "/data" ]
+    ports:
+      - ${MINIO_PORT}:9000
+      - ${MINIO_CONSOLE_PORT}:9001
+    env_file: .env
+    environment:
+      - MINIO_ROOT_USER=${MINIO_USER}
+      - MINIO_ROOT_PASSWORD=${MINIO_PASSWORD}
+    volumes:
+      - minio_data:/data
+    restart: unless-stopped
+    healthcheck:
+      test: [ "CMD", "curl", "-f", "http://localhost:9000/minio/health/live" ]
+      interval: 10s
+      timeout: 10s
+      retries: 120
+    networks:
+      - fish-island-network
+
+  redis:
+    image: redis:latest
+    command: [ "redis-server", "--requirepass", "${REDIS_PASSWORD}", "--maxmemory", "128mb", "--maxmemory-policy", "allkeys-lru" ]
+    env_file: .env
+    ports:
+      - ${REDIS_PORT}:6379
+    volumes:
+      - redis_data:/data
+    restart: unless-stopped
+    healthcheck:
+      test: [ "CMD", "redis-cli", "-a", "${REDIS_PASSWORD}", "ping" ]
+      interval: 10s
+      timeout: 10s
+      retries: 120
+    networks:
+      - fish-island-network
+
+volumes:
+  mysql_data:
+    driver: local
+  minio_data:
+    driver: local
+  redis_data:
+    driver: local
+
+networks:
+  fish-island-network:
+    driver: bridge
