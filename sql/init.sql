@@ -2454,3 +2454,199 @@ CREATE TABLE IF NOT EXISTS user_remark
     UNIQUE INDEX uk_user_id (userId),
     INDEX idx_create_time (createTime)
     ) COMMENT '用户备注表' COLLATE = utf8mb4_unicode_ci;
+
+-- 爬塔记录表
+CREATE TABLE IF NOT EXISTS tower_climb_record
+(
+    id          BIGINT AUTO_INCREMENT COMMENT '主键ID' PRIMARY KEY,
+    userId      BIGINT                             NOT NULL COMMENT '用户ID',
+    floor       INT        DEFAULT 1               NOT NULL COMMENT '当前挑战层数',
+    maxFloor    INT        DEFAULT 0               NOT NULL COMMENT '历史最高通关层数',
+    result      TINYINT    DEFAULT 0               NOT NULL COMMENT '本次挑战结果：0-失败，1-胜利',
+    petLevel    INT        DEFAULT 1               NOT NULL COMMENT '挑战时宠物等级',
+    petHpLeft   INT        DEFAULT 0               NOT NULL COMMENT '挑战结束时宠物剩余血量',
+    rewardPoints INT       DEFAULT 0               NOT NULL COMMENT '本次获得积分奖励',
+    createTime  DATETIME   DEFAULT CURRENT_TIMESTAMP NOT NULL COMMENT '创建时间',
+    updateTime  DATETIME   DEFAULT CURRENT_TIMESTAMP NOT NULL ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
+    isDelete    TINYINT    DEFAULT 0               NOT NULL COMMENT '是否删除',
+    INDEX idx_user_id (userId),
+    INDEX idx_floor (floor),
+    INDEX idx_max_floor (maxFloor)
+    ) COMMENT = '爬塔挑战记录表' COLLATE = utf8mb4_unicode_ci;
+
+-- 用户爬塔进度表（记录每个用户当前最高层）
+CREATE TABLE IF NOT EXISTS tower_climb_progress
+(
+    id          BIGINT AUTO_INCREMENT COMMENT '主键ID' PRIMARY KEY,
+    userId      BIGINT                             NOT NULL COMMENT '用户ID',
+    maxFloor    INT        DEFAULT 0               NOT NULL COMMENT '历史最高通关层数',
+    createTime  DATETIME   DEFAULT CURRENT_TIMESTAMP NOT NULL COMMENT '创建时间',
+    updateTime  DATETIME   DEFAULT CURRENT_TIMESTAMP NOT NULL ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
+    isDelete    TINYINT    DEFAULT 0               NOT NULL COMMENT '是否删除',
+    UNIQUE INDEX uk_user_id (userId)
+    ) COMMENT = '用户爬塔进度表' COLLATE = utf8mb4_unicode_ci;
+
+-- 连续签到相关表
+use fish;
+
+-- 用户签到记录表
+create table if not exists user_sign_in
+(
+    id             bigint auto_increment comment '记录ID' primary key,
+    userId         bigint                             not null comment '用户ID',
+    signDate       date                               not null comment '签到日期',
+    signType       tinyint  default 1                 not null comment '签到类型：1-正常签到，2-补签',
+    continuousDays int      default 1                 not null comment '当次签到后的连续天数',
+    rewardPoints   int      default 0                 not null comment '本次签到获得的积分奖励（含连续奖励）',
+    createTime     datetime default CURRENT_TIMESTAMP not null comment '创建时间',
+    updateTime     datetime default CURRENT_TIMESTAMP not null on update CURRENT_TIMESTAMP comment '更新时间',
+    isDelete       tinyint  default 0                 not null comment '是否删除',
+    unique key uk_userId_signDate (userId, signDate),
+    index idx_userId (userId),
+    index idx_signDate (signDate)
+    ) comment '用户签到记录表' collate = utf8mb4_unicode_ci;
+
+-- 连续签到奖励配置表
+create table if not exists sign_in_reward_config
+(
+    id             bigint auto_increment comment '配置ID' primary key,
+    continuousDays int          default 0  not null comment '连续签到天数（达到该天数触发，0表示基础签到）',
+    rewardPoints   int          default 0  not null comment '额外奖励积分（叠加在基础签到积分之上）',
+    rewardDesc     varchar(128) default '' not null comment '奖励描述',
+    isCycle        tinyint      default 0  not null comment '是否按周期循环：0-不循环，1-循环',
+    cycleDays      int          default 7  not null comment '循环周期天数（isCycle=1 时有效）',
+    createTime     datetime default CURRENT_TIMESTAMP not null comment '创建时间',
+    updateTime     datetime default CURRENT_TIMESTAMP not null on update CURRENT_TIMESTAMP comment '更新时间',
+    isDelete       tinyint  default 0                 not null comment '是否删除',
+    index idx_continuousDays (continuousDays)
+    ) comment '连续签到奖励配置表' collate = utf8mb4_unicode_ci;
+
+-- 初始化 7 天循环奖励配置
+-- 基础签到积分 10（由 PointConstant.SIGN_IN_POINT 控制），此处为额外奖励
+insert into sign_in_reward_config (continuousDays, rewardPoints, rewardDesc, isCycle, cycleDays) values
+                                                                                                     (1, 0,  '第1天签到',              1, 7),
+                                                                                                     (2, 5,  '连续2天，额外+5积分',    1, 7),
+                                                                                                     (3, 5,  '连续3天，额外+5积分',    1, 7),
+                                                                                                     (4, 10, '连续4天，额外+10积分',   1, 7),
+                                                                                                     (5, 10, '连续5天，额外+10积分',   1, 7),
+                                                                                                     (6, 15, '连续6天，额外+15积分',   1, 7),
+                                                                                                     (7, 30, '连续7天，额外+30积分',   1, 7);
+
+-- 宠物装备锻造表
+-- 装备位置：1-武器 2-手套 3-鞋子 4-头盔 5-项链 6-翅膀
+-- 词条等级：WHITE=白 BLUE=蓝 PURPLE=紫 GOLD=金 RED=红
+-- 词条属性：ATTACK=攻击力 MAX_HP=最大生命值 DEFENSE=防御力
+--           CRIT_RATE=暴击率 COMBO_RATE=连击率 DODGE_RATE=闪避率
+--           BLOCK_RATE=格挡率 LIFESTEAL=吸血率
+--           及对应抗性：ANTI_CRIT ANTI_COMBO ANTI_DODGE ANTI_BLOCK ANTI_LIFESTEAL
+
+create table if not exists pet_equip_forge
+(
+    id          BIGINT       auto_increment comment '主键ID' PRIMARY KEY,
+    petId       BIGINT       not null comment '宠物ID',
+    equipSlot   TINYINT      not null comment '装备位置 1-武器 2-手套 3-鞋子 4-头盔 5-项链 6-翅膀',
+    equipLevel  TINYINT      not null default 0 comment '装备等级（默认0）',
+    entry1      JSON         default null comment '词条1 {attr: 词条属性, grade: 词条等级, value: 属性数值, locked: 是否锁定}',
+    entry2      JSON         default null comment '词条2 {attr: 词条属性, grade: 词条等级, value: 属性数值, locked: 是否锁定}',
+    entry3      JSON         default null comment '词条3 {attr: 词条属性, grade: 词条等级, value: 属性数值, locked: 是否锁定}',
+    entry4      JSON         default null comment '词条4 {attr: 词条属性, grade: 词条等级, value: 属性数值, locked: 是否锁定}',
+    createTime  DATETIME     default CURRENT_TIMESTAMP not null comment '创建时间',
+    updateTime  DATETIME     default CURRENT_TIMESTAMP not null on update CURRENT_TIMESTAMP comment '更新时间',
+    isDelete    TINYINT      default 0 not null comment '是否删除',
+    UNIQUE KEY uk_pet_slot (petId, equipSlot)
+    ) comment '宠物装备锻造表' collate = utf8mb4_unicode_ci;
+
+-- 微信朋友圈相关表设计
+-- @author fish-island
+
+USE fish;
+
+-- =============================================
+-- 1. 朋友圈动态表
+-- =============================================
+CREATE TABLE IF NOT EXISTS moments
+(
+    id          BIGINT AUTO_INCREMENT COMMENT '动态ID' PRIMARY KEY,
+    userId      BIGINT                             NOT NULL COMMENT '发布者用户ID',
+    content     VARCHAR(2000)                      NULL COMMENT '文字内容',
+    mediaJson   JSON                               NULL COMMENT '媒体资源列表（图片/视频），格式：[{type:"image",url:"..."},{type:"video",url:"...",cover:"..."}]',
+    location    VARCHAR(128)                       NULL COMMENT '位置信息',
+    visibility  TINYINT  DEFAULT 0                 NOT NULL COMMENT '可见范围：0-所有朋友，1-仅自己，2-部分可见，3-不给谁看',
+    allowList   JSON                               NULL COMMENT '部分可见的用户ID列表（visibility=2时有效）',
+    blockList   JSON                               NULL COMMENT '不给谁看的用户ID列表（visibility=3时有效）',
+    likeNum     INT      DEFAULT 0                 NOT NULL COMMENT '点赞数',
+    commentNum  INT      DEFAULT 0                 NOT NULL COMMENT '评论数',
+    createTime  DATETIME DEFAULT CURRENT_TIMESTAMP NOT NULL COMMENT '发布时间',
+    updateTime  DATETIME DEFAULT CURRENT_TIMESTAMP NOT NULL ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
+    isDelete    TINYINT  DEFAULT 0                 NOT NULL COMMENT '是否删除',
+    INDEX idx_userId (userId),
+    INDEX idx_createTime (createTime)
+    ) COMMENT '朋友圈动态表' COLLATE = utf8mb4_unicode_ci;
+
+-- =============================================
+-- 2. 动态点赞表（硬删除）
+-- =============================================
+CREATE TABLE IF NOT EXISTS moments_like
+(
+    id         BIGINT AUTO_INCREMENT COMMENT '主键ID' PRIMARY KEY,
+    momentId   BIGINT                             NOT NULL COMMENT '动态ID',
+    userId     BIGINT                             NOT NULL COMMENT '点赞用户ID',
+    createTime DATETIME DEFAULT CURRENT_TIMESTAMP NOT NULL COMMENT '点赞时间',
+    UNIQUE KEY uk_moment_user (momentId, userId),
+    INDEX idx_momentId (momentId),
+    INDEX idx_userId (userId)
+    ) COMMENT '朋友圈点赞表' COLLATE = utf8mb4_unicode_ci;
+
+-- =============================================
+-- 3. 动态评论表
+-- =============================================
+CREATE TABLE IF NOT EXISTS moments_comment
+(
+    id         BIGINT AUTO_INCREMENT COMMENT '评论ID' PRIMARY KEY,
+    momentId   BIGINT                             NOT NULL COMMENT '动态ID',
+    userId     BIGINT                             NOT NULL COMMENT '评论者用户ID',
+    replyUserId BIGINT                            NULL COMMENT '被回复的用户ID（NULL表示直接评论动态）',
+    parentId   BIGINT                             NULL COMMENT '父评论ID（NULL表示顶级评论）',
+    content    VARCHAR(500)                       NOT NULL COMMENT '评论内容',
+    createTime DATETIME DEFAULT CURRENT_TIMESTAMP NOT NULL COMMENT '评论时间',
+    updateTime DATETIME DEFAULT CURRENT_TIMESTAMP NOT NULL ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
+    isDelete   TINYINT  DEFAULT 0                 NOT NULL COMMENT '是否删除',
+    INDEX idx_momentId (momentId),
+    INDEX idx_userId (userId),
+    INDEX idx_parentId (parentId)
+    ) COMMENT '朋友圈评论表' COLLATE = utf8mb4_unicode_ci;
+
+
+-- fish_auth 第三方应用表（OAuth2 客户端）
+CREATE TABLE IF NOT EXISTS fish_auth
+(
+    id          BIGINT AUTO_INCREMENT COMMENT 'id' PRIMARY KEY,
+    appName     VARCHAR(128)                        NOT NULL COMMENT '应用名称',
+    appWebsite  VARCHAR(512)                        NULL COMMENT '应用网站地址',
+    appDesc     VARCHAR(1024)                       NULL COMMENT '应用描述',
+    redirectUri VARCHAR(1024)                       NOT NULL COMMENT '回调地址（多个用逗号分隔）',
+    clientId    VARCHAR(64)                         NOT NULL COMMENT 'Client ID',
+    clientSecret VARCHAR(128)                       NOT NULL COMMENT 'Client Secret（加密存储）',
+    userId      BIGINT                              NOT NULL COMMENT '创建者用户 ID',
+    status      TINYINT  DEFAULT 1                  NOT NULL COMMENT '状态：0-禁用，1-启用',
+    createTime  DATETIME DEFAULT CURRENT_TIMESTAMP  NOT NULL COMMENT '创建时间',
+    updateTime  DATETIME DEFAULT CURRENT_TIMESTAMP  NOT NULL ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
+    isDelete    TINYINT  DEFAULT 0                  NOT NULL COMMENT '是否删除',
+    UNIQUE KEY uk_clientId (clientId)
+    ) COMMENT '第三方应用（OAuth2 客户端）' COLLATE = utf8mb4_unicode_ci;
+
+-- fish_auth_code 授权码表（临时，5 分钟过期）
+CREATE TABLE IF NOT EXISTS fish_auth_code
+(
+    id          BIGINT AUTO_INCREMENT COMMENT 'id' PRIMARY KEY,
+    code        VARCHAR(128)                        NOT NULL COMMENT '授权码',
+    clientId    VARCHAR(64)                         NOT NULL COMMENT 'Client ID',
+    userId      BIGINT                              NOT NULL COMMENT '授权用户 ID',
+    redirectUri VARCHAR(1024)                       NOT NULL COMMENT '回调地址',
+    scope       VARCHAR(256)  DEFAULT 'read'        NOT NULL COMMENT '授权范围',
+    used        TINYINT       DEFAULT 0             NOT NULL COMMENT '是否已使用：0-未使用，1-已使用',
+    expireTime  DATETIME                            NOT NULL COMMENT '过期时间',
+    createTime  DATETIME DEFAULT CURRENT_TIMESTAMP  NOT NULL COMMENT '创建时间',
+    UNIQUE KEY uk_code (code),
+    INDEX idx_clientId (clientId)
+    ) COMMENT 'OAuth2 授权码' COLLATE = utf8mb4_unicode_ci;
