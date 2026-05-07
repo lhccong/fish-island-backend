@@ -45,6 +45,18 @@ public class BattleResultVO implements Serializable {
     private Boolean isCombo;
 
     /**
+     * 是否格挡
+     */
+    @ApiModelProperty(value = "是否格挡", example = "false")
+    private Boolean isBlock;
+
+    /**
+     * 吸血回复量
+     */
+    @ApiModelProperty(value = "吸血回复量", example = "0")
+    private Integer lifestealHeal;
+
+    /**
      * 扣血量
      */
     @ApiModelProperty(value = "扣血量", example = "100")

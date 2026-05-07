@@ -1,12 +1,14 @@
 package com.cong.fishisland.service.impl.redpacket;
 
 import com.alibaba.fastjson.JSON;
+import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
 import com.cong.fishisland.common.ErrorCode;
 import com.cong.fishisland.common.exception.BusinessException;
 import com.cong.fishisland.model.dto.redpacket.CreateRedPacketRequest;
 import static com.cong.fishisland.model.enums.user.PointsRecordSourceEnum.*;
 
 import com.cong.fishisland.model.entity.chat.RoomMessage;
+import com.cong.fishisland.model.entity.donation.DonationRecords;
 import com.cong.fishisland.model.entity.redpacket.RedPacket;
 import com.cong.fishisland.model.entity.redpacket.RedPacketRecord;
 import com.cong.fishisland.model.entity.user.User;
@@ -29,6 +31,7 @@ import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.math.BigDecimal;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.*;
@@ -51,6 +54,7 @@ public class RedPacketServiceImpl implements RedPacketService {
     private final UserVipService userVipService;
     private final WebSocketService webSocketService;
     private final RoomMessageService roomMessageService;
+    private final DonationRecordsService donationRecordsService;
 
     // Redis key前缀
     private static final String RED_PACKET_KEY_PREFIX = "redpacket:";
@@ -63,8 +67,12 @@ public class RedPacketServiceImpl implements RedPacketService {
     private static final long RED_PACKET_EXPIRE_TIME = 24 * 60 * 60;
     // 每日发红包次数限制
     private static final int NORMAL_USER_DAILY_LIMIT = 1;
-    private static final int VIP_USER_DAILY_LIMIT = 2;
+    private static final int VIP_USER_DAILY_LIMIT = 3;
     private static final int ADMIN_DAILY_LIMIT = 3;
+
+    // VIP 打赏榜免积分阈值
+    private static final BigDecimal VIP_DONATION_FREE_TWO = new BigDecimal("29");
+    private static final BigDecimal VIP_DONATION_FREE_ALL = new BigDecimal("100");
 
     // 锁的过期时间（10秒）
     private static final long LOCK_EXPIRE_TIME = 10;
@@ -180,10 +188,34 @@ public class RedPacketServiceImpl implements RedPacketService {
             dailyLimit = NORMAL_USER_DAILY_LIMIT;
         }
 
-        // 判断用户是否有足够的积分
-        // VIP用户第一次发红包不需要积分，所以不检查积分是否足够
-        boolean isVipFirstRedPacket = userVip && dailyCount == 0;
-        if (!isVipFirstRedPacket && (userPoints.getPoints() - userPoints.getUsedPoints() < request.getTotalAmount()) && !Objects.equals(loginUser.getUserRole(), UserRoleEnum.ADMIN.getValue())) {
+        // 计算 VIP 用户今日免积分次数
+        // 默认：VIP 第1个免费；打赏榜>=100：前2个免费；打赏榜>=199：全部免费（同管理员）
+        int vipFreeCount = 0;
+        if (userVip) {
+            // 基础：第1个免费
+            vipFreeCount = 1;
+            DonationRecords donationRecords =
+                    donationRecordsService.getOne(
+                            new QueryWrapper<DonationRecords>()
+                                    .eq("userId", loginUser.getId()));
+            if (donationRecords != null && donationRecords.getAmount() != null) {
+                BigDecimal donationAmount = donationRecords.getAmount();
+                if (donationAmount.compareTo(VIP_DONATION_FREE_ALL) >= 0) {
+                    // 全部免费
+                    vipFreeCount = ADMIN_DAILY_LIMIT;
+                } else if (donationAmount.compareTo(VIP_DONATION_FREE_TWO) >= 0) {
+                    // 前2个免费
+                    vipFreeCount = 2;
+                }
+            }
+        }
+
+        // 判断本次是否需要消耗积分
+        boolean isAdmin = Objects.equals(loginUser.getUserRole(), UserRoleEnum.ADMIN.getValue());
+        boolean freeThisTime = isAdmin || (userVip && dailyCount < vipFreeCount);
+
+        // 判断用户是否有足够的积分（免费次数内不检查）
+        if (!freeThisTime && (userPoints.getPoints() - userPoints.getUsedPoints() < request.getTotalAmount())) {
             throw new BusinessException(ErrorCode.OPERATION_ERROR, "积分不足");
         }
 
@@ -196,7 +228,7 @@ public class RedPacketServiceImpl implements RedPacketService {
             if (Objects.equals(loginUser.getUserRole(), UserRoleEnum.ADMIN.getValue())) {
                 message = "管理员每日最多只能发送3次红包";
             } else if (userVip) {
-                message = "VIP用户每日最多只能发送2次红包";
+                message = "VIP用户每日最多只能发送3次红包";
             } else {
                 message = "您今日已发送过红包，请明天再来";
             }
@@ -242,11 +274,8 @@ public class RedPacketServiceImpl implements RedPacketService {
         redisTemplate.expire(redPacketUserKey, Duration.ofSeconds(RED_PACKET_EXPIRE_TIME));
 
         //扣减用户可用积分
-        if (!Objects.equals(loginUser.getUserRole(), UserRoleEnum.ADMIN.getValue())) {
-            // VIP用户每日第一个红包不需要花积分
-            if (!(userVip && dailyCount == 0)) {
-                userPointsService.updateUsedPoints(loginUser.getId(), request.getTotalAmount(), RED_PACKET_SEND.getValue(), redPacketId, "发送红包");
-            }
+        if (!freeThisTime) {
+            userPointsService.updateUsedPoints(loginUser.getId(), request.getTotalAmount(), RED_PACKET_SEND.getValue(), redPacketId, "发送红包");
         }
 
         // 更新用户每日发红包次数

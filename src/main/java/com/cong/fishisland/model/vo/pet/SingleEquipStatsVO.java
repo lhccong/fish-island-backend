@@ -28,6 +28,11 @@ public class SingleEquipStatsVO implements Serializable {
     private Integer baseHp;
 
     /**
+     * 速度（决定战斗先手）
+     */
+    private Integer baseSpeed = 0;
+
+    /**
      * 主动属性 - 暴击率
      */
     private Double critRate;

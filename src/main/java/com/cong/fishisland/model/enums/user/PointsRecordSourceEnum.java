@@ -9,6 +9,7 @@ import lombok.Getter;
 public enum PointsRecordSourceEnum {
 
     SIGN_IN("sign_in", "每日签到"),
+    SIGN_IN_MAKEUP("sign_in_makeup", "补签"),
     SPEAK("speak", "房间发言"),
     RED_PACKET_SEND("red_packet_send", "发送红包"),
     RED_PACKET_GRAB("red_packet_grab", "抢红包"),
@@ -24,6 +25,10 @@ public enum PointsRecordSourceEnum {
     ADMIN("admin", "管理员操作"),
     AVATAR_FRAME_EXCHANGE("avatar_frame_exchange", "兑换头像框"),
     VOTE_CREATE("vote_create", "创建投票"),
+    TOWER_CLIMB("tower_climb", "爬塔奖励"),
+    MOMENTS_PUBLISH("moments_publish", "发布朋友圈"),
+    MOMENTS_LIKE("moments_like", "朋友圈点赞"),
+    MOMENTS_REWARD("moments_reward", "朋友圈打赏"),
     OTHER("other", "其他");
 
     private final String value;

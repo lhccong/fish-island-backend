@@ -28,6 +28,11 @@ public class PetEquipStatsVO implements Serializable {
     private Integer totalBaseHp;
 
     /**
+     * 速度（决定战斗先手，速度高的一方先攻击）
+     */
+    private Integer speed = 0;
+
+    /**
      * 主动属性 - 暴击率
      */
     private Double critRate;

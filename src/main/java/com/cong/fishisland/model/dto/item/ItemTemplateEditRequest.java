@@ -83,6 +83,12 @@ public class ItemTemplateEditRequest implements Serializable {
     private Integer baseHp;
 
     /**
+     * 基础速度（决定战斗先手，速度高的一方先攻击）
+     */
+    @ApiModelProperty(value = "基础速度（决定战斗先手，速度高的一方先攻击）", example = "30")
+    private Integer baseSpeed;
+
+    /**
      * 非常规属性/词缀(JSON)，格式: [{k,v},...]
      */
     @ApiModelProperty(value = "非常规属性/词缀(JSON)")

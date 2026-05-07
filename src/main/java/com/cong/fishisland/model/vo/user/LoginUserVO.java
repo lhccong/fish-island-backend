@@ -30,6 +30,11 @@ public class LoginUserVO implements Serializable {
     private String userAvatar;
 
     /**
+     * 用户背景图
+     */
+    private String momentsBgUrl;
+
+    /**
      * 用户简介
      */
     private String userProfile;

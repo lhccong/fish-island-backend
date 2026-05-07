@@ -25,5 +25,10 @@ public class UserUpdateMyRequest implements Serializable {
      */
     private String userProfile;
 
+    /**
+     * 朋友圈背景图
+     */
+    private String momentsBgUrl;
+
     private static final long serialVersionUID = 1L;
 }

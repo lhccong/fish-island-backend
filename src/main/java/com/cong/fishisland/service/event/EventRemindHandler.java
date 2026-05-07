@@ -115,6 +115,71 @@ public class EventRemindHandler {
 
 
     /**
+     * 异步处理朋友圈点赞事件
+     */
+    @Async("eventRemindExecutor")
+    public void handleMomentsLike(Long momentId, Long senderId, Long recipientId) {
+        if (eventRemindService.existsEvent(
+                ActionTypeConstant.LIKE,
+                momentId,
+                SourceTypeConstant.MOMENTS,
+                senderId,
+                recipientId)) {
+            log.info("已存在点赞朋友圈事件，跳过保存: momentId={}, senderId={}", momentId, senderId);
+            return;
+        }
+        EventRemind event = new EventRemind();
+        event.setAction(ActionTypeConstant.LIKE);
+        event.setSourceId(momentId);
+        event.setSourceType(SourceTypeConstant.MOMENTS);
+        event.setSourceContent("用户点赞了你的朋友圈");
+        event.setUrl(String.valueOf(momentId));
+        event.setSenderId(senderId);
+        event.setRecipientId(recipientId);
+        event.setRemindTime(new Date());
+        eventRemindService.save(event);
+        log.info("保存点赞朋友圈事件: momentId={}, senderId={}, recipientId={}", momentId, senderId, recipientId);
+    }
+
+    /**
+     * 异步处理朋友圈评论事件
+     */
+    @Async("eventRemindExecutor")
+    public void handleMomentsComment(Long commentId, Long momentId,
+                                     Long senderId, Long recipientId,
+                                     String content, Boolean isReply) {
+        EventRemind event = new EventRemind();
+        event.setAction(isReply ? ActionTypeConstant.REPLY : ActionTypeConstant.COMMENT);
+        event.setSourceId(momentId);
+        event.setSourceType(SourceTypeConstant.MOMENTS);
+        event.setSourceContent(content);
+        event.setUrl(String.valueOf(momentId));
+        event.setSenderId(senderId);
+        event.setRecipientId(recipientId);
+        event.setRemindTime(new Date());
+        eventRemindService.save(event);
+        log.info("保存朋友圈评论事件: commentId={}, momentId={}, senderId={}, recipientId={}", commentId, momentId, senderId, recipientId);
+    }
+
+    /**
+     * 异步处理朋友圈打赏事件
+     */
+    @Async("eventRemindExecutor")
+    public void handleMomentsReward(Long momentId, Long senderId, Long recipientId, Integer points) {
+        EventRemind event = new EventRemind();
+        event.setAction(ActionTypeConstant.SYSTEM);
+        event.setSourceId(momentId);
+        event.setSourceType(SourceTypeConstant.SYSTEM);
+        event.setSourceContent("用户打赏了你 " + points + " 积分");
+        event.setUrl(String.valueOf(momentId));
+        event.setSenderId(senderId);
+        event.setRecipientId(recipientId);
+        event.setRemindTime(new Date());
+        eventRemindService.save(event);
+        log.info("保存打赏朋友圈事件: momentId={}, senderId={}, recipientId={}, points={}", momentId, senderId, recipientId, points);
+    }
+
+    /**
      * 异步处理关注事件
      */
     @Async("eventRemindExecutor")

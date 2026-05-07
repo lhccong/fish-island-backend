@@ -69,6 +69,11 @@ public class ItemTemplateVO implements Serializable {
     private Integer baseHp;
 
     /**
+     * 基础速度（决定战斗先手，速度高的一方先攻击）
+     */
+    private Integer baseSpeed = 0;
+
+    /**
      * 非常规属性/词缀(JSON)，格式: [{k,v},...]
      */
     private Object mainAttr;

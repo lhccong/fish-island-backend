@@ -2,6 +2,7 @@ package com.cong.fishisland.service;
 
 import com.cong.fishisland.model.entity.user.UserPoints;
 import com.baomidou.mybatisplus.extension.service.IService;
+import com.cong.fishisland.model.vo.user.SignInVO;
 
 /**
 * @author cong
@@ -10,7 +11,12 @@ import com.baomidou.mybatisplus.extension.service.IService;
 */
 public interface UserPointsService extends IService<UserPoints> {
 
-    boolean signIn();
+    /**
+     * 每日签到
+     *
+     * @return 签到结果 VO，今日已签到返回 null
+     */
+    SignInVO signIn();
 
     void updatePoints(Long userId, Integer points, boolean isSignIn);
 
@@ -41,4 +47,12 @@ public interface UserPointsService extends IService<UserPoints> {
      * @param description 描述
      */
     void updateUsedPoints(Long userId, Integer points, String sourceType, String sourceId, String description);
+
+    /**
+     * 校验用户可用积分是否充足（可用积分 = points - usedPoints），不足则抛出异常
+     *
+     * @param userId         用户ID
+     * @param requiredPoints 需要的积分数量
+     */
+    void checkAvailablePoints(Long userId, Integer requiredPoints);
 }

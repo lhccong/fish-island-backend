@@ -38,4 +38,9 @@ public interface ActionTypeConstant {
      * 系统
      */
     String SYSTEM = "system";
+
+    /**
+     * 打赏
+     */
+    String REWARD = "reward";
 }
