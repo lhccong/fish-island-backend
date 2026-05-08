@@ -46,4 +46,11 @@ public interface EventRemindService extends IService<EventRemind> {
      * @return VO分页
      */
     Page<EventRemindVO> getEventRemindVOPage(Page<EventRemind> eventRemindPage);
+    /**
+     * 发送系统通知给指定用户
+     *
+     * @param recipientId   接收者用户ID
+     * @param sourceContent 通知内容
+     */
+    void sendSystemNotify(Long recipientId, String sourceContent);
 }

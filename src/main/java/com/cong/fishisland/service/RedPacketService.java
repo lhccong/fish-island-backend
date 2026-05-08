@@ -40,4 +40,12 @@ public interface RedPacketService {
     List<RedPacketRecordVO> getRedPacketRecords(String redPacketId);
 
     RedPacket getRedPacketDetail(String redPacketId);
+
+    /**
+     * 手动标记或取消标记用户为脚本用户（仅管理员）
+     *
+     * @param userId 目标用户ID
+     * @param mark   true=标记为脚本，false=取消标记
+     */
+    void markScriptUser(Long userId, boolean mark);
 }

@@ -1,8 +1,10 @@
 package com.cong.fishisland.controller.redpacket;
 
+import cn.dev33.satoken.annotation.SaCheckRole;
 import cn.dev33.satoken.stp.StpUtil;
 import com.cong.fishisland.common.BaseResponse;
 import com.cong.fishisland.common.ResultUtils;
+import com.cong.fishisland.constant.UserConstant;
 import com.cong.fishisland.model.dto.redpacket.CreateRedPacketRequest;
 import com.cong.fishisland.model.entity.redpacket.RedPacket;
 import com.cong.fishisland.model.vo.redpacket.RedPacketRecordVO;
@@ -56,6 +58,16 @@ public class RedPacketController {
     public BaseResponse<RedPacket> getRedPacketDetail(@RequestParam @ApiParam(value = "红包ID", required = true) String redPacketId) {
         RedPacket redPacketVO = redPacketService.getRedPacketDetail(redPacketId);
         return ResultUtils.success(redPacketVO);
+    }
+
+    @PostMapping("/script/mark")
+    @SaCheckRole(UserConstant.ADMIN_ROLE)
+    @ApiOperation(value = "手动标记/取消标记脚本用户（仅管理员）")
+    public BaseResponse<Boolean> markScriptUser(
+            @RequestParam @ApiParam(value = "目标用户ID", required = true) Long userId,
+            @RequestParam @ApiParam(value = "true=标记为脚本，false=取消标记", required = true) boolean mark) {
+        redPacketService.markScriptUser(userId, mark);
+        return ResultUtils.success(true);
     }
 
 } 
