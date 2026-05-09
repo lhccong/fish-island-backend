@@ -14,6 +14,7 @@ import com.cong.fishisland.mapper.moments.MomentsMapper;
 import com.cong.fishisland.model.dto.moments.MomentsAddRequest;
 import com.cong.fishisland.model.dto.moments.MomentsCommentAddRequest;
 import com.cong.fishisland.model.dto.moments.MomentsCommentQueryRequest;
+import com.cong.fishisland.model.dto.moments.MomentsLotteryRequest;
 import com.cong.fishisland.model.dto.moments.MomentsQueryRequest;
 import com.cong.fishisland.model.dto.moments.MomentsRewardRequest;
 import com.cong.fishisland.model.dto.moments.MomentsUpdateRequest;
@@ -23,6 +24,7 @@ import com.cong.fishisland.model.entity.moments.MomentsLike;
 import com.cong.fishisland.model.entity.user.User;
 import com.cong.fishisland.model.enums.UserRoleEnum;
 import com.cong.fishisland.model.vo.moments.MomentsCommentVO;
+import com.cong.fishisland.model.vo.moments.MomentsLotteryVO;
 import com.cong.fishisland.model.vo.moments.MomentsVO;
 import com.cong.fishisland.model.entity.user.UserPoints;
 import com.cong.fishisland.model.enums.user.PointsRecordSourceEnum;
@@ -512,5 +514,82 @@ public class MomentsServiceImpl extends ServiceImpl<MomentsMapper, Moments>
                         .in(MomentsLike::getMomentId, momentIds))
                 .stream()
                 .collect(Collectors.groupingBy(MomentsLike::getMomentId));
+    }
+
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public MomentsLotteryVO startLottery(MomentsLotteryRequest request) {
+        ThrowUtils.throwIf(request.getMomentId() == null, ErrorCode.PARAMS_ERROR, "动态ID不能为空");
+        ThrowUtils.throwIf(request.getWinnerCount() == null
+                        || request.getWinnerCount() < 1
+                        || request.getWinnerCount() > 100,
+                ErrorCode.PARAMS_ERROR, "抽奖人数必须在 1~100 之间");
+
+        long loginUserId = StpUtil.getLoginIdAsLong();
+        Moments moments = getById(request.getMomentId());
+        ThrowUtils.throwIf(moments == null, ErrorCode.NOT_FOUND_ERROR, "动态不存在");
+        // 只有动态发布者或管理员可以发起抽奖
+        ThrowUtils.throwIf(
+                !moments.getUserId().equals(loginUserId) && !userService.isAdmin(),
+                ErrorCode.NO_AUTH_ERROR, "只有动态发布者才能发起抽奖"
+        );
+
+        // 查询所有点赞用户（排除发布者自己）
+        List<MomentsLike> likes = momentsLikeMapper.selectList(
+                new LambdaQueryWrapper<MomentsLike>()
+                        .eq(MomentsLike::getMomentId, request.getMomentId())
+                        .ne(MomentsLike::getUserId, moments.getUserId()));
+
+        ThrowUtils.throwIf(likes.isEmpty(), ErrorCode.OPERATION_ERROR, "暂无参与用户（需要先点赞才能参与抽奖）");
+
+        // 随机打乱后取前 N 个
+        List<MomentsLike> shuffled = new ArrayList<>(likes);
+        Collections.shuffle(shuffled);
+        int actualCount = Math.min(request.getWinnerCount(), shuffled.size());
+        List<MomentsLike> winners = shuffled.subList(0, actualCount);
+
+        // 批量查询中奖用户信息
+        Set<Long> winnerUserIds = winners.stream()
+                .map(MomentsLike::getUserId)
+                .collect(Collectors.toSet());
+        Map<Long, User> userMap = getUserMap(winnerUserIds);
+
+        // 组装中奖 VO 列表
+        List<MomentsLotteryVO.LotteryWinnerVO> winnerVOList = winners.stream().map(like -> {
+            MomentsLotteryVO.LotteryWinnerVO vo = new MomentsLotteryVO.LotteryWinnerVO();
+            vo.setUserId(like.getUserId());
+            User user = userMap.get(like.getUserId());
+            if (user != null) {
+                vo.setUserName(user.getUserName());
+                vo.setUserAvatar(user.getUserAvatar());
+            }
+            return vo;
+        }).collect(Collectors.toList());
+
+        // 构建评论内容：🎉 抽奖结果：@用户1、@用户2 ...
+        String winnerNames = winnerVOList.stream()
+                .map(w -> "@" + (w.getUserName() != null ? w.getUserName() : "用户" + w.getUserId()))
+                .collect(Collectors.joining("、"));
+        String commentContent = "🎉 抽奖结果（共 " + actualCount + " 位中奖者）：" + winnerNames + " 恭喜获奖！";
+
+        // 以动态发布者身份插入评论（绕过登录态，直接操作 Mapper）
+        MomentsComment comment = new MomentsComment();
+        comment.setMomentId(request.getMomentId());
+        comment.setUserId(moments.getUserId());
+        comment.setContent(commentContent);
+        momentsCommentMapper.insert(comment);
+
+        // 更新评论数
+        lambdaUpdate()
+                .eq(Moments::getId, request.getMomentId())
+                .setSql("commentNum = commentNum + 1")
+                .update();
+
+        // 组装返回结果
+        MomentsLotteryVO result = new MomentsLotteryVO();
+        result.setMomentId(request.getMomentId());
+        result.setWinners(winnerVOList);
+        result.setCommentId(comment.getId());
+        return result;
     }
 }

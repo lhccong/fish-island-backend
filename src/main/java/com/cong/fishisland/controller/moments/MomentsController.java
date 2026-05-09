@@ -7,10 +7,12 @@ import com.cong.fishisland.common.ResultUtils;import com.cong.fishisland.model.d
 import com.cong.fishisland.model.dto.moments.MomentsCommentAddRequest;
 import com.cong.fishisland.model.dto.moments.MomentsCommentQueryRequest;
 import com.cong.fishisland.model.dto.moments.MomentsLikeRequest;
+import com.cong.fishisland.model.dto.moments.MomentsLotteryRequest;
 import com.cong.fishisland.model.dto.moments.MomentsQueryRequest;
 import com.cong.fishisland.model.dto.moments.MomentsRewardRequest;
 import com.cong.fishisland.model.dto.moments.MomentsUpdateRequest;
 import com.cong.fishisland.model.vo.moments.MomentsCommentVO;
+import com.cong.fishisland.model.vo.moments.MomentsLotteryVO;
 import com.cong.fishisland.model.vo.moments.MomentsVO;
 import com.cong.fishisland.service.moments.MomentsService;
 import io.swagger.annotations.Api;
@@ -125,5 +127,14 @@ public class MomentsController {
     @ApiOperation("查询朋友圈动态详情")
     public BaseResponse<MomentsVO> getMomentDetail(@RequestParam Long id) {
         return ResultUtils.success(momentsService.getMomentDetail(id));
+    }
+
+    /**
+     * 朋友圈抽奖
+     */
+    @PostMapping("/lottery/start")
+    @ApiOperation("朋友圈抽奖（从点赞用户中随机抽取，自动在评论区发布结果）")
+    public BaseResponse<MomentsLotteryVO> startLottery(@RequestBody MomentsLotteryRequest request) {
+        return ResultUtils.success(momentsService.startLottery(request));
     }
 }
