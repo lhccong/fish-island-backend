@@ -5,9 +5,11 @@ import com.baomidou.mybatisplus.extension.service.IService;
 import com.cong.fishisland.model.dto.moments.MomentsAddRequest;
 import com.cong.fishisland.model.dto.moments.MomentsCommentAddRequest;
 import com.cong.fishisland.model.dto.moments.MomentsCommentQueryRequest;
+import com.cong.fishisland.model.dto.moments.MomentsCommentTopRequest;
 import com.cong.fishisland.model.dto.moments.MomentsLotteryRequest;
 import com.cong.fishisland.model.dto.moments.MomentsQueryRequest;
 import com.cong.fishisland.model.dto.moments.MomentsRewardRequest;
+import com.cong.fishisland.model.dto.moments.MomentsTopRequest;
 import com.cong.fishisland.model.dto.moments.MomentsUpdateRequest;
 import com.cong.fishisland.model.entity.moments.Moments;
 import com.cong.fishisland.model.vo.moments.MomentsCommentVO;
@@ -77,4 +79,14 @@ public interface MomentsService extends IService<Moments> {
      * 朋友圈抽奖：从点赞用户中随机抽取指定数量的中奖者，并自动在评论区发布结果
      */
     MomentsLotteryVO startLottery(MomentsLotteryRequest request);
+
+    /**
+     * 置顶/取消置顶动态（仅管理员）
+     */
+    void topMoment(MomentsTopRequest request);
+
+    /**
+     * 置顶/取消置顶评论（动态发布者或管理员）
+     */
+    void topComment(MomentsCommentTopRequest request);
 }

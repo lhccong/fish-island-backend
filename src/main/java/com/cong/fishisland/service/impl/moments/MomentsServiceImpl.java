@@ -14,9 +14,11 @@ import com.cong.fishisland.mapper.moments.MomentsMapper;
 import com.cong.fishisland.model.dto.moments.MomentsAddRequest;
 import com.cong.fishisland.model.dto.moments.MomentsCommentAddRequest;
 import com.cong.fishisland.model.dto.moments.MomentsCommentQueryRequest;
+import com.cong.fishisland.model.dto.moments.MomentsCommentTopRequest;
 import com.cong.fishisland.model.dto.moments.MomentsLotteryRequest;
 import com.cong.fishisland.model.dto.moments.MomentsQueryRequest;
 import com.cong.fishisland.model.dto.moments.MomentsRewardRequest;
+import com.cong.fishisland.model.dto.moments.MomentsTopRequest;
 import com.cong.fishisland.model.dto.moments.MomentsUpdateRequest;
 import com.cong.fishisland.model.entity.moments.Moments;
 import com.cong.fishisland.model.entity.moments.MomentsComment;
@@ -225,6 +227,8 @@ public class MomentsServiceImpl extends ServiceImpl<MomentsMapper, Moments>
                 // 过滤仅自己可见（visibility=1）的其他人动态
                 .and(w -> w.eq(Moments::getUserId, userId)
                         .or().ne(Moments::getVisibility, 1))
+                // 置顶动态排在最前，同层内按发布时间倒序
+                .orderByDesc(Moments::getIsTop)
                 .orderByDesc(Moments::getCreateTime)
                 .page(page);
 
@@ -373,6 +377,8 @@ public class MomentsServiceImpl extends ServiceImpl<MomentsMapper, Moments>
                 new LambdaQueryWrapper<MomentsComment>()
                         .eq(MomentsComment::getMomentId, request.getMomentId())
                         .isNull(MomentsComment::getParentId)
+                        // 置顶评论排在最前，同层内按时间正序
+                        .orderByDesc(MomentsComment::getIsTop)
                         .orderByAsc(MomentsComment::getCreateTime));
 
         if (page.getRecords().isEmpty()) {
@@ -542,8 +548,41 @@ public class MomentsServiceImpl extends ServiceImpl<MomentsMapper, Moments>
 
         ThrowUtils.throwIf(likes.isEmpty(), ErrorCode.OPERATION_ERROR, "暂无参与用户（需要先点赞才能参与抽奖）");
 
+        // 过滤：注册时间 > 5 天 且 points 积分 > 200
+        Date fiveDaysAgo = Date.from(
+                java.time.LocalDate.now().minusDays(5)
+                        .atStartOfDay(java.time.ZoneId.systemDefault()).toInstant());
+
+        Set<Long> likeUserIds = likes.stream()
+                .map(MomentsLike::getUserId)
+                .collect(Collectors.toSet());
+
+        // 批量查用户注册时间
+        Map<Long, User> likeUserMap = getUserMap(likeUserIds);
+        // 批量查用户积分
+        Map<Long, UserPoints> userPointsMap = userPointsService.listByIds(likeUserIds)
+                .stream()
+                .collect(Collectors.toMap(UserPoints::getUserId, p -> p));
+
+        List<MomentsLike> eligibleLikes = likes.stream().filter(like -> {
+            User u = likeUserMap.get(like.getUserId());
+            if (u == null || u.getCreateTime() == null) {
+                return false;
+            }
+            // 注册时间必须早于 5 天前（即注册超过 5 天）
+            if (!u.getCreateTime().before(fiveDaysAgo)) {
+                return false;
+            }
+            UserPoints up = userPointsMap.get(like.getUserId());
+            // points 积分必须大于 200
+            return up != null && up.getPoints() != null && up.getPoints() > 200;
+        }).collect(Collectors.toList());
+
+        ThrowUtils.throwIf(eligibleLikes.isEmpty(), ErrorCode.OPERATION_ERROR,
+                "暂无符合条件的参与用户（需注册超过 5 天且积分大于 200）");
+
         // 随机打乱后取前 N 个
-        List<MomentsLike> shuffled = new ArrayList<>(likes);
+        List<MomentsLike> shuffled = new ArrayList<>(eligibleLikes);
         Collections.shuffle(shuffled);
         int actualCount = Math.min(request.getWinnerCount(), shuffled.size());
         List<MomentsLike> winners = shuffled.subList(0, actualCount);
@@ -565,6 +604,16 @@ public class MomentsServiceImpl extends ServiceImpl<MomentsMapper, Moments>
             }
             return vo;
         }).collect(Collectors.toList());
+
+        // 给每位中奖用户发系统消息通知
+        User publisher = userService.getById(moments.getUserId());
+        String publisherName = publisher != null ? publisher.getUserName() : "动态发布者";
+        winnerVOList.forEach(winner ->
+                eventRemindHandler.handleSystemMessage(
+                        winner.getUserId(),
+                        "🎉 恭喜你在「" + publisherName + "」的朋友圈抽奖中获奖！"
+                )
+        );
 
         // 构建评论内容：🎉 抽奖结果：@用户1、@用户2 ...
         String winnerNames = winnerVOList.stream()
@@ -591,5 +640,48 @@ public class MomentsServiceImpl extends ServiceImpl<MomentsMapper, Moments>
         result.setWinners(winnerVOList);
         result.setCommentId(comment.getId());
         return result;
+    }
+
+    @Override
+    public void topMoment(MomentsTopRequest request) {
+        ThrowUtils.throwIf(request.getMomentId() == null, ErrorCode.PARAMS_ERROR, "动态ID不能为空");
+        ThrowUtils.throwIf(request.getTop() == null, ErrorCode.PARAMS_ERROR, "置顶状态不能为空");
+        // 仅管理员可操作
+        ThrowUtils.throwIf(!userService.isAdmin(), ErrorCode.NO_AUTH_ERROR, "仅管理员可置顶动态");
+
+        Moments moments = getById(request.getMomentId());
+        ThrowUtils.throwIf(moments == null, ErrorCode.NOT_FOUND_ERROR, "动态不存在");
+
+        Moments update = new Moments();
+        update.setId(request.getMomentId());
+        update.setIsTop(Boolean.TRUE.equals(request.getTop()) ? 1 : 0);
+        updateById(update);
+    }
+
+    @Override
+    public void topComment(MomentsCommentTopRequest request) {
+        ThrowUtils.throwIf(request.getCommentId() == null, ErrorCode.PARAMS_ERROR, "评论ID不能为空");
+        ThrowUtils.throwIf(request.getTop() == null, ErrorCode.PARAMS_ERROR, "置顶状态不能为空");
+
+        MomentsComment comment = momentsCommentMapper.selectById(request.getCommentId());
+        ThrowUtils.throwIf(comment == null, ErrorCode.NOT_FOUND_ERROR, "评论不存在");
+
+        // 仅顶级评论可以置顶
+        ThrowUtils.throwIf(comment.getParentId() != null, ErrorCode.PARAMS_ERROR, "仅顶级评论可以置顶");
+
+        long loginUserId = StpUtil.getLoginIdAsLong();
+        Moments moments = getById(comment.getMomentId());
+        ThrowUtils.throwIf(moments == null, ErrorCode.NOT_FOUND_ERROR, "动态不存在");
+
+        // 动态发布者或管理员可操作
+        ThrowUtils.throwIf(
+                !moments.getUserId().equals(loginUserId) && !userService.isAdmin(),
+                ErrorCode.NO_AUTH_ERROR, "仅动态发布者或管理员可置顶评论"
+        );
+
+        MomentsComment update = new MomentsComment();
+        update.setId(request.getCommentId());
+        update.setIsTop(Boolean.TRUE.equals(request.getTop()) ? 1 : 0);
+        momentsCommentMapper.updateById(update);
     }
 }

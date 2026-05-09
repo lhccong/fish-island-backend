@@ -6,10 +6,12 @@ import com.cong.fishisland.common.DeleteRequest;
 import com.cong.fishisland.common.ResultUtils;import com.cong.fishisland.model.dto.moments.MomentsAddRequest;
 import com.cong.fishisland.model.dto.moments.MomentsCommentAddRequest;
 import com.cong.fishisland.model.dto.moments.MomentsCommentQueryRequest;
+import com.cong.fishisland.model.dto.moments.MomentsCommentTopRequest;
 import com.cong.fishisland.model.dto.moments.MomentsLikeRequest;
 import com.cong.fishisland.model.dto.moments.MomentsLotteryRequest;
 import com.cong.fishisland.model.dto.moments.MomentsQueryRequest;
 import com.cong.fishisland.model.dto.moments.MomentsRewardRequest;
+import com.cong.fishisland.model.dto.moments.MomentsTopRequest;
 import com.cong.fishisland.model.dto.moments.MomentsUpdateRequest;
 import com.cong.fishisland.model.vo.moments.MomentsCommentVO;
 import com.cong.fishisland.model.vo.moments.MomentsLotteryVO;
@@ -136,5 +138,25 @@ public class MomentsController {
     @ApiOperation("朋友圈抽奖（从点赞用户中随机抽取，自动在评论区发布结果）")
     public BaseResponse<MomentsLotteryVO> startLottery(@RequestBody MomentsLotteryRequest request) {
         return ResultUtils.success(momentsService.startLottery(request));
+    }
+
+    /**
+     * 置顶/取消置顶动态（仅管理员）
+     */
+    @PostMapping("/top")
+    @ApiOperation("置顶/取消置顶朋友圈动态（仅管理员）")
+    public BaseResponse<Boolean> topMoment(@RequestBody MomentsTopRequest request) {
+        momentsService.topMoment(request);
+        return ResultUtils.success(true);
+    }
+
+    /**
+     * 置顶/取消置顶评论（动态发布者或管理员）
+     */
+    @PostMapping("/comment/top")
+    @ApiOperation("置顶/取消置顶评论（动态发布者或管理员）")
+    public BaseResponse<Boolean> topComment(@RequestBody MomentsCommentTopRequest request) {
+        momentsService.topComment(request);
+        return ResultUtils.success(true);
     }
 }

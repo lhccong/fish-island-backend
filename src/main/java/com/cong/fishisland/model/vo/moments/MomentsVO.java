@@ -54,6 +54,9 @@ public class MomentsVO implements Serializable {
     @ApiModelProperty(value = "点赞用户名称，逗号拼接")
     private String likeUserNames;
 
+    @ApiModelProperty(value = "是否置顶：0-否，1-是")
+    private Integer isTop;
+
     @ApiModelProperty(value = "发布时间")
     private Date createTime;
 
