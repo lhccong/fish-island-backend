@@ -21,12 +21,14 @@ import com.cong.fishisland.model.entity.moments.Moments;
 import com.cong.fishisland.model.entity.moments.MomentsComment;
 import com.cong.fishisland.model.entity.moments.MomentsLike;
 import com.cong.fishisland.model.entity.user.User;
+import com.cong.fishisland.model.enums.UserRoleEnum;
 import com.cong.fishisland.model.vo.moments.MomentsCommentVO;
 import com.cong.fishisland.model.vo.moments.MomentsVO;
 import com.cong.fishisland.model.entity.user.UserPoints;
 import com.cong.fishisland.model.enums.user.PointsRecordSourceEnum;
 import com.cong.fishisland.service.UserPointsRecordService;
 import com.cong.fishisland.service.UserPointsService;
+import com.cong.fishisland.service.UserVipService;
 import com.cong.fishisland.utils.RedisUtils;
 import com.cong.fishisland.service.UserService;
 import com.cong.fishisland.service.event.EventRemindHandler;
@@ -61,9 +63,16 @@ public class MomentsServiceImpl extends ServiceImpl<MomentsMapper, Moments>
     private final EventRemindHandler eventRemindHandler;
     private final UserPointsService userPointsService;
     private final UserPointsRecordService userPointsRecordService;
+    private final UserVipService userVipService;
 
     private static final String MOMENTS_PUBLISH_KEY_PREFIX = "user:moments:publish:";
     private static final String MOMENTS_LIKE_KEY_PREFIX = "user:moments:like:";
+    // 打赏限流：每人每天对同一动态只能打赏一次
+    private static final String MOMENTS_REWARD_USER_KEY_PREFIX = "user:moments:reward:";
+    // 每日打赏次数：user:moments:reward:times:{userId}:{date}
+    private static final String MOMENTS_REWARD_TIMES_KEY_PREFIX = "user:moments:reward:times:";
+    // 每日被打赏积分：user:moments:reward:received:{userId}:{date}
+    private static final String MOMENTS_REWARD_RECEIVED_KEY_PREFIX = "user:moments:reward:received:";
 
     @Override
     public Long publishMoment(MomentsAddRequest request) {
@@ -115,10 +124,35 @@ public class MomentsServiceImpl extends ServiceImpl<MomentsMapper, Moments>
         ThrowUtils.throwIf(moments == null, ErrorCode.NOT_FOUND_ERROR);
         ThrowUtils.throwIf(moments.getUserId().equals(fromUserId), ErrorCode.PARAMS_ERROR, "不能打赏自己的动态");
 
+        // 等级/VIP/管理员限制：与发红包保持一致，等级 < 6 且非 VIP 且非管理员不能打赏
+        User loginUser = userService.getLoginUser();
+        UserPoints fromUserPoints = userPointsService.getById(fromUserId);
+        boolean isAdmin = UserRoleEnum.ADMIN.getValue().equals(loginUser.getUserRole());
+        boolean isVip = userVipService.isUserVip(fromUserId);
+        ThrowUtils.throwIf(
+                fromUserPoints.getLevel() < 6 && !isAdmin && !isVip,
+                ErrorCode.OPERATION_ERROR, "您的等级不足，无法打赏（需要等级 ≥ 6、VIP 或管理员）"
+        );
+
         // 校验打赏者可用积分是否充足（可用积分 = points - usedPoints）
         userPointsService.checkAvailablePoints(fromUserId, request.getPoints());
 
         String momentIdStr = String.valueOf(request.getMomentId());
+
+        // 限流1：同一用户对同一条动态每天只能打赏一次
+        String rewardUserKey = MOMENTS_REWARD_USER_KEY_PREFIX + fromUserId + ":" + request.getMomentId() + ":" + LocalDate.now();
+        ThrowUtils.throwIf(RedisUtils.get(rewardUserKey) != null, ErrorCode.OPERATION_ERROR, "今日已打赏过该动态");
+
+        // 限流2：每日打赏次数上限
+        String rewardTimesKey = MOMENTS_REWARD_TIMES_KEY_PREFIX + fromUserId + ":" + LocalDate.now();
+        int todayRewardTimes = Optional.ofNullable(RedisUtils.get(rewardTimesKey)).map(Integer::parseInt).orElse(0);
+        ThrowUtils.throwIf(todayRewardTimes >= PointConstant.MAX_DAILY_REWARD_TIMES, ErrorCode.OPERATION_ERROR, "今日打赏次数已达上限");
+
+        // 限流3：作者每日被打赏积分上限（防止多账号刷给同一人）
+        String rewardReceivedKey = MOMENTS_REWARD_RECEIVED_KEY_PREFIX + moments.getUserId() + ":" + LocalDate.now();
+        int todayReceivedPoints = Optional.ofNullable(RedisUtils.get(rewardReceivedKey)).map(Integer::parseInt).orElse(0);
+        ThrowUtils.throwIf(todayReceivedPoints + request.getPoints() > PointConstant.MAX_DAILY_RECEIVED_REWARD_POINTS,
+                ErrorCode.OPERATION_ERROR, "该用户今日被打赏积分已达上限");
 
         // 扣除打赏者 usedPoints
         userPointsService.updateUsedPoints(fromUserId, request.getPoints(),
@@ -129,6 +163,15 @@ public class MomentsServiceImpl extends ServiceImpl<MomentsMapper, Moments>
         userPointsService.updateUsedPoints(moments.getUserId(), -request.getPoints(),
                 PointsRecordSourceEnum.MOMENTS_REWARD.getValue(), momentIdStr,
                 "收到朋友圈打赏");
+
+        // 更新限流计数（操作成功后再写入）
+        LocalDateTime nextMidnight = LocalDate.now().plusDays(1).atStartOfDay();
+        Duration ttl = Duration.between(LocalDateTime.now(), nextMidnight);
+        RedisUtils.set(rewardUserKey, "1", ttl);
+        RedisUtils.inc(rewardTimesKey, ttl);
+        // 被打赏积分累计
+        String newReceived = String.valueOf(todayReceivedPoints + request.getPoints());
+        RedisUtils.set(rewardReceivedKey, newReceived, ttl);
 
         // 通知被打赏者
         eventRemindHandler.handleMomentsReward(request.getMomentId(), fromUserId, moments.getUserId(), request.getPoints());

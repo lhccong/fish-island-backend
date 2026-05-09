@@ -42,4 +42,14 @@ public interface PointConstant {
      * 朋友圈打赏最大积分
      */
     Integer MOMENTS_REWARD_MAX_POINT = 20;
+
+    /**
+     * 每日打赏他人次数上限
+     */
+    Integer MAX_DAILY_REWARD_TIMES = 5;
+
+    /**
+     * 每日被打赏积分上限（防止多账号刷给同一人）
+     */
+    Integer MAX_DAILY_RECEIVED_REWARD_POINTS = 50;
 }
