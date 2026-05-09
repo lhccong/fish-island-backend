@@ -2,8 +2,17 @@ package com.cong.fishisland.manager;
 
 import com.cong.fishisland.common.TestBase;
 import com.cong.fishisland.config.MinioConfig;
+import com.cong.fishisland.datasource.hostpost.JueJinBoilingDataSource;
+import com.cong.fishisland.job.cycle.IncSyncHostPostToMySQL;
 import com.cong.fishisland.model.entity.emoticon.EmoticonFavour;
+import com.cong.fishisland.model.entity.hot.HotPost;
+import com.cong.fishisland.model.entity.pet.ItemTemplates;
+import com.cong.fishisland.model.entity.pet.PetSkin;
+import com.cong.fishisland.model.entity.user.AvatarFrame;
+import com.cong.fishisland.service.AvatarFrameService;
 import com.cong.fishisland.service.EmoticonFavourService;
+import com.cong.fishisland.service.ItemTemplatesService;
+import com.cong.fishisland.service.PetSkinService;
 import io.minio.ListObjectsArgs;
 import io.minio.MinioClient;
 import io.minio.Result;
@@ -38,6 +47,23 @@ class MinioManagerTest extends TestBase {
 
     @Resource
     private EmoticonFavourService emoticonFavourService;
+
+    @Resource
+    private ItemTemplatesService itemTemplatesService;
+
+    @Resource
+    private PetSkinService petSkinService;
+
+    @Resource
+    private AvatarFrameService avatarFrameService;
+
+    @Resource
+    IncSyncHostPostToMySQL incSyncHostPostToMySQL;
+
+    @Test
+    void testUploadObject() {
+       incSyncHostPostToMySQL.run();
+    }
 
     /**
      * 测试列出所有对象
@@ -234,4 +260,260 @@ class MinioManagerTest extends TestBase {
             log.error("删除文件时出错: {}", e.getMessage(), e);
         }
     }
+
+    /**
+     * 扫描 MinIO equipment/ 目录下的图片，批量写入 item_templates 表。
+     * 文件名规则（不区分大小写关键词）：
+     *   weapon/sword/bow/staff/axe/gun → weapon
+     *   helmet/head/hat              → head
+     *   glove/hand                   → hand
+     *   shoe/boot/foot               → foot
+     *   necklace/neck/amulet         → necklace
+     *   wing/wings                   → wings
+     * code 取文件名去掉扩展名，icon 为完整访问 URL。
+     */
+    @Test
+    void batchInsertEquipmentFromMinio() {
+        String equipmentPrefix = "equipment/";
+        List<String> imageExtensions = Arrays.asList(".jpg", ".jpeg", ".png", ".gif", ".bmp", ".webp");
+        List<ItemTemplates> toInsert = new ArrayList<>();
+
+        try {
+            ListObjectsArgs args = ListObjectsArgs.builder()
+                    .bucket(minioConfig.getBucketName())
+                    .prefix(equipmentPrefix)
+                    .recursive(true)
+                    .build();
+
+            Iterable<Result<Item>> results = minioClient.listObjects(args);
+            for (Result<Item> result : results) {
+                String objectName = result.get().objectName();
+                String lower = objectName.toLowerCase();
+
+                boolean isImage = imageExtensions.stream().anyMatch(lower::endsWith);
+                if (!isImage) {
+                    continue;
+                }
+
+                // 取文件名（去掉目录前缀）
+                String fileName = objectName.contains("/")
+                        ? objectName.substring(objectName.lastIndexOf('/') + 1)
+                        : objectName;
+                // code = 文件名去掉扩展名
+                String code = fileName.contains(".")
+                        ? fileName.substring(0, fileName.lastIndexOf('.'))
+                        : fileName;
+
+
+                // 获取图标 URL（永久直链，使用 minioConfig.getUrl()）
+                String iconUrl = minioConfig.getUrl() + objectName;
+
+                ItemTemplates item = new ItemTemplates();
+                item.setCode(code);
+                item.setName(code);          // 名称先用 code，后续可手动改
+                item.setCategory("equipment");
+                item.setSubType(null);
+                item.setEquipSlot(null);
+                item.setRarity(1);
+                item.setLevelReq(1);
+                item.setBaseAttack(0);
+                item.setBaseDefense(0);
+                item.setBaseHp(0);
+                item.setBaseSpeed(0);
+                item.setStackable(0);
+                item.setRemovePoint(10);
+                item.setIcon(iconUrl);
+                item.setIsDelete(0);
+
+                toInsert.add(item);
+                log.info("准备插入装备: code={},  icon={}", code, iconUrl);
+            }
+
+            if (toInsert.isEmpty()) {
+                log.warn("equipment/ 目录下未找到任何图片，请检查 MinIO 路径");
+                return;
+            }
+
+            // 批量保存（MyBatis-Plus saveBatch，忽略已存在的 code）
+            itemTemplatesService.saveBatch(toInsert);
+            log.info("批量插入完成，共插入 {} 条装备模板", toInsert.size());
+
+        } catch (Exception e) {
+            log.error("批量插入装备模板失败: {}", e.getMessage(), e);
+        }
+    }
+
+    /**
+     * 扫描 MinIO pet/ 目录下的图片，批量写入 pet_skin 表。
+     * name 取文件名去掉扩展名，url 为完整访问 URL，points 默认 0。
+     */
+    @Test
+    void batchInsertPetSkinFromMinio() {
+        String petPrefix = "pet/";
+        List<String> imageExtensions = Arrays.asList(".jpg", ".jpeg", ".png", ".gif", ".bmp", ".webp");
+        List<PetSkin> toInsert = new ArrayList<>();
+
+        try {
+            ListObjectsArgs args = ListObjectsArgs.builder()
+                    .bucket(minioConfig.getBucketName())
+                    .prefix(petPrefix)
+                    .recursive(true)
+                    .build();
+
+            Iterable<Result<Item>> results = minioClient.listObjects(args);
+            for (Result<Item> result : results) {
+                String objectName = result.get().objectName();
+                String lower = objectName.toLowerCase();
+
+                boolean isImage = imageExtensions.stream().anyMatch(lower::endsWith);
+                if (!isImage) {
+                    continue;
+                }
+
+                // 取文件名（去掉目录前缀）
+                String fileName = objectName.contains("/")
+                        ? objectName.substring(objectName.lastIndexOf('/') + 1)
+                        : objectName;
+                // name = 文件名去掉扩展名
+                String name = fileName.contains(".")
+                        ? fileName.substring(0, fileName.lastIndexOf('.'))
+                        : fileName;
+
+                String url = minioConfig.getUrl() + objectName;
+
+                PetSkin skin = new PetSkin();
+                skin.setName(name);
+                skin.setUrl(url);
+                skin.setDescription(name);
+                skin.setPoints(10000);
+                skin.setIsDelete(0);
+
+                toInsert.add(skin);
+                log.info("准备插入皮肤: name={}, url={}", name, url);
+            }
+
+            if (toInsert.isEmpty()) {
+                log.warn("pet/ 目录下未找到任何图片，请检查 MinIO 路径");
+                return;
+            }
+
+            petSkinService.saveBatch(toInsert);
+            log.info("批量插入完成，共插入 {} 条宠物皮肤", toInsert.size());
+
+        } catch (Exception e) {
+            log.error("批量插入宠物皮肤失败: {}", e.getMessage(), e);
+        }
+    }
+
+    /**
+     * 扫描 MinIO 指定目录下的图片，批量写入 emoticon_favour 表。
+     * 传入目录前缀（如 "emoticon/"）和用户 ID，将目录下所有图片的完整 URL 作为 emoticonSrc 插入。
+     */
+    @Test
+    void batchInsertEmoticonFavourFromMinio() {
+        // ★ 修改这两个参数即可
+        String prefix = "user_file/1935639117732880386/";
+        Long userId = 2052619705395548162L;
+
+        List<String> imageExtensions = Arrays.asList(".jpg", ".jpeg", ".png", ".gif", ".bmp", ".webp");
+        List<EmoticonFavour> toInsert = new ArrayList<>();
+
+        try {
+            ListObjectsArgs args = ListObjectsArgs.builder()
+                    .bucket(minioConfig.getBucketName())
+                    .prefix(prefix)
+                    .recursive(true)
+                    .build();
+
+            Iterable<Result<Item>> results = minioClient.listObjects(args);
+            for (Result<Item> result : results) {
+                String objectName = result.get().objectName();
+                String lower = objectName.toLowerCase();
+
+                if (imageExtensions.stream().noneMatch(lower::endsWith)) {
+                    continue;
+                }
+
+                String url = minioConfig.getUrl() + objectName;
+
+                EmoticonFavour favour = new EmoticonFavour();
+                favour.setUserId(userId);
+                favour.setEmoticonSrc(url);
+
+                toInsert.add(favour);
+                log.info("准备插入表情包收藏: userId={}, url={}", userId, url);
+            }
+
+            if (toInsert.isEmpty()) {
+                log.warn("{} 目录下未找到任何图片，请检查 MinIO 路径", prefix);
+                return;
+            }
+
+            emoticonFavourService.saveBatch(toInsert);
+            log.info("批量插入完成，共插入 {} 条表情包收藏记录", toInsert.size());
+
+        } catch (Exception e) {
+            log.error("批量插入表情包收藏失败: {}", e.getMessage(), e);
+        }
+    }
+
+    /**
+     * 扫描 MinIO avatar_frame/ 目录下的图片，批量写入 avatar_frame 表。
+     * name 取文件名去掉扩展名，url 为完整访问 URL，points 默认 0。
+     */
+    @Test
+    void batchInsertAvatarFrameFromMinio() {
+        String prefix = "avatar_frame/";
+        List<String> imageExtensions = Arrays.asList(".jpg", ".jpeg", ".png", ".gif", ".bmp", ".webp");
+        List<AvatarFrame> toInsert = new ArrayList<>();
+
+        try {
+            ListObjectsArgs args = ListObjectsArgs.builder()
+                    .bucket(minioConfig.getBucketName())
+                    .prefix(prefix)
+                    .recursive(true)
+                    .build();
+
+            Iterable<Result<Item>> results = minioClient.listObjects(args);
+            for (Result<Item> result : results) {
+                String objectName = result.get().objectName();
+                String lower = objectName.toLowerCase();
+
+                if (imageExtensions.stream().noneMatch(lower::endsWith)) {
+                    continue;
+                }
+
+                String fileName = objectName.contains("/")
+                        ? objectName.substring(objectName.lastIndexOf('/') + 1)
+                        : objectName;
+                String name = fileName.contains(".")
+                        ? fileName.substring(0, fileName.lastIndexOf('.'))
+                        : fileName;
+
+                String url = minioConfig.getUrl() + objectName;
+
+                AvatarFrame frame = new AvatarFrame();
+                frame.setName(name);
+                frame.setUrl(url);
+                frame.setPoints(10000);
+                frame.setIsDelete(0);
+
+                toInsert.add(frame);
+                log.info("准备插入头像框: name={}, url={}", name, url);
+            }
+
+            if (toInsert.isEmpty()) {
+                log.warn("avatar_frame/ 目录下未找到任何图片，请检查 MinIO 路径");
+                return;
+            }
+
+            avatarFrameService.saveBatch(toInsert);
+            log.info("批量插入完成，共插入 {} 条头像框", toInsert.size());
+
+        } catch (Exception e) {
+            log.error("批量插入头像框失败: {}", e.getMessage(), e);
+        }
+    }
+
+
 } 
