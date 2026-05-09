@@ -30,7 +30,7 @@ import java.util.List;
 @Slf4j
 @RestController
 @RequestMapping("/redeemCode")
-@Api(tags = "兑换码接口")
+//@Api(tags = "兑换码接口")
 public class RedeemCodeController {
 
     @Resource
