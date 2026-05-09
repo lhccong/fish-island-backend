@@ -2,6 +2,7 @@ package com.cong.fishisland.service;
 
 import com.cong.fishisland.model.entity.user.UserPoints;
 import com.baomidou.mybatisplus.extension.service.IService;
+import com.cong.fishisland.model.vo.user.SignInVO;
 
 /**
 * @author cong
@@ -10,7 +11,12 @@ import com.baomidou.mybatisplus.extension.service.IService;
 */
 public interface UserPointsService extends IService<UserPoints> {
 
-    boolean signIn();
+    /**
+     * 每日签到
+     *
+     * @return 签到结果 VO，今日已签到返回 null
+     */
+    SignInVO signIn();
 
     void updatePoints(Long userId, Integer points, boolean isSignIn);
 

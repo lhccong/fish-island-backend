@@ -10,11 +10,13 @@ import com.cong.fishisland.constant.VipTypeConstant;
 import com.cong.fishisland.mapper.user.UserVipMapper;
 import com.cong.fishisland.model.entity.user.UserPoints;
 import com.cong.fishisland.model.entity.user.UserVip;
+import com.cong.fishisland.model.vo.user.SignInVO;
 import com.cong.fishisland.service.UserPointsRecordService;
 import com.cong.fishisland.service.UserPointsService;
 import com.cong.fishisland.mapper.user.UserPointsMapper;
-import com.cong.fishisland.service.UserVipService;
+import com.cong.fishisland.service.UserSignInService;
 import com.cong.fishisland.utils.RedisUtils;
+import org.springframework.context.annotation.Lazy;
 import org.springframework.stereotype.Service;
 
 import javax.annotation.Resource;
@@ -40,55 +42,73 @@ public class UserPointsServiceImpl extends ServiceImpl<UserPointsMapper, UserPoi
     @Resource
     private UserPointsRecordService userPointsRecordService;
 
+    @Lazy
+    @Resource
+    private UserSignInService userSignInService;
+
     private static final String SIGN_IN_KEY_PREFIX = "user:signin:";
     private static final String SPEAK_KEY_PREFIX = "user:speak:";
     private static final int MAX_DAILY_SPEAK_POINTS = 10;
 
 
     @Override
-    public boolean signIn() {
+    public SignInVO signIn() {
         Object loginUserId = StpUtil.getLoginId();
 
         String signKey = SIGN_IN_KEY_PREFIX + loginUserId + ":" + LocalDate.now();
 
-        // 使用 SETNX 实现原子性判断和设置
-        // **存入 Redis，避免重复签到**
+        // 使用 SETNX 实现原子性判断和设置，避免重复签到
         LocalDateTime now = LocalDateTime.now();
         LocalDateTime nextDayMidnight = now.plusDays(1).withHour(0).withMinute(0).withSecond(0).withNano(0);
         Duration expireDuration = Duration.between(now, nextDayMidnight);
         Boolean success = RedisUtils.setIfAbsent(signKey, "1", expireDuration);
 
         if (!success) {
-            // 说明已经签到
-            return false;
+            // 今日已签到
+            return null;
         }
 
-        // **数据库更新积分**
         Long userId = Long.valueOf(loginUserId.toString());
+
+        // 1. 写签到记录，并计算连续天数和连续奖励积分
+        SignInVO signInVO = userSignInService.recordSignIn(userId, LocalDate.now());
+        int bonusPoints = signInVO.getBonusPoints();
+
+        // 2. 基础签到积分（同原逻辑：加入 points，更新 lastSignInDate）
         updatePoints(userId, PointConstant.SIGN_IN_POINT, true);
 
-        // 记录积分变动
+        // 记录基础签到积分流水
         UserPoints userPoints = this.getById(userId);
         int beforePoints = userPoints.getPoints() - PointConstant.SIGN_IN_POINT;
         int afterPoints = userPoints.getPoints();
         int usedPoints = userPoints.getUsedPoints() == null ? 0 : userPoints.getUsedPoints();
-        userPointsRecordService.addPointsIncreaseRecord(userId, PointConstant.SIGN_IN_POINT, SIGN_IN.getValue(), "每日签到奖励",
+        userPointsRecordService.addPointsIncreaseRecord(userId, PointConstant.SIGN_IN_POINT,
+                SIGN_IN.getValue(), "每日签到奖励（连续第 " + signInVO.getContinuousDays() + " 天）",
                 beforePoints, afterPoints, usedPoints, usedPoints);
 
-        if (isUserVip(userId)) {
-            updateUsedPoints(userId, -PointConstant.SIGN_IN_POINT);
-            // VIP签到返还积分记录
-            UserPoints vipUserPoints = this.getById(userId);
-            int vipBeforePoints = vipUserPoints.getPoints() - PointConstant.SIGN_IN_POINT;
-            int vipAfterPoints = vipUserPoints.getPoints();
-            int vipBeforeUsedPoints = vipUserPoints.getUsedPoints() + PointConstant.SIGN_IN_POINT;
-            int vipAfterUsedPoints = vipUserPoints.getUsedPoints();
-            userPointsRecordService.addPointsIncreaseRecord(userId, PointConstant.SIGN_IN_POINT, SIGN_IN.getValue(), "VIP签到积分返还",
-                    vipBeforePoints, vipAfterPoints, vipBeforeUsedPoints, vipAfterUsedPoints);
+        // 3. 连续签到额外奖励：和 VIP 逻辑一样，通过 updateUsedPoints(-bonus) 加到可用积分
+        if (bonusPoints > 0) {
+            updateUsedPoints(userId, -bonusPoints);
+            UserPoints afterBonus = this.getById(userId);
+            int bonusBeforeUsed = afterBonus.getUsedPoints() + bonusPoints;
+            userPointsRecordService.addPointsIncreaseRecord(userId, bonusPoints,
+                    SIGN_IN.getValue(), "连续签到第 " + signInVO.getContinuousDays() + " 天额外奖励",
+                    afterBonus.getPoints(), afterBonus.getPoints(),
+                    bonusBeforeUsed, afterBonus.getUsedPoints());
         }
 
+        // 4. VIP 签到返还基础积分（原有逻辑不变）
+        if (isUserVip(userId)) {
+            updateUsedPoints(userId, -PointConstant.SIGN_IN_POINT);
+            UserPoints vipUserPoints = this.getById(userId);
+            int vipBeforeUsedPoints = vipUserPoints.getUsedPoints() + PointConstant.SIGN_IN_POINT;
+            userPointsRecordService.addPointsIncreaseRecord(userId, PointConstant.SIGN_IN_POINT,
+                    SIGN_IN.getValue(), "VIP签到积分返还",
+                    vipUserPoints.getPoints(), vipUserPoints.getPoints(),
+                    vipBeforeUsedPoints, vipUserPoints.getUsedPoints());
+        }
 
-        return true;
+        return signInVO;
     }
 
     @Override

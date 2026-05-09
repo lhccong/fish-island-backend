@@ -9,6 +9,7 @@ import lombok.Getter;
 public enum PointsRecordSourceEnum {
 
     SIGN_IN("sign_in", "每日签到"),
+    SIGN_IN_MAKEUP("sign_in_makeup", "补签"),
     SPEAK("speak", "房间发言"),
     RED_PACKET_SEND("red_packet_send", "发送红包"),
     RED_PACKET_GRAB("red_packet_grab", "抢红包"),
