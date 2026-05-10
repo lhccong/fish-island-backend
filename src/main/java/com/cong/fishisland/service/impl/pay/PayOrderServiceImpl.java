@@ -17,13 +17,24 @@ import com.cong.fishisland.model.dto.pay.PayOrderAttach;
 import com.cong.fishisland.model.dto.pay.XunhuPayNotifyRequest;
 import com.cong.fishisland.model.enums.pay.PayOrderTypeEnum;
 import com.cong.fishisland.constant.VipTypeConstant;
+import com.cong.fishisland.model.ws.request.Message;
+import com.cong.fishisland.model.ws.request.MessageWrapper;
+import com.cong.fishisland.model.ws.request.Sender;
+import com.cong.fishisland.model.ws.response.WSBaseResp;
+import com.cong.fishisland.model.enums.MessageTypeEnum;
+import com.cong.fishisland.service.DonationDetailRecordsService;
 import com.cong.fishisland.service.DonationRecordsService;
 import com.cong.fishisland.service.EventRemindService;
+import com.cong.fishisland.service.RoomMessageService;
 import com.cong.fishisland.service.UserTitleService;
 import com.cong.fishisland.service.UserVipService;
+import com.cong.fishisland.websocket.service.WebSocketService;
 import com.cong.fishisland.model.entity.pay.PayOrder;
+import com.cong.fishisland.model.entity.chat.RoomMessage;
+import com.cong.fishisland.model.entity.user.User;
 import com.cong.fishisland.model.vo.pay.PayOrderVO;
 import com.cong.fishisland.service.PayOrderService;
+import com.cong.fishisland.service.UserService;
 import com.cong.fishisland.utils.XunhuPayUtils;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.StringUtils;
@@ -60,6 +71,9 @@ public class PayOrderServiceImpl extends ServiceImpl<PayOrderMapper, PayOrder>
     private DonationRecordsService donationRecordsService;
 
     @Resource
+    private DonationDetailRecordsService donationDetailRecordsService;
+
+    @Resource
     private UserTitleService userTitleService;
 
     @Resource
@@ -67,6 +81,15 @@ public class PayOrderServiceImpl extends ServiceImpl<PayOrderMapper, PayOrder>
 
     @Resource
     private EventRemindService eventRemindService;
+
+    @Resource
+    private WebSocketService webSocketService;
+
+    @Resource
+    private RoomMessageService roomMessageService;
+
+    @Resource
+    private UserService userService;
 
     @Override
     @Transactional(rollbackFor = Exception.class)
@@ -248,7 +271,8 @@ public class PayOrderServiceImpl extends ServiceImpl<PayOrderMapper, PayOrder>
      * 2. 本次金额 >= 1 元时派发赞助者称号（ID = 1）
      * 3. 查询累计打赏金额
      * 4. 累计金额 >= 29.9 元时自动派发永久 VIP，并发送系统通知
-     * 5. 累计金额 >= 100 元时发送通知，提示联系岛主定制专属称号
+     * 5. 累计金额 >= 100 元时发送通知，提示联系岛主定制专属称号（只发一次）
+     * 6. 向聊天室广播感谢消息
      *
      * @param userId   赞助用户 ID
      * @param totalFee 本次赞助金额（元）
@@ -267,7 +291,15 @@ public class PayOrderServiceImpl extends ServiceImpl<PayOrderMapper, PayOrder>
             log.error("[XunhuPay] 打赏榜更新失败，userId={}, amount={}", userId, totalFee, e);
         }
 
-        // 2. 本次金额 >= 1 元时派发赞助者称号（ID = 1），已拥有则跳过
+        // 2. 插入打赏明细（每次独立一条，不累加，用于前端流水展示）
+        try {
+            donationDetailRecordsService.addDetail(userId, totalFee, remark);
+            log.info("[XunhuPay] 打赏明细记录成功，userId={}, amount={}", userId, totalFee);
+        } catch (Exception e) {
+            log.error("[XunhuPay] 打赏明细记录失败，userId={}, amount={}", userId, totalFee, e);
+        }
+
+        // 3. 本次金额 >= 1 元时派发赞助者称号（ID = 1），已拥有则跳过
         if (totalFee != null && totalFee.compareTo(BigDecimal.ONE) >= 0) {
             try {
                 boolean granted = userTitleService.addTitleToUser(userId, 1L);
@@ -281,7 +313,7 @@ public class PayOrderServiceImpl extends ServiceImpl<PayOrderMapper, PayOrder>
             }
         }
 
-        // 3. 查询累计打赏金额，用于后续多个阈值判断
+        // 4. 查询累计打赏金额，用于后续多个阈值判断
         BigDecimal totalAmount = BigDecimal.ZERO;
         try {
             DonationRecords record =
@@ -293,7 +325,7 @@ public class PayOrderServiceImpl extends ServiceImpl<PayOrderMapper, PayOrder>
             log.error("[XunhuPay] 查询累计打赏金额失败，userId={}", userId, e);
         }
 
-        // 4. 累计打赏金额 >= 29.9 元时派发永久 VIP
+        // 5. 累计打赏金额 >= 29.9 元时派发永久 VIP
         try {
             BigDecimal vipThreshold = new BigDecimal("29.9");
             if (totalAmount.compareTo(vipThreshold) >= 0 && !userVipService.isPermanentVip(userId)) {
@@ -314,7 +346,7 @@ public class PayOrderServiceImpl extends ServiceImpl<PayOrderMapper, PayOrder>
             log.error("[XunhuPay] 永久 VIP 派发或通知失败，userId={}", userId, e);
         }
 
-        // 5. 累计打赏金额 >= 100 元时，通知用户联系岛主定制称号（只发一次）
+        // 6. 累计打赏金额 >= 100 元时，通知用户联系岛主定制称号（只发一次）
         try {
             BigDecimal customTitleThreshold = new BigDecimal("100");
             if (totalAmount.compareTo(customTitleThreshold) >= 0) {
@@ -333,5 +365,69 @@ public class PayOrderServiceImpl extends ServiceImpl<PayOrderMapper, PayOrder>
         } catch (Exception e) {
             log.error("[XunhuPay] 定制称号通知发送失败，userId={}", userId, e);
         }
+
+        // 7. 向聊天室广播感谢消息
+        try {
+            sendSponsorChatMessage(userId, totalFee, remark);
+        } catch (Exception e) {
+            log.error("[XunhuPay] 聊天室感谢消息发送失败，userId={}", userId, e);
+        }
+    }
+
+    /**
+     * 向聊天室广播赞助感谢消息（以摸鱼助手身份发出）
+     *
+     * @param userId   赞助用户 ID
+     * @param totalFee 本次赞助金额（元）
+     * @param remark   用户备注
+     */
+    private void sendSponsorChatMessage(Long userId, BigDecimal totalFee, String remark) {
+        // 查询赞助用户信息，用于消息展示
+        User user = userService.getById(userId);
+        String userName = user != null ? user.getUserName() : "一位热心岛民";
+
+        // 构造消息内容
+        StringBuilder content = new StringBuilder();
+        content.append("🎉 感谢 ").append(userName)
+                .append(" 赞助摸鱼岛 ").append(totalFee).append(" 元！");
+        if (StringUtils.isNotBlank(remark)) {
+            content.append(" 留言：「").append(remark).append("」");
+        }
+        content.append(" 岛主和全体岛民感谢您的支持！❤️");
+
+        // 构造发送者（摸鱼助手）
+        Sender aiSender = Sender.builder()
+                .id("-1")
+                .level(1)
+                .name("摸鱼助手")
+                .isAdmin(false)
+                .points(-999)
+                .avatar("https://oss.cqbo.com/moyu/user_avatar/1/hYskW0jH-34eaba5c-3809-45ef-a3bd-dd01cf97881b_478ce06b6d869a5a11148cf3ee119bac.gif")
+                .build();
+
+        // 构造消息体
+        Message message = new Message();
+        message.setId(String.valueOf(System.currentTimeMillis()));
+        message.setContent(content.toString());
+        message.setSender(aiSender);
+        message.setTimestamp(String.valueOf(System.currentTimeMillis()));
+
+        MessageWrapper messageWrapper = new MessageWrapper();
+        messageWrapper.setMessage(message);
+
+        // 广播给所有在线用户
+        webSocketService.sendToAllOnline(WSBaseResp.builder()
+                .type(MessageTypeEnum.CHAT.getType())
+                .data(messageWrapper).build());
+
+        // 持久化到聊天记录
+        RoomMessage roomMessage = new RoomMessage();
+        roomMessage.setUserId(-1L);
+        roomMessage.setRoomId(-1L);
+        roomMessage.setMessageJson(JSON.toJSONString(messageWrapper));
+        roomMessage.setMessageId(message.getId());
+        roomMessageService.save(roomMessage);
+
+        log.info("[XunhuPay] 聊天室感谢消息已发送，userId={}, content={}", userId, content);
     }
 }
