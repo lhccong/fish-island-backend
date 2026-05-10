@@ -156,10 +156,15 @@ public class EventRemindServiceImpl extends ServiceImpl<EventRemindMapper, Event
 
     @Override
     public void sendSystemNotify(Long recipientId, String sourceContent) {
+        sendSystemNotify(recipientId, sourceContent, "system");
+    }
+
+    @Override
+    public void sendSystemNotify(Long recipientId, String sourceContent, String action) {
         EventRemind remind = new EventRemind();
         remind.setSenderId(-1L);
         remind.setRecipientId(recipientId);
-        remind.setAction("system");
+        remind.setAction(action);
         remind.setSourceId(-1L);
         remind.setSourceType(0);
         remind.setSourceContent(sourceContent);
