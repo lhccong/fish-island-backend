@@ -14,19 +14,25 @@ import com.cong.fishisland.mapper.moments.MomentsMapper;
 import com.cong.fishisland.model.dto.moments.MomentsAddRequest;
 import com.cong.fishisland.model.dto.moments.MomentsCommentAddRequest;
 import com.cong.fishisland.model.dto.moments.MomentsCommentQueryRequest;
+import com.cong.fishisland.model.dto.moments.MomentsCommentTopRequest;
+import com.cong.fishisland.model.dto.moments.MomentsLotteryRequest;
 import com.cong.fishisland.model.dto.moments.MomentsQueryRequest;
 import com.cong.fishisland.model.dto.moments.MomentsRewardRequest;
+import com.cong.fishisland.model.dto.moments.MomentsTopRequest;
 import com.cong.fishisland.model.dto.moments.MomentsUpdateRequest;
 import com.cong.fishisland.model.entity.moments.Moments;
 import com.cong.fishisland.model.entity.moments.MomentsComment;
 import com.cong.fishisland.model.entity.moments.MomentsLike;
 import com.cong.fishisland.model.entity.user.User;
+import com.cong.fishisland.model.enums.UserRoleEnum;
 import com.cong.fishisland.model.vo.moments.MomentsCommentVO;
+import com.cong.fishisland.model.vo.moments.MomentsLotteryVO;
 import com.cong.fishisland.model.vo.moments.MomentsVO;
 import com.cong.fishisland.model.entity.user.UserPoints;
 import com.cong.fishisland.model.enums.user.PointsRecordSourceEnum;
 import com.cong.fishisland.service.UserPointsRecordService;
 import com.cong.fishisland.service.UserPointsService;
+import com.cong.fishisland.service.UserVipService;
 import com.cong.fishisland.utils.RedisUtils;
 import com.cong.fishisland.service.UserService;
 import com.cong.fishisland.service.event.EventRemindHandler;
@@ -61,9 +67,16 @@ public class MomentsServiceImpl extends ServiceImpl<MomentsMapper, Moments>
     private final EventRemindHandler eventRemindHandler;
     private final UserPointsService userPointsService;
     private final UserPointsRecordService userPointsRecordService;
+    private final UserVipService userVipService;
 
     private static final String MOMENTS_PUBLISH_KEY_PREFIX = "user:moments:publish:";
     private static final String MOMENTS_LIKE_KEY_PREFIX = "user:moments:like:";
+    // 打赏限流：每人每天对同一动态只能打赏一次
+    private static final String MOMENTS_REWARD_USER_KEY_PREFIX = "user:moments:reward:";
+    // 每日打赏次数：user:moments:reward:times:{userId}:{date}
+    private static final String MOMENTS_REWARD_TIMES_KEY_PREFIX = "user:moments:reward:times:";
+    // 每日被打赏积分：user:moments:reward:received:{userId}:{date}
+    private static final String MOMENTS_REWARD_RECEIVED_KEY_PREFIX = "user:moments:reward:received:";
 
     @Override
     public Long publishMoment(MomentsAddRequest request) {
@@ -115,10 +128,35 @@ public class MomentsServiceImpl extends ServiceImpl<MomentsMapper, Moments>
         ThrowUtils.throwIf(moments == null, ErrorCode.NOT_FOUND_ERROR);
         ThrowUtils.throwIf(moments.getUserId().equals(fromUserId), ErrorCode.PARAMS_ERROR, "不能打赏自己的动态");
 
+        // 等级/VIP/管理员限制：与发红包保持一致，等级 < 6 且非 VIP 且非管理员不能打赏
+        User loginUser = userService.getLoginUser();
+        UserPoints fromUserPoints = userPointsService.getById(fromUserId);
+        boolean isAdmin = UserRoleEnum.ADMIN.getValue().equals(loginUser.getUserRole());
+        boolean isVip = userVipService.isUserVip(fromUserId);
+        ThrowUtils.throwIf(
+                fromUserPoints.getLevel() < 6 && !isAdmin && !isVip,
+                ErrorCode.OPERATION_ERROR, "您的等级不足，无法打赏（需要等级 ≥ 6、VIP 或管理员）"
+        );
+
         // 校验打赏者可用积分是否充足（可用积分 = points - usedPoints）
         userPointsService.checkAvailablePoints(fromUserId, request.getPoints());
 
         String momentIdStr = String.valueOf(request.getMomentId());
+
+        // 限流1：同一用户对同一条动态每天只能打赏一次
+        String rewardUserKey = MOMENTS_REWARD_USER_KEY_PREFIX + fromUserId + ":" + request.getMomentId() + ":" + LocalDate.now();
+        ThrowUtils.throwIf(RedisUtils.get(rewardUserKey) != null, ErrorCode.OPERATION_ERROR, "今日已打赏过该动态");
+
+        // 限流2：每日打赏次数上限
+        String rewardTimesKey = MOMENTS_REWARD_TIMES_KEY_PREFIX + fromUserId + ":" + LocalDate.now();
+        int todayRewardTimes = Optional.ofNullable(RedisUtils.get(rewardTimesKey)).map(Integer::parseInt).orElse(0);
+        ThrowUtils.throwIf(todayRewardTimes >= PointConstant.MAX_DAILY_REWARD_TIMES, ErrorCode.OPERATION_ERROR, "今日打赏次数已达上限");
+
+        // 限流3：作者每日被打赏积分上限（防止多账号刷给同一人）
+        String rewardReceivedKey = MOMENTS_REWARD_RECEIVED_KEY_PREFIX + moments.getUserId() + ":" + LocalDate.now();
+        int todayReceivedPoints = Optional.ofNullable(RedisUtils.get(rewardReceivedKey)).map(Integer::parseInt).orElse(0);
+        ThrowUtils.throwIf(todayReceivedPoints + request.getPoints() > PointConstant.MAX_DAILY_RECEIVED_REWARD_POINTS,
+                ErrorCode.OPERATION_ERROR, "该用户今日被打赏积分已达上限");
 
         // 扣除打赏者 usedPoints
         userPointsService.updateUsedPoints(fromUserId, request.getPoints(),
@@ -129,6 +167,15 @@ public class MomentsServiceImpl extends ServiceImpl<MomentsMapper, Moments>
         userPointsService.updateUsedPoints(moments.getUserId(), -request.getPoints(),
                 PointsRecordSourceEnum.MOMENTS_REWARD.getValue(), momentIdStr,
                 "收到朋友圈打赏");
+
+        // 更新限流计数（操作成功后再写入）
+        LocalDateTime nextMidnight = LocalDate.now().plusDays(1).atStartOfDay();
+        Duration ttl = Duration.between(LocalDateTime.now(), nextMidnight);
+        RedisUtils.set(rewardUserKey, "1", ttl);
+        RedisUtils.inc(rewardTimesKey, ttl);
+        // 被打赏积分累计
+        String newReceived = String.valueOf(todayReceivedPoints + request.getPoints());
+        RedisUtils.set(rewardReceivedKey, newReceived, ttl);
 
         // 通知被打赏者
         eventRemindHandler.handleMomentsReward(request.getMomentId(), fromUserId, moments.getUserId(), request.getPoints());
@@ -180,6 +227,8 @@ public class MomentsServiceImpl extends ServiceImpl<MomentsMapper, Moments>
                 // 过滤仅自己可见（visibility=1）的其他人动态
                 .and(w -> w.eq(Moments::getUserId, userId)
                         .or().ne(Moments::getVisibility, 1))
+                // 置顶动态排在最前，同层内按发布时间倒序
+                .orderByDesc(Moments::getIsTop)
                 .orderByDesc(Moments::getCreateTime)
                 .page(page);
 
@@ -328,6 +377,8 @@ public class MomentsServiceImpl extends ServiceImpl<MomentsMapper, Moments>
                 new LambdaQueryWrapper<MomentsComment>()
                         .eq(MomentsComment::getMomentId, request.getMomentId())
                         .isNull(MomentsComment::getParentId)
+                        // 置顶评论排在最前，同层内按时间正序
+                        .orderByDesc(MomentsComment::getIsTop)
                         .orderByAsc(MomentsComment::getCreateTime));
 
         if (page.getRecords().isEmpty()) {
@@ -469,5 +520,168 @@ public class MomentsServiceImpl extends ServiceImpl<MomentsMapper, Moments>
                         .in(MomentsLike::getMomentId, momentIds))
                 .stream()
                 .collect(Collectors.groupingBy(MomentsLike::getMomentId));
+    }
+
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public MomentsLotteryVO startLottery(MomentsLotteryRequest request) {
+        ThrowUtils.throwIf(request.getMomentId() == null, ErrorCode.PARAMS_ERROR, "动态ID不能为空");
+        ThrowUtils.throwIf(request.getWinnerCount() == null
+                        || request.getWinnerCount() < 1
+                        || request.getWinnerCount() > 100,
+                ErrorCode.PARAMS_ERROR, "抽奖人数必须在 1~100 之间");
+
+        long loginUserId = StpUtil.getLoginIdAsLong();
+        Moments moments = getById(request.getMomentId());
+        ThrowUtils.throwIf(moments == null, ErrorCode.NOT_FOUND_ERROR, "动态不存在");
+        // 只有动态发布者或管理员可以发起抽奖
+        ThrowUtils.throwIf(
+                !moments.getUserId().equals(loginUserId) && !userService.isAdmin(),
+                ErrorCode.NO_AUTH_ERROR, "只有动态发布者才能发起抽奖"
+        );
+
+        // 查询所有点赞用户（排除发布者自己）
+        List<MomentsLike> likes = momentsLikeMapper.selectList(
+                new LambdaQueryWrapper<MomentsLike>()
+                        .eq(MomentsLike::getMomentId, request.getMomentId())
+                        .ne(MomentsLike::getUserId, moments.getUserId()));
+
+        ThrowUtils.throwIf(likes.isEmpty(), ErrorCode.OPERATION_ERROR, "暂无参与用户（需要先点赞才能参与抽奖）");
+
+        // 过滤：注册时间 > 5 天 且 points 积分 > 200
+        Date fiveDaysAgo = Date.from(
+                java.time.LocalDate.now().minusDays(5)
+                        .atStartOfDay(java.time.ZoneId.systemDefault()).toInstant());
+
+        Set<Long> likeUserIds = likes.stream()
+                .map(MomentsLike::getUserId)
+                .collect(Collectors.toSet());
+
+        // 批量查用户注册时间
+        Map<Long, User> likeUserMap = getUserMap(likeUserIds);
+        // 批量查用户积分
+        Map<Long, UserPoints> userPointsMap = userPointsService.listByIds(likeUserIds)
+                .stream()
+                .collect(Collectors.toMap(UserPoints::getUserId, p -> p));
+
+        List<MomentsLike> eligibleLikes = likes.stream().filter(like -> {
+            User u = likeUserMap.get(like.getUserId());
+            if (u == null || u.getCreateTime() == null) {
+                return false;
+            }
+            // 注册时间必须早于 5 天前（即注册超过 5 天）
+            if (!u.getCreateTime().before(fiveDaysAgo)) {
+                return false;
+            }
+            UserPoints up = userPointsMap.get(like.getUserId());
+            // points 积分必须大于 200
+            return up != null && up.getPoints() != null && up.getPoints() > 200;
+        }).collect(Collectors.toList());
+
+        ThrowUtils.throwIf(eligibleLikes.isEmpty(), ErrorCode.OPERATION_ERROR,
+                "暂无符合条件的参与用户（需注册超过 5 天且积分大于 200）");
+
+        // 随机打乱后取前 N 个
+        List<MomentsLike> shuffled = new ArrayList<>(eligibleLikes);
+        Collections.shuffle(shuffled);
+        int actualCount = Math.min(request.getWinnerCount(), shuffled.size());
+        List<MomentsLike> winners = shuffled.subList(0, actualCount);
+
+        // 批量查询中奖用户信息
+        Set<Long> winnerUserIds = winners.stream()
+                .map(MomentsLike::getUserId)
+                .collect(Collectors.toSet());
+        Map<Long, User> userMap = getUserMap(winnerUserIds);
+
+        // 组装中奖 VO 列表
+        List<MomentsLotteryVO.LotteryWinnerVO> winnerVOList = winners.stream().map(like -> {
+            MomentsLotteryVO.LotteryWinnerVO vo = new MomentsLotteryVO.LotteryWinnerVO();
+            vo.setUserId(like.getUserId());
+            User user = userMap.get(like.getUserId());
+            if (user != null) {
+                vo.setUserName(user.getUserName());
+                vo.setUserAvatar(user.getUserAvatar());
+            }
+            return vo;
+        }).collect(Collectors.toList());
+
+        // 给每位中奖用户发系统消息通知
+        User publisher = userService.getById(moments.getUserId());
+        String publisherName = publisher != null ? publisher.getUserName() : "动态发布者";
+        winnerVOList.forEach(winner ->
+                eventRemindHandler.handleSystemMessage(
+                        winner.getUserId(),
+                        "🎉 恭喜你在「" + publisherName + "」的朋友圈抽奖中获奖！"
+                )
+        );
+
+        // 构建评论内容：🎉 抽奖结果：@用户1、@用户2 ...
+        String winnerNames = winnerVOList.stream()
+                .map(w -> "@" + (w.getUserName() != null ? w.getUserName() : "用户" + w.getUserId()))
+                .collect(Collectors.joining("、"));
+        String commentContent = "🎉 抽奖结果（共 " + actualCount + " 位中奖者）：" + winnerNames + " 恭喜获奖！";
+
+        // 以动态发布者身份插入评论（绕过登录态，直接操作 Mapper）
+        MomentsComment comment = new MomentsComment();
+        comment.setMomentId(request.getMomentId());
+        comment.setUserId(moments.getUserId());
+        comment.setContent(commentContent);
+        momentsCommentMapper.insert(comment);
+
+        // 更新评论数
+        lambdaUpdate()
+                .eq(Moments::getId, request.getMomentId())
+                .setSql("commentNum = commentNum + 1")
+                .update();
+
+        // 组装返回结果
+        MomentsLotteryVO result = new MomentsLotteryVO();
+        result.setMomentId(request.getMomentId());
+        result.setWinners(winnerVOList);
+        result.setCommentId(comment.getId());
+        return result;
+    }
+
+    @Override
+    public void topMoment(MomentsTopRequest request) {
+        ThrowUtils.throwIf(request.getMomentId() == null, ErrorCode.PARAMS_ERROR, "动态ID不能为空");
+        ThrowUtils.throwIf(request.getTop() == null, ErrorCode.PARAMS_ERROR, "置顶状态不能为空");
+        // 仅管理员可操作
+        ThrowUtils.throwIf(!userService.isAdmin(), ErrorCode.NO_AUTH_ERROR, "仅管理员可置顶动态");
+
+        Moments moments = getById(request.getMomentId());
+        ThrowUtils.throwIf(moments == null, ErrorCode.NOT_FOUND_ERROR, "动态不存在");
+
+        Moments update = new Moments();
+        update.setId(request.getMomentId());
+        update.setIsTop(Boolean.TRUE.equals(request.getTop()) ? 1 : 0);
+        updateById(update);
+    }
+
+    @Override
+    public void topComment(MomentsCommentTopRequest request) {
+        ThrowUtils.throwIf(request.getCommentId() == null, ErrorCode.PARAMS_ERROR, "评论ID不能为空");
+        ThrowUtils.throwIf(request.getTop() == null, ErrorCode.PARAMS_ERROR, "置顶状态不能为空");
+
+        MomentsComment comment = momentsCommentMapper.selectById(request.getCommentId());
+        ThrowUtils.throwIf(comment == null, ErrorCode.NOT_FOUND_ERROR, "评论不存在");
+
+        // 仅顶级评论可以置顶
+        ThrowUtils.throwIf(comment.getParentId() != null, ErrorCode.PARAMS_ERROR, "仅顶级评论可以置顶");
+
+        long loginUserId = StpUtil.getLoginIdAsLong();
+        Moments moments = getById(comment.getMomentId());
+        ThrowUtils.throwIf(moments == null, ErrorCode.NOT_FOUND_ERROR, "动态不存在");
+
+        // 动态发布者或管理员可操作
+        ThrowUtils.throwIf(
+                !moments.getUserId().equals(loginUserId) && !userService.isAdmin(),
+                ErrorCode.NO_AUTH_ERROR, "仅动态发布者或管理员可置顶评论"
+        );
+
+        MomentsComment update = new MomentsComment();
+        update.setId(request.getCommentId());
+        update.setIsTop(Boolean.TRUE.equals(request.getTop()) ? 1 : 0);
+        momentsCommentMapper.updateById(update);
     }
 }

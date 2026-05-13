@@ -33,6 +33,11 @@ public class MomentsComment implements Serializable {
 
     private String content;
 
+    /**
+     * 是否置顶：0-否，1-是（仅动态发布者或管理员可操作）
+     */
+    private Integer isTop;
+
     private Date createTime;
 
     private Date updateTime;

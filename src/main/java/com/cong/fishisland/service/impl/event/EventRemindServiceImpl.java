@@ -20,6 +20,7 @@ import org.apache.commons.lang3.StringUtils;
 import org.springframework.stereotype.Service;
 
 import javax.annotation.Resource;
+import java.util.Date;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -151,6 +152,26 @@ public class EventRemindServiceImpl extends ServiceImpl<EventRemindMapper, Event
         ThrowUtils.throwIf(request == null, ErrorCode.PARAMS_ERROR, "参数为空");
         List<Long> ids = request.getIds();
         ThrowUtils.throwIf(CollUtil.isEmpty(ids), ErrorCode.PARAMS_ERROR, "请选择要操作的数据");
+    }
+
+    @Override
+    public void sendSystemNotify(Long recipientId, String sourceContent) {
+        sendSystemNotify(recipientId, sourceContent, "system");
+    }
+
+    @Override
+    public void sendSystemNotify(Long recipientId, String sourceContent, String action) {
+        EventRemind remind = new EventRemind();
+        remind.setSenderId(-1L);
+        remind.setRecipientId(recipientId);
+        remind.setAction(action);
+        remind.setSourceId(-1L);
+        remind.setSourceType(0);
+        remind.setSourceContent(sourceContent);
+        remind.setUrl("");
+        remind.setState(0);
+        remind.setRemindTime(new Date());
+        this.save(remind);
     }
 }
 

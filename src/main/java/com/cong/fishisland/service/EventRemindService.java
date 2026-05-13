@@ -46,4 +46,20 @@ public interface EventRemindService extends IService<EventRemind> {
      * @return VO分页
      */
     Page<EventRemindVO> getEventRemindVOPage(Page<EventRemind> eventRemindPage);
+    /**
+     * 发送系统通知给指定用户
+     *
+     * @param recipientId   接收者用户ID
+     * @param sourceContent 通知内容
+     */
+    void sendSystemNotify(Long recipientId, String sourceContent);
+
+    /**
+     * 发送系统通知给指定用户（支持自定义 action，用于幂等查重）
+     *
+     * @param recipientId   接收者用户ID
+     * @param sourceContent 通知内容
+     * @param action        动作标识，用于 existsEvent 查重
+     */
+    void sendSystemNotify(Long recipientId, String sourceContent, String action);
 }

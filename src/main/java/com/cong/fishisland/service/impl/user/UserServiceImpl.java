@@ -21,6 +21,7 @@ import com.cong.fishisland.constant.SystemConstants;
 import com.cong.fishisland.constant.VipTypeConstant;
 import com.cong.fishisland.manager.AiManager;
 import com.cong.fishisland.manager.EmailManager;
+import com.cong.fishisland.mapper.user.UserFollowMapper;
 import com.cong.fishisland.mapper.user.UserMapper;
 import com.cong.fishisland.mapper.user.UserThirdAuthMapper;
 import com.cong.fishisland.mapper.user.UserVipMapper;
@@ -59,10 +60,7 @@ import org.springframework.util.DigestUtils;
 import javax.annotation.Resource;
 import javax.servlet.http.HttpServletRequest;
 import java.time.Duration;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Date;
-import java.util.List;
+import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.locks.ReentrantLock;
@@ -129,6 +127,9 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements Us
 
     @Resource
     private AnnualReportTemplateService annualReportTemplateService;
+
+    @Resource
+    private UserFollowMapper userFollowMapper;
 
     private static final ConcurrentHashMap<String, ReentrantLock> LOCK_MAP = new ConcurrentHashMap<>();
 
@@ -706,6 +707,10 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements Us
         ).collect(Collectors.toList());
         loginUserVO.setBindPlatforms(bindPlatforms);
 
+        // 关注数 & 粉丝数
+        loginUserVO.setFollowingCount(userFollowMapper.countFollowing(user.getId()));
+        loginUserVO.setFollowerCount(userFollowMapper.countFollowers(user.getId()));
+
         return loginUserVO;
     }
 
@@ -716,6 +721,8 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements Us
         }
         UserVO userVO = new UserVO();
         BeanUtils.copyProperties(user, userVO);
+        userVO.setFollowingCount(userFollowMapper.countFollowing(user.getId()));
+        userVO.setFollowerCount(userFollowMapper.countFollowers(user.getId()));
         return userVO;
     }
 
@@ -749,7 +756,28 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements Us
         if (CollUtil.isEmpty(userList)) {
             return new ArrayList<>();
         }
-        return userList.stream().map(this::getUserVO).collect(Collectors.toList());
+        List<Long> userIds = userList.stream().map(User::getId).collect(Collectors.toList());
+
+        // 批量查关注数：[{userId: x, cnt: n}, ...]
+        Map<Long, Long> followingCountMap = userFollowMapper.batchCountFollowing(userIds).stream()
+                .collect(Collectors.toMap(
+                        m -> ((Number) m.get("userId")).longValue(),
+                        m -> ((Number) m.get("cnt")).longValue()
+                ));
+        // 批量查粉丝数：[{followUserId: x, cnt: n}, ...]
+        Map<Long, Long> followerCountMap = userFollowMapper.batchCountFollowers(userIds).stream()
+                .collect(Collectors.toMap(
+                        m -> ((Number) m.get("followUserId")).longValue(),
+                        m -> ((Number) m.get("cnt")).longValue()
+                ));
+
+        return userList.stream().map(user -> {
+            UserVO userVO = new UserVO();
+            BeanUtils.copyProperties(user, userVO);
+            userVO.setFollowingCount(followingCountMap.getOrDefault(user.getId(), 0L));
+            userVO.setFollowerCount(followerCountMap.getOrDefault(user.getId(), 0L));
+            return userVO;
+        }).collect(Collectors.toList());
     }
 
     @Override

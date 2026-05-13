@@ -21,6 +21,7 @@ import com.cong.fishisland.model.ws.request.MessageWrapper;
 import com.cong.fishisland.model.ws.request.Sender;
 import com.cong.fishisland.model.ws.response.WSBaseResp;
 import com.cong.fishisland.service.*;
+import com.cong.fishisland.service.EventRemindService;
 import com.cong.fishisland.websocket.service.WebSocketService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -55,6 +56,7 @@ public class RedPacketServiceImpl implements RedPacketService {
     private final WebSocketService webSocketService;
     private final RoomMessageService roomMessageService;
     private final DonationRecordsService donationRecordsService;
+    private final EventRemindService eventRemindService;
 
     // Redis key前缀
     private static final String RED_PACKET_KEY_PREFIX = "redpacket:";
@@ -62,6 +64,24 @@ public class RedPacketServiceImpl implements RedPacketService {
     private static final String RED_PACKET_USER_KEY_PREFIX = "redpacket:user:";
     private static final String RED_PACKET_LOCK_KEY_PREFIX = "redpacket:lock:";
     private static final String RED_PACKET_DAILY_COUNT_KEY_PREFIX = "redpacket:daily_count:";
+    // 行为检测：脚本用户标记 redpacket:grab:script:{userId}
+    private static final String RED_PACKET_GRAB_SCRIPT_KEY_PREFIX = "redpacket:grab:script:";
+    // 行为检测：每日快速抢包计数 redpacket:grab:fast_count:{userId}:{yyyyMMdd}
+    private static final String RED_PACKET_GRAB_FAST_COUNT_KEY_PREFIX = "redpacket:grab:fast_count:";
+    // 行为检测：抢包时间戳历史 redpacket:grab:ts:{userId}
+    private static final String RED_PACKET_GRAB_TS_KEY_PREFIX = "redpacket:grab:ts:";
+    // 脚本标记 TTL（24小时）
+    private static final long GRAB_SCRIPT_MARK_TTL_SECONDS = 24 * 60 * 60;
+    // 脚本用户抢红包前强制等待时间（秒）
+    private static final int GRAB_SCRIPT_DELAY_SECONDS = 10;
+    // 判定为脚本的阈值：红包发出后多少毫秒内抢到视为脚本
+    private static final long GRAB_SCRIPT_THRESHOLD_MS = 1000;
+    // 每日触发快速抢包超过此次数才标记为脚本用户
+    private static final int GRAB_SCRIPT_DAILY_LIMIT = 5;
+    // 固定间隔检测：保留最近多少次时间戳
+    private static final int GRAB_TS_HISTORY_SIZE = 6;
+    // 固定间隔检测：间隔标准差低于此值（毫秒）视为固定间隔
+    private static final double GRAB_INTERVAL_STD_THRESHOLD_MS = 500.0;
 
     // 红包过期时间（24小时）
     private static final long RED_PACKET_EXPIRE_TIME = 24 * 60 * 60;
@@ -306,6 +326,9 @@ public class RedPacketServiceImpl implements RedPacketService {
             throw new BusinessException(ErrorCode.OPERATION_ERROR, "您已抢过该红包");
         }
 
+        // 行为检测：脚本用户强制等待
+        applyScriptDelay(userId);
+
         // 获取分布式锁
         String lockKey = RED_PACKET_LOCK_KEY_PREFIX + redPacketId;
         boolean locked = false;
@@ -393,6 +416,11 @@ public class RedPacketServiceImpl implements RedPacketService {
 
             //增加用户积分
             userPointsService.updateUsedPoints(userId, -amount, RED_PACKET_GRAB.getValue(), redPacketId, "抢红包获得积分");
+
+            // 行为检测：若在红包发出后1秒内抢到，标记为脚本用户
+            markScriptUserIfNeeded(userId, redPacket.getCreateTime());
+            // 行为检测：固定间隔抢包检测
+            checkFixedIntervalBehavior(userId);
 
             return amount;
         } finally {
@@ -508,6 +536,110 @@ public class RedPacketServiceImpl implements RedPacketService {
      */
     private String getTodayDate() {
         return java.time.LocalDate.now().format(java.time.format.DateTimeFormatter.ofPattern("yyyyMMdd"));
+    }
+
+    /**
+     * 脚本用户前置检测：若被标记则强制等待 10 秒
+     */
+    private void applyScriptDelay(Long userId) {
+        String scriptKey = RED_PACKET_GRAB_SCRIPT_KEY_PREFIX + userId;
+        if (Boolean.TRUE.equals(redisTemplate.hasKey(scriptKey))) {
+            log.info("用户 {} 被标记为脚本用户，强制等待 {}s", userId, GRAB_SCRIPT_DELAY_SECONDS);
+            try {
+                Thread.sleep(GRAB_SCRIPT_DELAY_SECONDS * 1000L);
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+            }
+        }
+    }
+
+    /**
+     * 抢到红包后判断是否为脚本行为：距红包创建时间不足 1 秒则计数，当天超过 5 次才标记
+     */
+    private void markScriptUserIfNeeded(Long userId, Date redPacketCreateTime) {
+        if (redPacketCreateTime == null) {
+            return;
+        }
+        long elapsed = System.currentTimeMillis() - redPacketCreateTime.getTime();
+        if (elapsed >= GRAB_SCRIPT_THRESHOLD_MS) {
+            return;
+        }
+        // 累加当日快速抢包次数
+        String fastCountKey = RED_PACKET_GRAB_FAST_COUNT_KEY_PREFIX + userId + ":" + getTodayDate();
+        Long fastCount = redisTemplate.opsForValue().increment(fastCountKey);
+        redisTemplate.expire(fastCountKey, Duration.ofDays(1));
+
+        log.info("用户 {} 在红包发出后 {}ms 内抢到，今日快速抢包次数: {}", userId, elapsed, fastCount);
+
+        if (fastCount != null && fastCount > GRAB_SCRIPT_DAILY_LIMIT) {
+            String scriptKey = RED_PACKET_GRAB_SCRIPT_KEY_PREFIX + userId;
+            redisTemplate.opsForValue().set(scriptKey, "1", GRAB_SCRIPT_MARK_TTL_SECONDS, TimeUnit.SECONDS);
+            log.warn("用户 {} 今日快速抢包次数达到 {}，标记为脚本用户", userId, fastCount);
+            eventRemindService.sendSystemNotify(1L,
+                    String.format("检测到用户 %d 今日快速抢包次数达到 %d 次（1秒内抢到），已标记为脚本用户", userId, fastCount));
+        }
+    }
+
+    /**
+     * 固定间隔检测：记录用户每次抢到红包的时间戳，
+     * 若最近 N 次的相邻间隔标准差极小，视为脚本行为并标记
+     */
+    private void checkFixedIntervalBehavior(Long userId) {
+        String tsKey = RED_PACKET_GRAB_TS_KEY_PREFIX + userId;
+        long now = System.currentTimeMillis();
+
+        // 追加本次时间戳，只保留最近 GRAB_TS_HISTORY_SIZE 条
+        redisTemplate.opsForList().rightPush(tsKey, String.valueOf(now));
+        redisTemplate.opsForList().trim(tsKey, -GRAB_TS_HISTORY_SIZE, -1);
+        redisTemplate.expire(tsKey, Duration.ofDays(1));
+
+        Long size = redisTemplate.opsForList().size(tsKey);
+        if (size == null || size < GRAB_TS_HISTORY_SIZE) {
+            // 样本不足，暂不判断
+            return;
+        }
+
+        List<Object> rawList = redisTemplate.opsForList().range(tsKey, 0, -1);
+        if (rawList == null || rawList.size() < GRAB_TS_HISTORY_SIZE) {
+            return;
+        }
+
+        // 计算相邻间隔
+        long[] intervals = new long[rawList.size() - 1];
+        for (int i = 1; i < rawList.size(); i++) {
+            long t1 = Long.parseLong(rawList.get(i - 1).toString());
+            long t2 = Long.parseLong(rawList.get(i).toString());
+            intervals[i - 1] = t2 - t1;
+        }
+
+        // 计算标准差
+        double mean = Arrays.stream(intervals).average().orElse(0);
+        double variance = Arrays.stream(intervals)
+                .mapToDouble(v -> (v - mean) * (v - mean))
+                .average().orElse(0);
+        double std = Math.sqrt(variance);
+
+        log.info("用户 {} 抢包间隔检测：均值={}ms，标准差={}ms", userId, (long) mean, (long) std);
+
+        if (std < GRAB_INTERVAL_STD_THRESHOLD_MS) {
+            String scriptKey = RED_PACKET_GRAB_SCRIPT_KEY_PREFIX + userId;
+            redisTemplate.opsForValue().set(scriptKey, "1", GRAB_SCRIPT_MARK_TTL_SECONDS, TimeUnit.SECONDS);
+            log.warn("用户 {} 抢包间隔高度一致（std={}ms），标记为脚本用户", userId, (long) std);
+            eventRemindService.sendSystemNotify(1L,
+                    String.format("检测到用户 %d 抢包间隔高度一致（标准差 %dms），已标记为脚本用户", userId, (long) std));
+        }
+    }
+
+    @Override
+    public void markScriptUser(Long userId, boolean mark) {
+        String scriptKey = RED_PACKET_GRAB_SCRIPT_KEY_PREFIX + userId;
+        if (mark) {
+            redisTemplate.opsForValue().set(scriptKey, "1", GRAB_SCRIPT_MARK_TTL_SECONDS, TimeUnit.SECONDS);
+            log.info("管理员手动标记用户 {} 为脚本用户", userId);
+        } else {
+            redisTemplate.delete(scriptKey);
+            log.info("管理员手动取消用户 {} 的脚本标记", userId);
+        }
     }
 
     private void saveMessage(long loginUserId, MessageWrapper result) {

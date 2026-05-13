@@ -181,6 +181,36 @@ public class EventRemindHandler {
 
     /**
      * 异步处理关注事件
+     * 仅在新增关注时调用，取消关注不发送
+     */
+    @Async("eventRemindExecutor")
+    public void handleFollow(Long senderId, Long recipientId) {
+        // 幂等：同一人重复关注不重复提醒
+        if (eventRemindService.existsEvent(
+                ActionTypeConstant.FOLLOW,
+                recipientId,
+                SourceTypeConstant.SYSTEM,
+                senderId,
+                recipientId)) {
+            log.info("已存在关注事件，跳过保存: senderId={}, recipientId={}", senderId, recipientId);
+            return;
+        }
+
+        EventRemind event = new EventRemind();
+        event.setAction(ActionTypeConstant.FOLLOW);
+        event.setSourceId(recipientId);
+        event.setSourceType(SourceTypeConstant.SYSTEM);
+        event.setSourceContent("有人关注了你");
+        event.setUrl(String.valueOf(senderId));
+        event.setSenderId(senderId);
+        event.setRecipientId(recipientId);
+        event.setRemindTime(new Date());
+        eventRemindService.save(event);
+        log.info("保存关注事件: senderId={}, recipientId={}", senderId, recipientId);
+    }
+
+    /**
+     * 异步处理系统消息事件
      */
     @Async("eventRemindExecutor")
     public void handleSystemMessage(Long recipientId, String content) {

@@ -51,6 +51,11 @@ public class Moments implements Serializable {
 
     private Integer commentNum;
 
+    /**
+     * 是否置顶：0-否，1-是（仅管理员可操作）
+     */
+    private Integer isTop;
+
     private Date createTime;
 
     private Date updateTime;

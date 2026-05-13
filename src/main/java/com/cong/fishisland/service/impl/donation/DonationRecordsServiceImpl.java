@@ -162,7 +162,10 @@ public class DonationRecordsServiceImpl extends ServiceImpl<DonationRecordsMappe
                 donorUser = userIdUserListMap.get(userId).get(0);
             }
             LoginUserVO loginUserVO = userService.getLoginUserVO(donorUser);
-            loginUserVO.setEmail(null);
+            if (loginUserVO != null){
+                loginUserVO.setEmail(null);
+            }
+
             donationRecordsVO.setDonorUser(loginUserVO);
             return donationRecordsVO;
 
