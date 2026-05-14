@@ -1,5 +1,6 @@
 package com.cong.fishisland.service.impl.pet;
 
+import cn.dev33.satoken.stp.StpUtil;
 import com.alibaba.fastjson.JSONObject;
 import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
@@ -7,16 +8,22 @@ import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import com.cong.fishisland.common.ErrorCode;
 import com.cong.fishisland.common.exception.BusinessException;
 import com.cong.fishisland.mapper.pet.ItemTemplatesMapper;
+import com.cong.fishisland.model.dto.item.ItemInstanceAddRequest;
 import com.cong.fishisland.model.dto.item.ItemTemplateAddRequest;
 import com.cong.fishisland.model.dto.item.ItemTemplateEditRequest;
 import com.cong.fishisland.model.dto.item.ItemTemplateQueryRequest;
 import com.cong.fishisland.model.entity.pet.ItemTemplates;
 import com.cong.fishisland.model.vo.pet.ItemTemplateVO;
+import com.cong.fishisland.service.ItemInstancesService;
 import com.cong.fishisland.service.ItemTemplatesService;
+import com.cong.fishisland.service.UserPointsService;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.StringUtils;
 import org.springframework.beans.BeanUtils;
+import org.springframework.context.annotation.Lazy;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import javax.annotation.Resource;
 import java.util.Collections;
@@ -24,16 +31,26 @@ import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
 
+import static com.cong.fishisland.model.enums.user.PointsRecordSourceEnum.FOOD_PURCHASE;
+
 /**
  * @author Shing
  * @description 针对表【item_templates(物品模板表（通用配置，包括装备、消耗品、材料等）)】的数据库操作Service实现
  * @createDate 2025-09-26 15:58:08
  */
 @Service
+@Slf4j
 public class ItemTemplatesServiceImpl extends ServiceImpl<ItemTemplatesMapper, ItemTemplates> implements ItemTemplatesService {
 
     @Resource
     private ObjectMapper objectMapper;
+
+    @Resource
+    @Lazy
+    private ItemInstancesService itemInstancesService;
+
+    @Resource
+    private UserPointsService userPointsService;
 
     @Override
     public Long addItemTemplate(ItemTemplateAddRequest itemTemplateAddRequest) {
@@ -253,5 +270,51 @@ public class ItemTemplatesServiceImpl extends ServiceImpl<ItemTemplatesMapper, I
         } else {
             vo.setMainAttr(null);
         }
+    }
+
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public void purchaseItem(Long templateId, int quantity) {
+        if (templateId == null || templateId <= 0) {
+            throw new BusinessException(ErrorCode.PARAMS_ERROR, "物品模板ID不能为空");
+        }
+        if (quantity <= 0) {
+            throw new BusinessException(ErrorCode.PARAMS_ERROR, "购买数量必须大于0");
+        }
+
+        Long userId = StpUtil.getLoginIdAsLong();
+
+        // 查询模板
+        ItemTemplates template = this.getById(templateId);
+        if (template == null || template.getIsDelete() == 1) {
+            throw new BusinessException(ErrorCode.NOT_FOUND_ERROR, "物品不存在");
+        }
+
+        // 校验是否允许购买
+        if (template.getPurchasable() == null || template.getPurchasable() != 1) {
+            throw new BusinessException(ErrorCode.OPERATION_ERROR, "该物品不支持购买");
+        }
+        int unitPrice = template.getPurchasePoint() == null ? 0 : template.getPurchasePoint();
+        if (unitPrice <= 0) {
+            throw new BusinessException(ErrorCode.OPERATION_ERROR, "该物品购买价格未配置");
+        }
+
+        int totalCost = unitPrice * quantity;
+
+        // 校验积分并扣除
+        userPointsService.checkAvailablePoints(userId, totalCost);
+        userPointsService.deductPoints(userId, totalCost, FOOD_PURCHASE.getValue(),
+                templateId.toString(),
+                String.format("购买物品【%s】x%d，消耗%d积分", template.getName(), quantity, totalCost));
+
+        // 物品入背包
+        ItemInstanceAddRequest addRequest = new ItemInstanceAddRequest();
+        addRequest.setTemplateId(templateId);
+        addRequest.setOwnerUserId(userId);
+        addRequest.setQuantity(quantity);
+        itemInstancesService.addItemInstance(addRequest);
+
+        log.info("购买物品成功：userId={}, templateId={}, name={}, quantity={}, cost={}",
+                userId, templateId, template.getName(), quantity, totalCost);
     }
 }

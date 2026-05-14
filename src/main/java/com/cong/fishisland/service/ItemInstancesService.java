@@ -111,4 +111,13 @@ public interface ItemInstancesService extends IService<ItemInstances> {
      */
     Long batchDecomposeBlueGreenEquipments();
 
+    /**
+     * 消耗物品（扣减数量），数量减为0时自动删除实例
+     * 用于消耗品使用场景（如食物喂宠物）
+     *
+     * @param itemInstanceId 物品实例ID
+     * @param quantity       消耗数量
+     */
+    void consumeItem(Long itemInstanceId, int quantity);
+
 }

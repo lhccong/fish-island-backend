@@ -231,6 +231,25 @@ public class ItemInstancesServiceImpl extends ServiceImpl<ItemInstancesMapper, I
         if (itemInstanceQueryRequest == null) {
             return queryWrapper;
         }
+
+        String category = itemInstanceQueryRequest.getCategory();
+        String equipSlot = itemInstanceQueryRequest.getEquipSlot();
+        Integer rarity = itemInstanceQueryRequest.getRarity();
+
+        // 过滤条件：需要 JOIN item_templates，这里通过子查询方式过滤 templateId
+        if (StringUtils.isNotBlank(category)) {
+            queryWrapper.inSql("templateId",
+                    "SELECT id FROM item_templates WHERE category = '" + category.replace("'", "''") + "' AND isDelete = 0");
+        }
+        if (StringUtils.isNotBlank(equipSlot)) {
+            queryWrapper.inSql("templateId",
+                    "SELECT id FROM item_templates WHERE equip_slot = '" + equipSlot.replace("'", "''") + "' AND isDelete = 0");
+        }
+        if (rarity != null && rarity > 0) {
+            queryWrapper.inSql("templateId",
+                    "SELECT id FROM item_templates WHERE rarity = " + rarity + " AND isDelete = 0");
+        }
+
         // 排序字段处理
         String sortField = itemInstanceQueryRequest.getSortField();
         String sortOrder = itemInstanceQueryRequest.getSortOrder();
@@ -239,7 +258,7 @@ public class ItemInstancesServiceImpl extends ServiceImpl<ItemInstancesMapper, I
         if (StringUtils.isNotBlank(sortField) && SqlUtils.validSortField(sortField)) {
             queryWrapper.orderBy(true, asc, sortField);
         } else {
-            queryWrapper.orderByDesc("updateTime");
+            queryWrapper.orderByAsc("templateId");
         }
 
         return queryWrapper;
@@ -538,6 +557,42 @@ public class ItemInstancesServiceImpl extends ServiceImpl<ItemInstancesMapper, I
 
         // 转换为VO
         return ItemInstanceVO.objToVo(itemInstance, template);
+    }
+
+    /**
+     * 消耗物品（扣减数量），数量减为0时自动删除实例
+     *
+     * @param itemInstanceId 物品实例ID
+     * @param quantity       消耗数量
+     */
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public void consumeItem(Long itemInstanceId, int quantity) {
+        if (itemInstanceId == null || itemInstanceId <= 0) {
+            throw new BusinessException(ErrorCode.PARAMS_ERROR, "物品实例ID不能为空");
+        }
+        if (quantity <= 0) {
+            throw new BusinessException(ErrorCode.PARAMS_ERROR, "消耗数量必须大于0");
+        }
+
+        ItemInstances instance = this.getById(itemInstanceId);
+        if (instance == null) {
+            throw new BusinessException(ErrorCode.NOT_FOUND_ERROR, "物品实例不存在");
+        }
+
+        int currentQty = instance.getQuantity() == null ? 0 : instance.getQuantity();
+        if (currentQty < quantity) {
+            throw new BusinessException(ErrorCode.OPERATION_ERROR, "物品数量不足");
+        }
+
+        int newQty = currentQty - quantity;
+        if (newQty <= 0) {
+            // 数量归零，删除实例
+            this.removeById(itemInstanceId);
+        } else {
+            instance.setQuantity(newQty);
+            this.updateById(instance);
+        }
     }
 
     /**

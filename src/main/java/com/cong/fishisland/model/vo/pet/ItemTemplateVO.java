@@ -97,4 +97,14 @@ public class ItemTemplateVO implements Serializable {
      * 分解后获得的积分
      */
     private Integer removePoint;
+
+    /**
+     * 是否允许购买，0-不可购买，1-可购买
+     */
+    private Integer purchasable;
+
+    /**
+     * 购买消耗积分，purchasable=1 时有效
+     */
+    private Integer purchasePoint;
 }

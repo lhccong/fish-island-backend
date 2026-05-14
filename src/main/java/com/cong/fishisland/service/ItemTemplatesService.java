@@ -57,6 +57,15 @@ public interface ItemTemplatesService extends IService<ItemTemplates> {
     Page<ItemTemplateVO> getItemTemplateVOVoPage(Page<ItemTemplates> itemTemplatesPage);
 
     /**
+     * 购买物品（扣除积分，物品入背包）
+     * 仅限 purchasable=1 的物品，通过 templateId 指定
+     *
+     * @param templateId 物品模板ID
+     * @param quantity   购买数量
+     */
+    void purchaseItem(Long templateId, int quantity);
+
+    /**
      * 根据模板ID列表批量查询模板信息
      *
      * @param templateIds 模板ID列表

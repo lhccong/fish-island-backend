@@ -18,10 +18,7 @@ import com.cong.fishisland.model.entity.pet.ItemTemplates;
 import com.cong.fishisland.model.vo.pet.ItemTemplateVO;
 import com.cong.fishisland.service.ItemTemplatesService;
 import io.swagger.annotations.ApiOperation;
-import org.springframework.web.bind.annotation.PostMapping;
-import org.springframework.web.bind.annotation.RequestBody;
-import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.bind.annotation.*;
 
 import javax.annotation.Resource;
 
@@ -137,6 +134,44 @@ public class ItemTemplatesController {
         // 3. 转换 VO 并返回
         Page<ItemTemplateVO> itemTemplateVOPage = itemTemplatesService.getItemTemplateVOVoPage(itemTemplatesPage);
         return ResultUtils.success(itemTemplateVOPage);
+    }
+
+    /**
+     * 分页获取可购买物品列表
+     * 固定过滤 purchasable=1，支持按 category、subType 筛选
+     */
+    @PostMapping("/list/page/purchasable")
+    @ApiOperation(value = "分页获取可购买物品列表", notes = "只返回 purchasable=1 的物品，支持按 category（大类）和 subType（子类型）筛选")
+    @SaCheckLogin
+    public BaseResponse<Page<ItemTemplateVO>> listPurchasableItemsByPage(@RequestBody ItemTemplateQueryRequest itemTemplateQueryRequest) {
+        if (itemTemplateQueryRequest == null) {
+            throw new BusinessException(ErrorCode.PARAMS_ERROR, "请求参数不能为空");
+        }
+        long current = itemTemplateQueryRequest.getCurrent();
+        long pageSize = itemTemplateQueryRequest.getPageSize();
+        ThrowUtils.throwIf(pageSize > 50, ErrorCode.PARAMS_ERROR, "单页最多查询50条");
+        ThrowUtils.throwIf(pageSize <= 0, ErrorCode.PARAMS_ERROR, "分页大小必须大于0");
+        if (current <= 0) {
+            current = 1;
+        }
+        // 构造查询条件，强制加上 purchasable=1
+        QueryWrapper<ItemTemplates> queryWrapper = itemTemplatesService.getQueryWrapper(itemTemplateQueryRequest);
+        queryWrapper.eq("purchasable", 1);
+        Page<ItemTemplates> itemTemplatesPage = itemTemplatesService.page(new Page<>(current, pageSize), queryWrapper);
+        Page<ItemTemplateVO> itemTemplateVOPage = itemTemplatesService.getItemTemplateVOVoPage(itemTemplatesPage);
+        return ResultUtils.success(itemTemplateVOPage);
+    }
+
+    /**
+     * 购买物品
+     * 消耗积分，物品直接进入背包（可叠加物品自动累加数量）
+     */
+    @PostMapping("/purchase")
+    @SaCheckLogin
+    @ApiOperation(value = "购买物品", notes = "消耗积分购买指定物品（仅限 purchasable=1 的物品），物品进入背包")
+    public BaseResponse<Boolean> purchaseItem(@RequestParam Long templateId, @RequestParam int quantity) {
+        itemTemplatesService.purchaseItem(templateId, quantity);
+        return ResultUtils.success(true);
     }
 
     // endregion

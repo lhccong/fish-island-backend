@@ -16,6 +16,8 @@ public enum PointsRecordSourceEnum {
     PET_FEED("pet_feed", "宠物喂食"),
     PET_PAT("pet_pat", "宠物抚摸"),
     PET_RENAME("pet_rename", "宠物改名"),
+    PET_AUTO_FEED("pet_auto_feed", "宠物自动喂食"),
+    FOOD_PURCHASE("food_purchase", "购买宠物食物"),
     TURNTABLE("turntable", "转盘抽奖"),
     SKIN_EXCHANGE("skin_exchange", "兑换皮肤"),
     PROPS_PURCHASE("props_purchase", "购买道具"),

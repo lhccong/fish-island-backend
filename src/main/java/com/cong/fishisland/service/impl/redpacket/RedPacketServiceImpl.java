@@ -36,6 +36,8 @@ import java.math.BigDecimal;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.*;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.Semaphore;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
@@ -62,7 +64,6 @@ public class RedPacketServiceImpl implements RedPacketService {
     private static final String RED_PACKET_KEY_PREFIX = "redpacket:";
     private static final String RED_PACKET_RECORD_KEY_PREFIX = "redpacket:record:";
     private static final String RED_PACKET_USER_KEY_PREFIX = "redpacket:user:";
-    private static final String RED_PACKET_LOCK_KEY_PREFIX = "redpacket:lock:";
     private static final String RED_PACKET_DAILY_COUNT_KEY_PREFIX = "redpacket:daily_count:";
     // 行为检测：脚本用户标记 redpacket:grab:script:{userId}
     private static final String RED_PACKET_GRAB_SCRIPT_KEY_PREFIX = "redpacket:grab:script:";
@@ -94,8 +95,10 @@ public class RedPacketServiceImpl implements RedPacketService {
     private static final BigDecimal VIP_DONATION_FREE_TWO = new BigDecimal("29");
     private static final BigDecimal VIP_DONATION_FREE_ALL = new BigDecimal("100");
 
-    // 锁的过期时间（10秒）
-    private static final long LOCK_EXPIRE_TIME = 10;
+    // 每个红包的本地排队信号量，保证同一时刻只有一个线程执行抢红包核心逻辑
+    private final ConcurrentHashMap<String, Semaphore> redPacketSemaphores = new ConcurrentHashMap<>();
+    // 排队最长等待时间（秒）
+    private static final int QUEUE_WAIT_TIMEOUT_SECONDS = 10;
 
     @Scheduled(cron = "0 0 10,15 * * ?") // 每天上午10点和下午3点各执行一次
     public void aiSendRedPacket() {
@@ -329,39 +332,20 @@ public class RedPacketServiceImpl implements RedPacketService {
         // 行为检测：脚本用户强制等待
         applyScriptDelay(userId);
 
-        // 获取分布式锁
-        String lockKey = RED_PACKET_LOCK_KEY_PREFIX + redPacketId;
-        boolean locked = false;
+        // 本地信号量排队：同一红包同一时刻只允许一个线程执行核心逻辑，其余线程按先后顺序等待
+        Semaphore semaphore = redPacketSemaphores.computeIfAbsent(redPacketId, k -> new Semaphore(1, true));
+        boolean acquired = false;
         try {
-            // 尝试获取锁，最多重试5次，快速重试
-            int retryCount = 0;
-            int maxRetries = 5;
-            long retryWaitTime = 50;
-
-            while (retryCount < maxRetries) {
-                locked = Boolean.TRUE.equals(redisTemplate.opsForValue().setIfAbsent(lockKey, "1", LOCK_EXPIRE_TIME, TimeUnit.SECONDS));
-                if (locked) {
-                    break;
-                }
-
-                // 快速重试，几乎是立即重试
-                try {
-                    // 仅记录第一次和最后一次重试的日志，减少日志量
-                    if (retryCount == 0 || retryCount == maxRetries - 1) {
-                        log.info("获取锁失败，正在重试 {}/{}，红包ID: {}", retryCount + 1, maxRetries, redPacketId);
-                    }
-                    Thread.sleep(retryWaitTime);
-                    // 重试时间增长较小，保持快速响应
-                    retryWaitTime += 20;
-                } catch (InterruptedException e) {
-                    Thread.currentThread().interrupt();
-                }
-                retryCount++;
+            // 排队等待信号量，最多等待 QUEUE_WAIT_TIMEOUT_SECONDS 秒
+            try {
+                acquired = semaphore.tryAcquire(QUEUE_WAIT_TIMEOUT_SECONDS, TimeUnit.SECONDS);
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+                throw new BusinessException(ErrorCode.OPERATION_ERROR, "抢红包被中断，请重试");
             }
-
-            if (!locked) {
-                log.info("获取锁最终失败，已重试{}次: {}", maxRetries, redPacketId);
-                throw new BusinessException(ErrorCode.OPERATION_ERROR, "抢红包人数过多，请稍后再试");
+            if (!acquired) {
+                log.warn("用户 {} 排队超时，红包ID: {}", userId, redPacketId);
+                throw new BusinessException(ErrorCode.OPERATION_ERROR, "排队超时，请稍后再试");
             }
 
             // 再次检查红包状态（双重检查）
@@ -424,9 +408,16 @@ public class RedPacketServiceImpl implements RedPacketService {
 
             return amount;
         } finally {
-            // 释放锁
-            if (locked) {
-                redisTemplate.delete(lockKey);
+            // 释放本地信号量，让下一个排队的线程进入
+            if (acquired) {
+                semaphore.release();
+            }
+            // 红包已抢完时清理信号量，避免内存泄漏
+            RedPacket finalRedPacket = JSON.parseObject(
+                    JSON.toJSONString(redisTemplate.opsForValue().get(RED_PACKET_KEY_PREFIX + redPacketId)),
+                    RedPacket.class);
+            if (finalRedPacket == null || finalRedPacket.getStatus() != 0) {
+                redPacketSemaphores.remove(redPacketId);
             }
         }
     }

@@ -377,9 +377,9 @@ public class MomentsServiceImpl extends ServiceImpl<MomentsMapper, Moments>
                 new LambdaQueryWrapper<MomentsComment>()
                         .eq(MomentsComment::getMomentId, request.getMomentId())
                         .isNull(MomentsComment::getParentId)
-                        // 置顶评论排在最前，同层内按时间正序
+                        // 置顶评论排在最前，同层内按时间倒序
                         .orderByDesc(MomentsComment::getIsTop)
-                        .orderByAsc(MomentsComment::getCreateTime));
+                        .orderByDesc(MomentsComment::getCreateTime));
 
         if (page.getRecords().isEmpty()) {
             return new Page<>(page.getCurrent(), page.getSize(), 0);
@@ -392,7 +392,7 @@ public class MomentsServiceImpl extends ServiceImpl<MomentsMapper, Moments>
                 new LambdaQueryWrapper<MomentsComment>()
                         .eq(MomentsComment::getMomentId, request.getMomentId())
                         .in(MomentsComment::getParentId, parentIds)
-                        .orderByAsc(MomentsComment::getCreateTime));
+                        .orderByDesc(MomentsComment::getCreateTime));
 
         // 批量查询用户信息
         Set<Long> userIds = new HashSet<>();
@@ -548,9 +548,9 @@ public class MomentsServiceImpl extends ServiceImpl<MomentsMapper, Moments>
 
         ThrowUtils.throwIf(likes.isEmpty(), ErrorCode.OPERATION_ERROR, "暂无参与用户（需要先点赞才能参与抽奖）");
 
-        // 过滤：注册时间 > 5 天 且 points 积分 > 200
+        // 过滤：注册时间 > 4 天 且 points 积分 > 200
         Date fiveDaysAgo = Date.from(
-                java.time.LocalDate.now().minusDays(5)
+                java.time.LocalDate.now().minusDays(4)
                         .atStartOfDay(java.time.ZoneId.systemDefault()).toInstant());
 
         Set<Long> likeUserIds = likes.stream()
@@ -608,16 +608,21 @@ public class MomentsServiceImpl extends ServiceImpl<MomentsMapper, Moments>
         // 给每位中奖用户发系统消息通知
         User publisher = userService.getById(moments.getUserId());
         String publisherName = publisher != null ? publisher.getUserName() : "动态发布者";
-        winnerVOList.forEach(winner ->
-                eventRemindHandler.handleSystemMessage(
-                        winner.getUserId(),
-                        "🎉 恭喜你在「" + publisherName + "」的朋友圈抽奖中获奖！"
-                )
-        );
+        for (int i = 0; i < winnerVOList.size(); i++) {
+            MomentsLotteryVO.LotteryWinnerVO winner = winnerVOList.get(i);
+            eventRemindHandler.handleSystemMessage(
+                    winner.getUserId(),
+                    "🎉 恭喜你以第 " + (i + 1) + " 名中奖者身份，在「" + publisherName + "」的朋友圈抽奖中获奖！"
+            );
+        }
 
-        // 构建评论内容：🎉 抽奖结果：@用户1、@用户2 ...
-        String winnerNames = winnerVOList.stream()
-                .map(w -> "@" + (w.getUserName() != null ? w.getUserName() : "用户" + w.getUserId()))
+        // 构建评论内容：🎉 抽奖结果：第1名 @用户1、第2名 @用户2 ...
+        String winnerNames = java.util.stream.IntStream.range(0, winnerVOList.size())
+                .mapToObj(i -> {
+                    MomentsLotteryVO.LotteryWinnerVO w = winnerVOList.get(i);
+                    String name = w.getUserName() != null ? w.getUserName() : "用户" + w.getUserId();
+                    return "第" + (i + 1) + "名 @" + name;
+                })
                 .collect(Collectors.joining("、"));
         String commentContent = "🎉 抽奖结果（共 " + actualCount + " 位中奖者）：" + winnerNames + " 恭喜获奖！";
 

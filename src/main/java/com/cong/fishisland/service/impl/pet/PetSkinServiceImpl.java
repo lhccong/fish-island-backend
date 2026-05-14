@@ -141,7 +141,7 @@ public class PetSkinServiceImpl extends ServiceImpl<PetSkinMapper, PetSkin> impl
         // 如果skinId为-1，则恢复原皮
         if (skinId != null && skinId == -1L) {
             // 默认原皮的图片地址，可以根据实际情况设置
-            String defaultPetUrl = "https://oss.cqbo.com/moyu/pet/超级玛丽马里奥 (73)_爱给网_aigei_com.png";
+            String defaultPetUrl = "https://oss.cqbo.com/moyu/pet/luobo.webp";
             fishPet.setPetUrl(defaultPetUrl);
             fishPetMapper.updateById(fishPet);
             

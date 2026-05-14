@@ -121,6 +121,18 @@ public class ItemTemplates implements Serializable {
     private Integer removePoint;
 
     /**
+     * 是否允许购买，0-不可购买，1-可购买
+     */
+    @TableField(value = "purchasable")
+    private Integer purchasable;
+
+    /**
+     * 购买消耗积分，purchasable=1 时有效
+     */
+    @TableField(value = "purchasePoint")
+    private Integer purchasePoint;
+
+    /**
      * 创建时间
      */
     @TableField(value = "createTime")

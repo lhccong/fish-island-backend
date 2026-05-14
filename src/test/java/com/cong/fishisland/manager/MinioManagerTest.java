@@ -412,8 +412,8 @@ class MinioManagerTest extends TestBase {
     @Test
     void batchInsertEmoticonFavourFromMinio() {
         // ★ 修改这两个参数即可
-        String prefix = "user_file/1935639117732880386/";
-        Long userId = 2052619705395548162L;
+        String prefix = "user_file/1914555550152101889/";
+        Long userId = 2052621385960886273L;
 
         List<String> imageExtensions = Arrays.asList(".jpg", ".jpeg", ".png", ".gif", ".bmp", ".webp");
         List<EmoticonFavour> toInsert = new ArrayList<>();

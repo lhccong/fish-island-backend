@@ -2,6 +2,7 @@ package com.cong.fishisland.job.cycle;
 
 import com.cong.fishisland.model.ws.response.UserChatResponse;
 import com.cong.fishisland.service.FishPetService;
+import com.cong.fishisland.service.PetAutoFeedService;
 import com.cong.fishisland.service.PetTournamentService;
 import com.cong.fishisland.service.UserPointsService;
 import com.cong.fishisland.websocket.service.WebSocketService;
@@ -27,6 +28,7 @@ public class PetStatusUpdateJob {
     private final WebSocketService webSocketService;
     private final UserPointsService userPointsService;
     private final PetTournamentService petTournamentService;
+    private final PetAutoFeedService petAutoFeedService;
 
     // 每小时饥饿度减少值
     private static final int HUNGER_DECREMENT = 5;
@@ -162,6 +164,26 @@ public class PetStatusUpdateJob {
             log.info("武道大会排行榜重置完成");
         } catch (Exception e) {
             log.error("武道大会排行榜重置异常", e);
+        }
+    }
+
+    /**
+     * 每小时执行宠物自动喂食
+     * 在宠物状态扣减之后执行，确保饥饿度已更新
+     * 对所有启用自动喂食且饥饿度达到阈值的宠物，自动消耗背包中的食物
+     */
+    @Scheduled(fixedRate = 3600000, initialDelay = 3660000)
+    public void autoFeedPets() {
+        log.info("开始执行宠物自动喂食任务");
+        try {
+            int fedCount = petAutoFeedService.executeAutoFeed();
+            if (fedCount > 0) {
+                log.info("宠物自动喂食完成，共喂食 {} 只宠物", fedCount);
+            } else {
+                log.info("本次没有宠物触发自动喂食");
+            }
+        } catch (Exception e) {
+            log.error("宠物自动喂食任务执行异常", e);
         }
     }
 } 
