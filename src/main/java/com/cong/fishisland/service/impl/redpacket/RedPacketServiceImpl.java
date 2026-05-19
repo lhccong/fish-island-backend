@@ -5,6 +5,7 @@ import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
 import com.cong.fishisland.common.ErrorCode;
 import com.cong.fishisland.common.exception.BusinessException;
 import com.cong.fishisland.model.dto.redpacket.CreateRedPacketRequest;
+
 import static com.cong.fishisland.model.enums.user.PointsRecordSourceEnum.*;
 
 import com.cong.fishisland.model.entity.chat.RoomMessage;
@@ -566,8 +567,9 @@ public class RedPacketServiceImpl implements RedPacketService {
             String scriptKey = RED_PACKET_GRAB_SCRIPT_KEY_PREFIX + userId;
             redisTemplate.opsForValue().set(scriptKey, "1", GRAB_SCRIPT_MARK_TTL_SECONDS, TimeUnit.SECONDS);
             log.warn("用户 {} 今日快速抢包次数达到 {}，标记为脚本用户", userId, fastCount);
+            User user = userService.getById(userId);
             eventRemindService.sendSystemNotify(1L,
-                    String.format("检测到用户 %d 今日快速抢包次数达到 %d 次（1秒内抢到），已标记为脚本用户", userId, fastCount));
+                    String.format("检测到用户 %s 今日快速抢包次数达到 %d 次，已标记为脚本用户", user.getUserName() + ":" + user.getId(), fastCount));
         }
     }
 
@@ -616,8 +618,9 @@ public class RedPacketServiceImpl implements RedPacketService {
             String scriptKey = RED_PACKET_GRAB_SCRIPT_KEY_PREFIX + userId;
             redisTemplate.opsForValue().set(scriptKey, "1", GRAB_SCRIPT_MARK_TTL_SECONDS, TimeUnit.SECONDS);
             log.warn("用户 {} 抢包间隔高度一致（std={}ms），标记为脚本用户", userId, (long) std);
+            User user = userService.getById(userId);
             eventRemindService.sendSystemNotify(1L,
-                    String.format("检测到用户 %d 抢包间隔高度一致（标准差 %dms），已标记为脚本用户", userId, (long) std));
+                    String.format("检测到用户 %s 抢包间隔高度一致（标准差 %dms），已标记为脚本用户", user.getUserName() + ":" + user.getId(), (long) std));
         }
     }
 
