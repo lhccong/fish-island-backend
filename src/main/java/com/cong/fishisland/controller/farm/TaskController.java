@@ -4,6 +4,7 @@ import cn.dev33.satoken.stp.StpUtil;
 import com.cong.fishisland.common.BaseResponse;
 import com.cong.fishisland.common.ErrorCode;
 import com.cong.fishisland.common.ResultUtils;
+import com.cong.fishisland.common.exception.BusinessException;
 import com.cong.fishisland.mapper.farm.FarmDailyTaskMapper;
 import com.cong.fishisland.model.dto.farm.TaskDTO;
 import com.cong.fishisland.model.entity.farm.FarmDailyTask;
@@ -47,7 +48,7 @@ public class TaskController {
         Long farmUserId = farmUserService.getFarmUserId(userId);
         int exp = taskService.claimTaskReward(farmUserId, taskId);
         if (exp == 0) {
-            return ResultUtils.error(ErrorCode.OPERATION_ERROR);
+            throw new BusinessException(ErrorCode.OPERATION_ERROR);
         }
         return ResultUtils.success(exp);
     }

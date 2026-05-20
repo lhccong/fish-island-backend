@@ -4,6 +4,7 @@ package com.cong.fishisland.controller.farm;
 import com.cong.fishisland.common.BaseResponse;
 import com.cong.fishisland.common.ErrorCode;
 import com.cong.fishisland.common.ResultUtils;
+import com.cong.fishisland.common.exception.BusinessException;
 import com.cong.fishisland.model.dto.farm.CropDTO;
 import com.cong.fishisland.model.entity.farm.FarmCrop;
 import com.cong.fishisland.service.FarmCropService;
@@ -42,7 +43,7 @@ public class CropController {
     public BaseResponse<CropDTO> getCropById(@PathVariable Long id) {
         FarmCrop crop = cropService.getCropById(id);
         if (crop == null) {
-            return ResultUtils.error(ErrorCode.SYSTEM_ERROR);
+            throw new BusinessException(ErrorCode.SYSTEM_ERROR);
         }
         return ResultUtils.success(convertToDTO(crop));
     }

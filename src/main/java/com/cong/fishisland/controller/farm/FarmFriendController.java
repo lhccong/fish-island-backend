@@ -73,7 +73,7 @@ public class FarmFriendController {
         Long friendFarmUserId = farmUserService.getFarmUserId(friendId);
 
         if (!farmFriendService.isMutualFriend(systemUserId, friendId)) {
-            return ResultUtils.error(ErrorCode.OPERATION_ERROR, "仅可访问互相关注用户的农场");
+            throw new BusinessException(ErrorCode.OPERATION_ERROR, "仅可访问互相关注用户的农场");
         }
 
         FarmFriendVisitVO visitVO = new FarmFriendVisitVO();

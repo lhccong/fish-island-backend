@@ -4,6 +4,7 @@ import cn.dev33.satoken.stp.StpUtil;
 import com.cong.fishisland.common.BaseResponse;
 import com.cong.fishisland.common.ErrorCode;
 import com.cong.fishisland.common.ResultUtils;
+import com.cong.fishisland.common.exception.BusinessException;
 import com.cong.fishisland.model.dto.farm.FarmStealRecordVO;
 import com.cong.fishisland.model.dto.farm.request.StealRequest;
 import com.cong.fishisland.model.entity.farm.FarmStealRecord;
@@ -35,7 +36,7 @@ public class StealController {
         Long farmUserId = farmUserService.getFarmUserId(userId);
         FarmStealRecord record = stealService.steal(farmUserId, request.getPlantRecordId());
         if (record == null) {
-            return ResultUtils.error(ErrorCode.OPERATION_ERROR, "偷菜失败");
+            throw new BusinessException(ErrorCode.OPERATION_ERROR, "偷菜失败");
         }
         return ResultUtils.success(record);
     }

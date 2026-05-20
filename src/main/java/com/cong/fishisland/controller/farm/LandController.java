@@ -53,7 +53,7 @@ public class LandController {
         Long farmUserId = farmUserService.getFarmUserId(userId);
         FarmLand land = landService.plant(farmUserId, request.getLandId(), request.getCropId());
         if (land == null) {
-            return ResultUtils.error(ErrorCode.OPERATION_ERROR);
+            throw new BusinessException(ErrorCode.OPERATION_ERROR);
         }
 
         taskService.updateTaskProgress(farmUserId, "plant");
@@ -68,7 +68,7 @@ public class LandController {
         Long farmUserId = farmUserService.getFarmUserId(userId);
         FarmLand land = landService.harvest(farmUserId, request.getLandId());
         if (land == null) {
-            return ResultUtils.error(ErrorCode.OPERATION_ERROR);
+            throw new BusinessException(ErrorCode.OPERATION_ERROR);
         }
 
         taskService.updateTaskProgress(farmUserId, "harvest");

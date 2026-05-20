@@ -31,7 +31,7 @@ public class UserRemarkController {
     @ApiOperation(value = "保存备注")
     public BaseResponse<Boolean> saveRemark(@RequestBody UserRemarkAddRequest request) {
         if (!StpUtil.isLogin()) {
-            return ResultUtils.error(ErrorCode.NOT_LOGIN_ERROR);
+            throw new BusinessException(ErrorCode.NOT_LOGIN_ERROR);
         }
         return ResultUtils.success(userRemarkService.saveRemark(request.getContent()));
     }
@@ -43,7 +43,7 @@ public class UserRemarkController {
     @ApiOperation(value = "获取当前用户备注")
     public BaseResponse<UserRemark> getRemark() {
         if (!StpUtil.isLogin()) {
-            return ResultUtils.error(ErrorCode.NOT_LOGIN_ERROR);
+            throw new BusinessException(ErrorCode.NOT_LOGIN_ERROR);
         }
         return ResultUtils.success(userRemarkService.getCurrentUserRemark());
     }
