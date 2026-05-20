@@ -11,9 +11,9 @@ import java.time.LocalDateTime;
 @Mapper
 public interface FarmFriendMapper extends BaseMapper<FarmFriend> {
 
-    @Update("UPDATE farm_friend SET lastVisitTime = #{lastVisitTime}, updatedAt = NOW() WHERE userId = #{userId} AND friendId = #{friendId}")
+    @Update("UPDATE farm_friend SET lastVisitTime = #{lastVisitTime}, updateTime = NOW() WHERE userId = #{userId} AND friendId = #{friendId}")
     int updateLastVisitTime(@Param("userId") Long userId, @Param("friendId") Long friendId, @Param("lastVisitTime") LocalDateTime lastVisitTime);
 
-    @Update("UPDATE farm_friend SET stealCooldown = #{cooldownTime}, updatedAt = NOW() WHERE userId = #{userId} AND friendId = #{friendId}")
+    @Update("UPDATE farm_friend SET stealCooldown = #{cooldownTime}, updateTime = NOW() WHERE userId = #{userId} AND friendId = #{friendId}")
     int updateStealCooldown(@Param("userId") Long userId, @Param("friendId") Long friendId, @Param("cooldownTime") LocalDateTime cooldownTime);
 }

@@ -10,8 +10,8 @@ CREATE TABLE `farm_collection`
     `obtained`     tinyint  DEFAULT '0' COMMENT '是否已获得',
     `obtainedTime` datetime DEFAULT NULL COMMENT '获得时间',
     `count`        int      DEFAULT '0' COMMENT '收集数量',
-    `createdAt`    datetime DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
-    `updatedAt`    datetime DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
+    `createTime` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+    `updateTime` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
     PRIMARY KEY (`id`),
     UNIQUE KEY `uk_user_crop` (`userId`,`cropId`),
     KEY            `idx_user_id` (`userId`)
@@ -33,7 +33,7 @@ CREATE TABLE `farm_crop`
     `rarity`      tinyint              DEFAULT '1' COMMENT '稀有度:1-普通,2-稀有,3-史诗,4-传说',
     `icon`        varchar(255)         DEFAULT '' COMMENT '图标',
     `description` varchar(200)         DEFAULT '' COMMENT '描述',
-    `createdAt`   datetime             DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+    `createTime` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
     PRIMARY KEY (`id`)
 ) ENGINE=InnoDB AUTO_INCREMENT=26 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='作物表';
 
@@ -50,7 +50,7 @@ CREATE TABLE `farm_daily_task`
     `rewardExp`   int         NOT NULL COMMENT '奖励经验',
     `type`        varchar(20) NOT NULL COMMENT '任务类型:harvest/replant/visit/steal',
     `sortOrder`   int          DEFAULT '0' COMMENT '排序',
-    `createdAt`   datetime     DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+    `createTime` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
     PRIMARY KEY (`id`)
 ) ENGINE=InnoDB AUTO_INCREMENT=6 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='每日任务表';
 
@@ -67,8 +67,8 @@ CREATE TABLE `farm_land`
     `plantedTime`   datetime DEFAULT NULL COMMENT '种植时间',
     `harvestTime`   datetime DEFAULT NULL COMMENT '可收获时间',
     `locked`        tinyint  DEFAULT '0' COMMENT '是否锁定',
-    `createdAt`     datetime DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
-    `updatedAt`     datetime DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
+    `createTime` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+    `updateTime` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
     PRIMARY KEY (`id`),
     UNIQUE KEY `uk_user_land` (`userId`,`landIndex`),
     KEY             `idx_user_id` (`userId`)
@@ -89,7 +89,7 @@ CREATE TABLE `farm_plant_record`
     `plantedPointsReward` int               DEFAULT NULL COMMENT '种植时预期积分奖励',
     `stolenPoints`        int      NOT NULL DEFAULT '0' COMMENT '被偷积分',
     `stolenCount`         int               DEFAULT '0' COMMENT '被偷次数',
-    `createdAt`           datetime          DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+    `createTime` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
     PRIMARY KEY (`id`),
     KEY                   `idx_user_id` (`userId`),
     KEY                   `idx_harvest_time` (`harvestTime`)
@@ -107,8 +107,8 @@ CREATE TABLE `farm_ranking`
     `todayValue` int      DEFAULT '0' COMMENT '今日数值',
     `totalValue` int      DEFAULT '0' COMMENT '累计数值',
     `date`       date        NOT NULL COMMENT '日期',
-    `createdAt`  datetime DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
-    `updatedAt`  datetime DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
+    `createTime` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+    `updateTime` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
     PRIMARY KEY (`id`),
     UNIQUE KEY `uk_user_type_date` (`userId`,`type`,`date`),
     KEY          `idx_type_date` (`type`,`date`)
@@ -124,7 +124,6 @@ CREATE TABLE `farm_steal_record`
     `plantRecordId` bigint NOT NULL COMMENT '种植记录ID',
     `cropId`        bigint NOT NULL COMMENT '作物ID',
     `stolenTime`    datetime DEFAULT CURRENT_TIMESTAMP COMMENT '偷取时间',
-    `expGained`     int      DEFAULT '0' COMMENT '获得经验',
     `coinGained`    int      DEFAULT '0' COMMENT '获得积分',
     PRIMARY KEY (`id`),
     KEY             `idx_stealer_id` (`stealerId`),
@@ -142,8 +141,8 @@ CREATE TABLE `farm_task_record`
     `completed`    tinyint  DEFAULT '0' COMMENT '是否已完成',
     `claimed`      tinyint  DEFAULT '0' COMMENT '是否已领取奖励',
     `date`         date   NOT NULL COMMENT '日期',
-    `createdAt`    datetime DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
-    `updatedAt`    datetime DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
+    `createTime` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+    `updateTime` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
     PRIMARY KEY (`id`),
     UNIQUE KEY `uk_user_task_date` (`userId`,`taskId`,`date`),
     KEY            `idx_user_id` (`userId`)
@@ -167,8 +166,8 @@ CREATE TABLE `farm_user`
     `lastSignInDate`  datetime     DEFAULT NULL COMMENT '最后签到时间',
     `consecutiveDays` int          DEFAULT '0' COMMENT '连续签到天数',
     `status`          tinyint      DEFAULT '1' COMMENT '状态:0-封禁,1-正常',
-    `createdAt`       datetime     DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
-    `updatedAt`       datetime     DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
+    `createTime` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+    `updateTime` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
     PRIMARY KEY (`id`),
     UNIQUE KEY `uk_user_id` (`userId`),
     KEY               `idx_level` (`level`),
@@ -185,8 +184,8 @@ CREATE TABLE `farm_friend`
     `status`        tinyint  DEFAULT '1' COMMENT '好友状态:0-拉黑,1-正常',
     `lastVisitTime` datetime DEFAULT NULL COMMENT '上次访问好友农场时间',
     `stealCooldown` datetime DEFAULT NULL COMMENT '偷菜冷却结束时间',
-    `createdAt`     datetime DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
-    `updatedAt`     datetime DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
+    `createTime` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+    `updateTime` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
     PRIMARY KEY (`id`),
     UNIQUE KEY `uk_user_friend` (`userId`,`friendId`),
     KEY             `idx_user_id` (`userId`),
@@ -194,7 +193,7 @@ CREATE TABLE `farm_friend`
 ) ENGINE=InnoDB AUTO_INCREMENT=2 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='农场好友表';
 
 -- 蔬菜类作物
-INSERT INTO farm_crop (name, category, growthTime, experience, coin, rarity, icon, description, createdAt)
+INSERT INTO farm_crop (name, category, growthTime, experience, coin, rarity, icon, description, createTime)
 VALUES ('胡萝卜', 'vegetable', 30, 7, 3, 1, '', '普通蔬菜', NOW()),
        ('卷心菜', 'vegetable', 45, 8, 4, 1, '', '普通蔬菜', NOW()),
        ('番茄', 'vegetable', 60, 10, 5, 2, '', '普通蔬菜', NOW()),
@@ -208,7 +207,7 @@ VALUES ('胡萝卜', 'vegetable', 30, 7, 3, 1, '', '普通蔬菜', NOW()),
        ('豆角', 'vegetable', 135, 16, 8, 4, '', '普通蔬菜', NOW());
 
 -- 粮食类作物
-INSERT INTO farm_crop (name, category, growthTime, experience, coin, rarity, icon, description, createdAt)
+INSERT INTO farm_crop (name, category, growthTime, experience, coin, rarity, icon, description, createTime)
 VALUES ('大麦', 'grain', 25, 6, 3, 1, '', '普通粮食作物', NOW()),
        ('燕麦', 'grain', 40, 8, 4, 1, '', '普通粮食作物', NOW()),
        ('黑麦', 'grain', 60, 10, 5, 2, '', '普通粮食作物', NOW()),
@@ -217,13 +216,13 @@ VALUES ('大麦', 'grain', 25, 6, 3, 1, '', '普通粮食作物', NOW()),
        ('玉米', 'grain', 60, 10, 5, 3, '', '普通粮食作物', NOW());
 
 -- 水果类作物
-INSERT INTO farm_crop (name, category, growthTime, experience, coin, rarity, icon, description, createdAt)
+INSERT INTO farm_crop (name, category, growthTime, experience, coin, rarity, icon, description, createTime)
 VALUES ('草莓', 'fruit', 0, 0, 4, 1, '', '普通水果', NOW()),
        ('葡萄', 'fruit', 0, 0, 7, 1, '', '普通水果', NOW()),
        ('西瓜', 'fruit', 0, 0, 8, 1, '', '普通水果', NOW());
 
 -- 花卉类作物
-INSERT INTO farm_crop (name, category, growthTime, experience, coin, rarity, icon, description, createdAt)
+INSERT INTO farm_crop (name, category, growthTime, experience, coin, rarity, icon, description, createTime)
 VALUES ('向日葵', 'flower', 60, 10, 5, 1, '', '普通花卉', NOW()),
        ('郁金香', 'flower', 90, 13, 6, 2, '', '普通花卉', NOW()),
        ('雏菊', 'flower', 75, 11, 5, 2, '', '普通花卉', NOW()),
@@ -232,17 +231,17 @@ VALUES ('向日葵', 'flower', 60, 10, 5, 1, '', '普通花卉', NOW()),
 
 
 INSERT INTO fish.farm_daily_task
-(id, name, description, targetCount, rewardExp, `type`, sortOrder, createdAt)
+(id, name, description, targetCount, rewardExp, `type`, sortOrder, createTime)
 VALUES (1, '种植作物', '种植3次作物', 3, 10, 'plant', 1, '2026-05-18 02:00:53');
 INSERT INTO fish.farm_daily_task
-(id, name, description, targetCount, rewardExp, `type`, sortOrder, createdAt)
+(id, name, description, targetCount, rewardExp, `type`, sortOrder, createTime)
 VALUES (2, '收获作物', '收获3次作物', 3, 10, 'harvest', 2, '2026-05-18 02:00:53');
 INSERT INTO fish.farm_daily_task
-(id, name, description, targetCount, rewardExp, `type`, sortOrder, createdAt)
+(id, name, description, targetCount, rewardExp, `type`, sortOrder, createTime)
 VALUES (3, '偷取好友作物', '偷取2次好友作物', 2, 15, 'steal', 3, '2026-05-18 02:00:53');
 INSERT INTO fish.farm_daily_task
-(id, name, description, targetCount, rewardExp, `type`, sortOrder, createdAt)
+(id, name, description, targetCount, rewardExp, `type`, sortOrder, createTime)
 VALUES (4, '访问好友农场', '访问3个好友农场', 3, 5, 'visit', 4, '2026-05-18 02:00:53');
 INSERT INTO fish.farm_daily_task
-(id, name, description, targetCount, rewardExp, `type`, sortOrder, createdAt)
+(id, name, description, targetCount, rewardExp, `type`, sortOrder, createTime)
 VALUES (5, '农场签到', '完成每日签到', 1, 5, 'signin', 5, '2026-05-18 02:00:53');

@@ -60,5 +60,5 @@ public class FarmPlantRecord {
     private Integer stolenCount = 0;
 
     @ApiModelProperty(value = "创建时间")
-    private LocalDateTime createdAt;
+    private LocalDateTime createTime;
 }

@@ -63,8 +63,8 @@ public class FarmTaskServiceImpl extends ServiceImpl<FarmTaskRecordMapper, FarmT
             record.setCompleted(0);
             record.setClaimed(0);
             record.setDate(today);
-            record.setCreatedAt(now);
-            record.setUpdatedAt(now);
+            record.setCreateTime(now);
+            record.setUpdateTime(now);
             records.add(record);
         }
         saveBatch(records);
@@ -95,7 +95,7 @@ public class FarmTaskServiceImpl extends ServiceImpl<FarmTaskRecordMapper, FarmT
                 if (target != null && record.getCurrentCount() >= target) {
                     record.setCompleted(1);
                 }
-                record.setUpdatedAt(LocalDateTime.now());
+                record.setUpdateTime(LocalDateTime.now());
                 toUpdate.add(record);
             }
         }
@@ -123,7 +123,7 @@ public class FarmTaskServiceImpl extends ServiceImpl<FarmTaskRecordMapper, FarmT
         }
 
         record.setClaimed(1);
-        record.setUpdatedAt(LocalDateTime.now());
+        record.setUpdateTime(LocalDateTime.now());
         updateById(record);
 
         return task.getRewardExp();
@@ -147,7 +147,7 @@ public class FarmTaskServiceImpl extends ServiceImpl<FarmTaskRecordMapper, FarmT
         task.setRewardExp(reward);
         task.setType(type);
         task.setSortOrder(order);
-        task.setCreatedAt(LocalDateTime.now());
+        task.setCreateTime(LocalDateTime.now());
         dailyTaskMapper.insert(task);
     }
 }

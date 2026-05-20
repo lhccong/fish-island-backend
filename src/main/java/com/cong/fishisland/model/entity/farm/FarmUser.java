@@ -64,8 +64,8 @@ public class FarmUser {
     private Integer status = 1;
 
     @ApiModelProperty(value = "创建时间")
-    private LocalDateTime createdAt;
+    private LocalDateTime createTime;
 
     @ApiModelProperty(value = "更新时间")
-    private LocalDateTime updatedAt;
+    private LocalDateTime updateTime;
 }

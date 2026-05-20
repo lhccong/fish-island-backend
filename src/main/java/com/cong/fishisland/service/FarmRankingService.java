@@ -19,7 +19,7 @@ public interface FarmRankingService {
 
     List<RankingDTO> getTotalDefenseRanking();
     
-    void updateStealRanking(Long stealerId, int expGained);
+    void updateStealCountRanking(Long stealerId);
     
     void updateDefenseRanking(Long ownerId, int damage);
 }

@@ -13,7 +13,7 @@ import java.util.List;
 @Mapper
 public interface FarmRankingMapper extends BaseMapper<FarmRanking> {
 
-    @Update("UPDATE farm_ranking SET todayValue = todayValue + #{todayValue}, totalValue = totalValue + #{totalValue}, updatedAt = NOW() " +
+    @Update("UPDATE farm_ranking SET todayValue = todayValue + #{todayValue}, totalValue = totalValue + #{totalValue}, updateTime = NOW() " +
             "WHERE userId = #{userId} AND type = #{type} AND date = #{date}")
     int updateRankingValue(@Param("userId") Long userId, @Param("type") String type, @Param("date") LocalDate date,
                            @Param("todayValue") Integer todayValue, @Param("totalValue") Integer totalValue);

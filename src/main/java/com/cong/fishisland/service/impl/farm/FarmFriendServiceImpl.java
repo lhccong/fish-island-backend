@@ -213,7 +213,7 @@ public class FarmFriendServiceImpl extends ServiceImpl<FarmFriendMapper, FarmFri
         if (existing != null) {
             if (existing.getStatus() == 0) {
                 existing.setStatus(1);
-                existing.setUpdatedAt(LocalDateTime.now());
+                existing.setUpdateTime(LocalDateTime.now());
                 farmFriendMapper.updateById(existing);
                 return existing;
             }
@@ -225,8 +225,8 @@ public class FarmFriendServiceImpl extends ServiceImpl<FarmFriendMapper, FarmFri
                 .userId(userId)
                 .friendId(friendId)
                 .status(1)
-                .createdAt(now)
-                .updatedAt(now)
+                .createTime(now)
+                .updateTime(now)
                 .build();
         farmFriendMapper.insert(farmFriend);
 
@@ -263,7 +263,7 @@ public class FarmFriendServiceImpl extends ServiceImpl<FarmFriendMapper, FarmFri
             return false;
         }
         friend.setStatus(0);
-        friend.setUpdatedAt(LocalDateTime.now());
+        friend.setUpdateTime(LocalDateTime.now());
         return farmFriendMapper.updateById(friend) > 0;
     }
 
@@ -277,7 +277,7 @@ public class FarmFriendServiceImpl extends ServiceImpl<FarmFriendMapper, FarmFri
             return false;
         }
         friend.setStatus(1);
-        friend.setUpdatedAt(LocalDateTime.now());
+        friend.setUpdateTime(LocalDateTime.now());
         return farmFriendMapper.updateById(friend) > 0;
     }
 

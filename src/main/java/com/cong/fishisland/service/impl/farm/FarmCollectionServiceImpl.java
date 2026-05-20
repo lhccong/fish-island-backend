@@ -34,8 +34,8 @@ public class FarmCollectionServiceImpl extends ServiceImpl<FarmCollectionMapper,
             collection.setObtained(1);
             collection.setObtainedTime(LocalDateTime.now());
             collection.setCount(1);
-            collection.setCreatedAt(LocalDateTime.now());
-            collection.setUpdatedAt(LocalDateTime.now());
+            collection.setCreateTime(LocalDateTime.now());
+            collection.setUpdateTime(LocalDateTime.now());
             save(collection);
         } else {
             if (collection.getObtained() == 0) {
@@ -43,7 +43,7 @@ public class FarmCollectionServiceImpl extends ServiceImpl<FarmCollectionMapper,
                 collection.setObtainedTime(LocalDateTime.now());
             }
             collection.setCount(collection.getCount() + 1);
-            collection.setUpdatedAt(LocalDateTime.now());
+            collection.setUpdateTime(LocalDateTime.now());
             updateById(collection);
         }
     }
@@ -69,8 +69,8 @@ public class FarmCollectionServiceImpl extends ServiceImpl<FarmCollectionMapper,
                     newCol.setUserId(userId);
                     newCol.setCropId(c.getCropId());
                     newCol.setObtained(0);
-                    newCol.setCreatedAt(now);
-                    newCol.setUpdatedAt(now);
+                    newCol.setCreateTime(now);
+                    newCol.setUpdateTime(now);
                     toInsert.add(newCol);
                 }
             }

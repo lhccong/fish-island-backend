@@ -82,8 +82,8 @@ public class FarmLandServiceImpl extends ServiceImpl<FarmLandMapper, FarmLand> i
             land.setLandIndex(i);
             land.setStatus(0);
             land.setLocked(i > 3 ? 1 : 0);
-            land.setCreatedAt(now);
-            land.setUpdatedAt(now);
+            land.setCreateTime(now);
+            land.setUpdateTime(now);
             lands.add(land);
         }
         saveBatch(lands);
@@ -120,7 +120,7 @@ public class FarmLandServiceImpl extends ServiceImpl<FarmLandMapper, FarmLand> i
         land.setPlantedCropId(cropId);
         land.setPlantedTime(now);
         land.setHarvestTime(harvestTime);
-        land.setUpdatedAt(now);
+        land.setUpdateTime(now);
         updateById(land);
 
         FarmPlantRecord record = new FarmPlantRecord();
@@ -130,7 +130,7 @@ public class FarmLandServiceImpl extends ServiceImpl<FarmLandMapper, FarmLand> i
         record.setPlantedTime(now);
         record.setHarvestTime(harvestTime);
         record.setPlantedPointsReward(crop.getCoin());
-        record.setCreatedAt(now);
+        record.setCreateTime(now);
         plantRecordMapper.insert(record);
 
         return land;
@@ -190,7 +190,7 @@ public class FarmLandServiceImpl extends ServiceImpl<FarmLandMapper, FarmLand> i
         land.setPlantedCropId(null);
         land.setPlantedTime(null);
         land.setHarvestTime(null);
-        land.setUpdatedAt(now);
+        land.setUpdateTime(now);
         updateById(land);
 
         return land;

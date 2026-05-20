@@ -48,5 +48,5 @@ public class FarmDailyTask {
     private Integer sortOrder = 0;
 
     @ApiModelProperty(value = "创建时间")
-    private LocalDateTime createdAt;
+    private LocalDateTime createTime;
 }

@@ -11,6 +11,6 @@ import java.time.LocalDateTime;
 @Mapper
 public interface FarmLandMapper extends BaseMapper<FarmLand> {
 
-    @Update("UPDATE farm_land SET status = 2, updatedAt = #{now} WHERE status = 1 AND harvestTime <= #{now}")
+    @Update("UPDATE farm_land SET status = 2, updateTime = #{now} WHERE status = 1 AND harvestTime <= #{now}")
     int updateMatureLands(@Param("now") LocalDateTime now);
 }

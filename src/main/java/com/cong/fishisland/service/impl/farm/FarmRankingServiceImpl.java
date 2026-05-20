@@ -53,8 +53,7 @@ public class FarmRankingServiceImpl extends ServiceImpl<FarmRankingMapper, FarmR
     }
 
     @Override
-    public void updateStealRanking(Long stealerId, int expGained) {
-        updateRanking(stealerId, "steal_exp", expGained);
+    public void updateStealCountRanking(Long stealerId) {
         updateRanking(stealerId, "steal_count", 1);
     }
 
@@ -74,8 +73,8 @@ public class FarmRankingServiceImpl extends ServiceImpl<FarmRankingMapper, FarmR
             ranking.setDate(today);
             ranking.setTodayValue(value);
             ranking.setTotalValue(value);
-            ranking.setCreatedAt(now);
-            ranking.setUpdatedAt(now);
+            ranking.setCreateTime(now);
+            ranking.setUpdateTime(now);
             save(ranking);
         }
     }

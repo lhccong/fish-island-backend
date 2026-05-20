@@ -38,9 +38,6 @@ public class FarmStealRecordVO {
     @ApiModelProperty(value = "偷菜时间")
     private LocalDateTime stolenTime;
 
-    @ApiModelProperty(value = "获得的经验")
-    private Integer expGained;
-
     @ApiModelProperty(value = "获得的积分")
     private Integer coinGained;
 

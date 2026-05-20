@@ -50,9 +50,6 @@ public class FarmStealServiceImpl implements FarmStealService {
     private FarmFriendMapper farmFriendMapper;
 
     @Autowired
-    private FarmLandMapper farmLandMapper;
-
-    @Autowired
     private FarmTaskService farmTaskService;
 
     @Autowired
@@ -98,18 +95,7 @@ public class FarmStealServiceImpl implements FarmStealService {
 
         int baseReward = plantRecord.getPlantedPointsReward() != null ? plantRecord.getPlantedPointsReward() : crop.getCoin();
         int currentStolenPoints = plantRecord.getStolenPoints() != null ? plantRecord.getStolenPoints() : 0;
-        int minReward = crop.getPrice() != null ? crop.getPrice() : 0;
-        int maxStealableTotal = baseReward - minReward;
-        int remainingStealable = maxStealableTotal - currentStolenPoints;
-
-        if (remainingStealable <= 0) {
-            throw new BusinessException(ErrorCode.OPERATION_ERROR, "该作物已无可偷积分");
-        }
-
-        int stealPoints = Math.min(crop.getCoin() / 2, remainingStealable);
-        if (stealPoints <= 0) {
-            throw new BusinessException(ErrorCode.OPERATION_ERROR, "可偷积分不足");
-        }
+        int stealPoints = getStealPoints(crop, baseReward, currentStolenPoints);
 
         FarmStealRecord stealRecord = new FarmStealRecord();
         stealRecord.setStealerId(stealerId);
@@ -117,7 +103,6 @@ public class FarmStealServiceImpl implements FarmStealService {
         stealRecord.setPlantRecordId(plantRecordId);
         stealRecord.setCropId(crop.getId());
         stealRecord.setStolenTime(LocalDateTime.now());
-        stealRecord.setExpGained(stealPoints);
         stealRecord.setCoinGained(stealPoints);
         stealRecordMapper.insert(stealRecord);
 
@@ -139,7 +124,7 @@ public class FarmStealServiceImpl implements FarmStealService {
                     beforePoints, afterPoints, usedPoints, usedPoints);
         }
 
-        rankingService.updateStealRanking(stealerId, stealPoints);
+        rankingService.updateStealCountRanking(stealerId);
 
         farmFriendMapper.updateStealCooldown(stealerId, ownerId, now.plusMinutes(10));
 
@@ -149,6 +134,22 @@ public class FarmStealServiceImpl implements FarmStealService {
         farmTaskService.updateTaskProgress(stealerId, "steal");
 
         return stealRecord;
+    }
+
+    private static int getStealPoints(FarmCrop crop, int baseReward, int currentStolenPoints) {
+        int minReward = crop.getPrice() != null ? crop.getPrice() : 0;
+        int maxStealableTotal = baseReward - minReward;
+        int remainingStealable = maxStealableTotal - currentStolenPoints;
+
+        if (remainingStealable <= 0) {
+            throw new BusinessException(ErrorCode.OPERATION_ERROR, "该作物已无可偷积分");
+        }
+
+        int stealPoints = Math.min(crop.getCoin() / 2, remainingStealable);
+        if (stealPoints <= 0) {
+            throw new BusinessException(ErrorCode.OPERATION_ERROR, "可偷积分不足");
+        }
+        return stealPoints;
     }
 
     @Override

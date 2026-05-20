@@ -41,8 +41,8 @@ public class FarmFriend {
     private LocalDateTime stealCooldown;
 
     @ApiModelProperty(value = "创建时间")
-    private LocalDateTime createdAt;
+    private LocalDateTime createTime;
 
     @ApiModelProperty(value = "更新时间")
-    private LocalDateTime updatedAt;
+    private LocalDateTime updateTime;
 }

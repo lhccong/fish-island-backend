@@ -58,5 +58,5 @@ public class FarmCrop {
     private String description = "";
 
     @ApiModelProperty(value = "创建时间")
-    private LocalDateTime createdAt;
+    private LocalDateTime createTime;
 }

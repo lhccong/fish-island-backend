@@ -31,7 +31,7 @@ public class FarmCropServiceImpl extends ServiceImpl<FarmCropMapper, FarmCrop> i
 
     @Override
     public FarmCrop createCrop(FarmCrop crop) {
-        crop.setCreatedAt(LocalDateTime.now());
+        crop.setCreateTime(LocalDateTime.now());
         save(crop);
         return crop;
     }

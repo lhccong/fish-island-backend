@@ -47,8 +47,8 @@ public class FarmUserServiceImpl extends ServiceImpl<FarmUserMapper, FarmUser> i
                 .visitedCount(0)
                 .consecutiveDays(0)
                 .status(1)
-                .createdAt(now)
-                .updatedAt(now)
+                .createTime(now)
+                .updateTime(now)
                 .build();
         save(farmUser);
         return farmUser;
@@ -181,7 +181,7 @@ public class FarmUserServiceImpl extends ServiceImpl<FarmUserMapper, FarmUser> i
         if (avatar != null) {
             farmUser.setAvatar(avatar);
         }
-        farmUser.setUpdatedAt(LocalDateTime.now());
+        farmUser.setUpdateTime(LocalDateTime.now());
         return updateById(farmUser);
     }
 

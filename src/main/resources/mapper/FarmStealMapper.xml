@@ -8,7 +8,6 @@
                fsr.plantRecordId AS plantRecordId,
                fsr.cropId         AS cropId,
                fsr.stolenTime     AS stolenTime,
-               fsr.expGained      AS expGained,
                fsr.coinGained     AS coinGained,
                fu.nickname         AS stealerNickname,
                fu.avatar           AS stealerAvatar,
