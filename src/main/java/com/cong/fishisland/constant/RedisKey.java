@@ -25,6 +25,11 @@ public interface RedisKey {
     String HOT_POST_CACHE_KEY = "hot_post_list";
 
     /**
+     * 数据源 Cookie 缓存 datasource:cookie:{dataSourceKey}
+     */
+    String DATASOURCE_COOKIE_CACHE_KEY = "datasource:cookie:%s";
+
+    /**
      * 用户猜对的英雄
      */
     String GUESS_HERO_USER_CURRENT_HERO = "guess:hero:user:%d:current_hero";

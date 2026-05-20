@@ -3,11 +3,12 @@ package com.cong.fishisland.datasource.hostpost;
 import com.alibaba.fastjson.JSON;
 import com.cong.fishisland.model.entity.hot.HotPost;
 import com.cong.fishisland.model.enums.CategoryTypeEnum;
+import com.cong.fishisland.model.enums.HotDataKeyEnum;
 import com.cong.fishisland.model.enums.UpdateIntervalEnum;
 import com.cong.fishisland.model.vo.hot.HotPostDataVO;
+import com.cong.fishisland.service.datasource.DataSourceCookieService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 
 import java.util.List;
@@ -25,12 +26,11 @@ public class NgaDataSource implements DataSource {
     private static final int TOP_N = 20;
 
     private final NgaForumFetcher ngaForumFetcher;
-
-    @Value("${fishisland.datasource.nga.cookie:}")
-    private String ngaCookie;
+    private final DataSourceCookieService dataSourceCookieService;
 
     @Override
     public HotPost getHotPost() {
+        String ngaCookie = dataSourceCookieService.getEnabledCookie(HotDataKeyEnum.NGA.getValue());
         List<HotPostDataVO> sortedTop = ngaForumFetcher.fetchTopByReplies(FID_ZA_TAN, ngaCookie, TOP_N);
         if (sortedTop.isEmpty()) {
             log.error("无法获取或解析 NGA 网事杂谈版面列表");

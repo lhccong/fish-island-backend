@@ -363,7 +363,7 @@ public class MomentsServiceImpl extends ServiceImpl<MomentsMapper, Moments>
         long userId = StpUtil.getLoginIdAsLong();
         MomentsComment comment = momentsCommentMapper.selectById(commentId);
         ThrowUtils.throwIf(comment == null, ErrorCode.NOT_FOUND_ERROR);
-        ThrowUtils.throwIf(!comment.getUserId().equals(userId) || !userService.isAdmin(), ErrorCode.NO_AUTH_ERROR);
+        ThrowUtils.throwIf(!comment.getUserId().equals(userId) && !userService.isAdmin(), ErrorCode.NO_AUTH_ERROR);
 
         momentsCommentMapper.deleteById(commentId);
         lambdaUpdate()

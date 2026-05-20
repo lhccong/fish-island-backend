@@ -6,11 +6,13 @@ import com.alibaba.fastjson.JSONArray;
 import com.alibaba.fastjson.JSONObject;
 import com.cong.fishisland.model.entity.hot.HotPost;
 import com.cong.fishisland.model.enums.CategoryTypeEnum;
+import com.cong.fishisland.model.enums.HotDataKeyEnum;
 import com.cong.fishisland.model.enums.UpdateIntervalEnum;
+import com.cong.fishisland.service.datasource.DataSourceCookieService;
 import com.cong.fishisland.model.vo.hot.HotPostDataVO;
 import com.cong.fishisland.utils.StringUtils;
+import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 
 import java.util.List;
@@ -24,10 +26,10 @@ import java.util.stream.Collectors;
  */
 @Slf4j
 @Component
+@RequiredArgsConstructor
 public class ZhiHuDataSource implements DataSource {
 
-    @Value("${fishisland.datasource.zhihu.cookie:}")
-    private String zhihuCookie;
+    private final DataSourceCookieService dataSourceCookieService;
 
     @Override
     public HotPost getHotPost() {
@@ -38,6 +40,7 @@ public class ZhiHuDataSource implements DataSource {
                 .header("referer", "https://www.zhihu.com/hot")
                 .header("accept", "application/json, text/plain, */*")
                 .header("accept-language", "zh-CN,zh;q=0.9");
+        String zhihuCookie = dataSourceCookieService.getEnabledCookie(HotDataKeyEnum.ZHI_HU.getValue());
         if (org.springframework.util.StringUtils.hasText(zhihuCookie)) {
             request.header("cookie", zhihuCookie);
         }
