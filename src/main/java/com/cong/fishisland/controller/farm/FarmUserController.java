@@ -26,18 +26,6 @@ public class FarmUserController {
         return ResultUtils.success(farmUserService.getFarmUserVO(userId));
     }
 
-    @GetMapping("/experience")
-    @ApiOperation(value = "获取经验值")
-    public BaseResponse<Integer> getExperience() {
-        Long userId = StpUtil.getLoginIdAsLong();
-        Long farmUserId = farmUserService.getFarmUserId(userId);
-        FarmUser farmUser = farmUserService.getById(farmUserId);
-        if (farmUser == null) {
-            return ResultUtils.success(0);
-        }
-        return ResultUtils.success(farmUser.getExperience());
-    }
-
     @PostMapping("/get-by-ids")
     @ApiOperation(value = "根据农场用户ID批量获取用户信息")
     public BaseResponse<List<FarmUserVO>> getFarmUsersByIds(@RequestBody List<Long> farmUserIds) {

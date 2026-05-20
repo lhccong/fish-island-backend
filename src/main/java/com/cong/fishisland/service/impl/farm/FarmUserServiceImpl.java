@@ -8,6 +8,7 @@ import com.cong.fishisland.mapper.farm.FarmUserMapper;
 import com.cong.fishisland.model.dto.farm.FarmUserVO;
 import com.cong.fishisland.model.entity.farm.FarmUser;
 import com.cong.fishisland.model.entity.user.User;
+import com.cong.fishisland.model.enums.farm.FarmUserStatusEnum;
 import com.cong.fishisland.service.FarmUserService;
 import com.cong.fishisland.service.UserService;
 import org.springframework.stereotype.Service;
@@ -53,7 +54,7 @@ public class FarmUserServiceImpl extends ServiceImpl<FarmUserMapper, FarmUser> i
                 .totalDefense(0)
                 .friendCount(0)
                 .visitedCount(0)
-                .status(1)
+                .status(FarmUserStatusEnum.NORMAL.getValue())
                 .createTime(now)
                 .updateTime(now)
                 .build();

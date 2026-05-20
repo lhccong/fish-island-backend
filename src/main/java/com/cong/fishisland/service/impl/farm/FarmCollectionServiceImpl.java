@@ -7,6 +7,7 @@ import com.cong.fishisland.model.dto.farm.CollectionDTO;
 import com.cong.fishisland.model.dto.farm.CollectionStatsVO;
 import com.cong.fishisland.model.entity.farm.FarmCollection;
 import com.cong.fishisland.model.entity.farm.FarmCrop;
+import com.cong.fishisland.model.enums.farm.FarmYesNoEnum;
 import com.cong.fishisland.service.FarmCollectionService;
 import com.cong.fishisland.service.FarmCropService;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -41,15 +42,15 @@ public class FarmCollectionServiceImpl extends ServiceImpl<FarmCollectionMapper,
             collection = new FarmCollection();
             collection.setUserId(userId);
             collection.setCropId(cropId);
-            collection.setObtained(1);
+            collection.setObtained(FarmYesNoEnum.YES.getValue());
             collection.setObtainedTime(LocalDateTime.now());
             collection.setCount(1);
             collection.setCreateTime(LocalDateTime.now());
             collection.setUpdateTime(LocalDateTime.now());
             save(collection);
         } else {
-            if (collection.getObtained() == 0) {
-                collection.setObtained(1);
+            if (FarmYesNoEnum.isNo(collection.getObtained())) {
+                collection.setObtained(FarmYesNoEnum.YES.getValue());
                 collection.setObtainedTime(LocalDateTime.now());
             }
             collection.setCount(collection.getCount() + 1);
@@ -62,14 +63,14 @@ public class FarmCollectionServiceImpl extends ServiceImpl<FarmCollectionMapper,
     public long getObtainedCount(Long userId) {
         return count(new LambdaQueryWrapper<FarmCollection>()
                 .eq(FarmCollection::getUserId, userId)
-                .eq(FarmCollection::getObtained, 1));
+                .eq(FarmCollection::getObtained, FarmYesNoEnum.YES.getValue()));
     }
 
     @Override
     public void initCollections(Long userId) {
         if (count(new LambdaQueryWrapper<FarmCollection>()
                 .eq(FarmCollection::getUserId, userId)
-                .eq(FarmCollection::getObtained, 0)) == 0) {
+                .eq(FarmCollection::getObtained, FarmYesNoEnum.NO.getValue())) == 0) {
             List<FarmCollection> all = list();
             LocalDateTime now = LocalDateTime.now();
             List<FarmCollection> toInsert = new ArrayList<>();
@@ -78,7 +79,7 @@ public class FarmCollectionServiceImpl extends ServiceImpl<FarmCollectionMapper,
                     FarmCollection newCol = new FarmCollection();
                     newCol.setUserId(userId);
                     newCol.setCropId(c.getCropId());
-                    newCol.setObtained(0);
+                    newCol.setObtained(FarmYesNoEnum.NO.getValue());
                     newCol.setCreateTime(now);
                     newCol.setUpdateTime(now);
                     toInsert.add(newCol);

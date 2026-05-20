@@ -3,6 +3,7 @@ package com.cong.fishisland.service;
 import com.cong.fishisland.model.dto.farm.TaskDTO;
 import com.cong.fishisland.model.entity.farm.FarmDailyTask;
 import com.cong.fishisland.model.entity.farm.FarmTaskRecord;
+import com.cong.fishisland.model.enums.farm.FarmTaskTypeEnum;
 
 import java.util.List;
 
@@ -32,7 +33,7 @@ public interface FarmTaskService {
      * @param userId   农场用户 ID（{@code farm_user.id}）
      * @param taskType 任务类型
      */
-    void updateTaskProgress(Long userId, String taskType);
+    void updateTaskProgress(Long userId, FarmTaskTypeEnum taskType);
 
     /**
      * 领取已完成任务的奖励。

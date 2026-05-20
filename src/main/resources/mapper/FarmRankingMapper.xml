@@ -7,7 +7,7 @@
         FROM farm_ranking fr
                  LEFT JOIN farm_user fu ON fr.userId = fu.id
                  LEFT JOIN user u ON fu.userId = u.id AND u.isDelete = 0
-        WHERE fr.type = 'steal_exp'
+        WHERE fr.type = #{type}
           AND fr.date = #{date}
         ORDER BY fr.todayValue DESC
     </select>
@@ -17,7 +17,7 @@
         FROM farm_ranking fr
                  LEFT JOIN farm_user fu ON fr.userId = fu.id
                  LEFT JOIN user u ON fu.userId = u.id AND u.isDelete = 0
-        WHERE fr.type = 'steal_count'
+        WHERE fr.type = #{type}
           AND fr.date = #{date}
         ORDER BY fr.todayValue DESC
     </select>
@@ -27,7 +27,7 @@
         FROM farm_ranking fr
                  LEFT JOIN farm_user fu ON fr.userId = fu.id
                  LEFT JOIN user u ON fu.userId = u.id AND u.isDelete = 0
-        WHERE fr.type = 'defense'
+        WHERE fr.type = #{type}
           AND fr.date = #{date}
         ORDER BY fr.todayValue DESC
     </select>
@@ -37,7 +37,7 @@
         FROM farm_ranking fr
                  LEFT JOIN farm_user fu ON fr.userId = fu.id
                  LEFT JOIN user u ON fu.userId = u.id AND u.isDelete = 0
-        WHERE fr.type = 'steal_exp'
+        WHERE fr.type = #{type}
         ORDER BY fr.totalValue DESC
     </select>
 
@@ -46,7 +46,7 @@
         FROM farm_ranking fr
                  LEFT JOIN farm_user fu ON fr.userId = fu.id
                  LEFT JOIN user u ON fu.userId = u.id AND u.isDelete = 0
-        WHERE fr.type = 'steal_count'
+        WHERE fr.type = #{type}
         ORDER BY fr.totalValue DESC
     </select>
 
@@ -55,7 +55,7 @@
         FROM farm_ranking fr
                  LEFT JOIN farm_user fu ON fr.userId = fu.id
                  LEFT JOIN user u ON fu.userId = u.id AND u.isDelete = 0
-        WHERE fr.type = 'defense'
+        WHERE fr.type = #{type}
         ORDER BY fr.totalValue DESC
     </select>
 

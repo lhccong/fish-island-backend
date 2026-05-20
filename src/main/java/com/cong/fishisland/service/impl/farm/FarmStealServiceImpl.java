@@ -11,6 +11,9 @@ import com.cong.fishisland.model.entity.farm.FarmCrop;
 import com.cong.fishisland.model.entity.farm.FarmPlantRecord;
 import com.cong.fishisland.model.entity.farm.FarmStealRecord;
 import com.cong.fishisland.model.entity.farm.FarmUser;
+import com.cong.fishisland.model.enums.farm.FarmConstants;
+import com.cong.fishisland.model.enums.farm.FarmTaskTypeEnum;
+import com.cong.fishisland.model.enums.farm.FarmYesNoEnum;
 import com.cong.fishisland.service.*;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
@@ -21,8 +24,6 @@ import java.util.List;
 
 @Service
 public class FarmStealServiceImpl implements FarmStealService {
-
-    private static final int STEAL_COOLDOWN_MINUTES = 10;
 
     @Autowired
     private FarmStealRecordMapper stealRecordMapper;
@@ -54,14 +55,14 @@ public class FarmStealServiceImpl implements FarmStealService {
         }
 
         LocalDateTime now = LocalDateTime.now();
-        if (plantRecord.getHarvested() == 1) {
+        if (FarmYesNoEnum.isYes(plantRecord.getHarvested())) {
             throw new BusinessException(ErrorCode.OPERATION_ERROR, "作物已被收获");
         }
         if (plantRecord.getHarvestTime().isAfter(now)) {
             throw new BusinessException(ErrorCode.OPERATION_ERROR, "作物尚未成熟");
         }
 
-        if (plantRecord.getStolenCount() >= 3) {
+        if (plantRecord.getStolenCount() >= FarmConstants.MAX_STEAL_COUNT_PER_PLANT) {
             throw new BusinessException(ErrorCode.OPERATION_ERROR, "该作物已被偷3次，无法再偷");
         }
 
@@ -107,7 +108,7 @@ public class FarmStealServiceImpl implements FarmStealService {
         farmUserService.incrementTotalSteal(stealerId);
         farmUserService.incrementTotalDefense(ownerId);
 
-        farmTaskService.updateTaskProgress(stealerId, "steal");
+        farmTaskService.updateTaskProgress(stealerId, FarmTaskTypeEnum.STEAL);
 
         return stealRecord;
     }
@@ -147,7 +148,7 @@ public class FarmStealServiceImpl implements FarmStealService {
         if (last == null || last.getStolenTime() == null) {
             return true;
         }
-        return !last.getStolenTime().plusMinutes(STEAL_COOLDOWN_MINUTES).isAfter(LocalDateTime.now());
+        return !last.getStolenTime().plusMinutes(FarmConstants.STEAL_COOLDOWN_MINUTES).isAfter(LocalDateTime.now());
     }
 
     @Override
@@ -162,7 +163,7 @@ public class FarmStealServiceImpl implements FarmStealService {
 
     @Override
     public void updateTaskProgress(Long stealerId) {
-        farmTaskService.updateTaskProgress(stealerId, "steal");
+        farmTaskService.updateTaskProgress(stealerId, FarmTaskTypeEnum.STEAL);
     }
 
     @Override

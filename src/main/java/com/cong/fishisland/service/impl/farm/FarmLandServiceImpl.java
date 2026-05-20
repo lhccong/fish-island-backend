@@ -10,6 +10,9 @@ import com.cong.fishisland.model.dto.farm.LandDTO;
 import com.cong.fishisland.model.entity.farm.FarmCrop;
 import com.cong.fishisland.model.entity.farm.FarmLand;
 import com.cong.fishisland.model.entity.farm.FarmPlantRecord;
+import com.cong.fishisland.model.enums.farm.FarmConstants;
+import com.cong.fishisland.model.enums.farm.FarmLandStatusEnum;
+import com.cong.fishisland.model.enums.farm.FarmYesNoEnum;
 import com.cong.fishisland.service.FarmCollectionService;
 import com.cong.fishisland.service.FarmLandService;
 import com.cong.fishisland.service.FarmUserService;
@@ -56,17 +59,18 @@ public class FarmLandServiceImpl extends ServiceImpl<FarmLandMapper, FarmLand> i
     public void initLands(Long userId) {
         long existingCount = count(new LambdaQueryWrapper<FarmLand>()
                 .eq(FarmLand::getUserId, userId));
-        if (existingCount >= 9) {
+        if (existingCount >= FarmConstants.LAND_TOTAL_COUNT) {
             return;
         }
         LocalDateTime now = LocalDateTime.now();
         List<FarmLand> lands = new ArrayList<>();
-        for (int i = (int) existingCount + 1; i <= 9; i++) {
+        for (int i = (int) existingCount + 1; i <= FarmConstants.LAND_TOTAL_COUNT; i++) {
             FarmLand land = new FarmLand();
             land.setUserId(userId);
             land.setLandIndex(i);
-            land.setStatus(0);
-            land.setLocked(i > 3 ? 1 : 0);
+            land.setStatus(FarmLandStatusEnum.IDLE.getValue());
+            land.setLocked(i > FarmConstants.LAND_DEFAULT_UNLOCKED_COUNT
+                    ? FarmYesNoEnum.YES.getValue() : FarmYesNoEnum.NO.getValue());
             land.setCreateTime(now);
             land.setUpdateTime(now);
             lands.add(land);
@@ -77,11 +81,12 @@ public class FarmLandServiceImpl extends ServiceImpl<FarmLandMapper, FarmLand> i
     @Override
     @Transactional(rollbackFor = Exception.class)
     public FarmLand plant(Long userId, Long landId, Long cropId) {
+
         FarmLand land = getById(landId);
         if (land == null || !land.getUserId().equals(userId)) {
             return null;
         }
-        if (land.getStatus() != 0) {
+        if (!Integer.valueOf(FarmLandStatusEnum.IDLE.getValue()).equals(land.getStatus())) {
             return null;
         }
 
@@ -90,18 +95,19 @@ public class FarmLandServiceImpl extends ServiceImpl<FarmLandMapper, FarmLand> i
             return null;
         }
 
+        //更新土地信息
         // TODO: 种植时扣减种子积分（校验余额并记录 FARM_PLANT 流水）
-
         LocalDateTime now = LocalDateTime.now();
         LocalDateTime harvestTime = now.plusMinutes(crop.getGrowthTime());
 
-        land.setStatus(1);
+        land.setStatus(FarmLandStatusEnum.PLANTING.getValue());
         land.setPlantedCropId(cropId);
         land.setPlantedTime(now);
         land.setHarvestTime(harvestTime);
         land.setUpdateTime(now);
         updateById(land);
 
+        //添加种植记录
         FarmPlantRecord record = new FarmPlantRecord();
         record.setUserId(userId);
         record.setLandId(landId);
@@ -124,14 +130,15 @@ public class FarmLandServiceImpl extends ServiceImpl<FarmLandMapper, FarmLand> i
         }
 
         LocalDateTime now = LocalDateTime.now();
-        if (land.getStatus() != 2 && land.getHarvestTime().isAfter(now)) {
+        if (!Integer.valueOf(FarmLandStatusEnum.MATURE.getValue()).equals(land.getStatus())
+                && land.getHarvestTime().isAfter(now)) {
             return null;
         }
 
         FarmCrop crop = cropMapper.selectById(land.getPlantedCropId());
         FarmPlantRecord record = plantRecordMapper.selectOne(new LambdaQueryWrapper<FarmPlantRecord>()
                 .eq(FarmPlantRecord::getLandId, landId)
-                .eq(FarmPlantRecord::getHarvested, 0)
+                .eq(FarmPlantRecord::getHarvested, FarmYesNoEnum.NO.getValue())
                 .last("LIMIT 1"));
 
         if (crop != null && record != null) {
@@ -143,12 +150,12 @@ public class FarmLandServiceImpl extends ServiceImpl<FarmLandMapper, FarmLand> i
         }
 
         if (record != null) {
-            record.setHarvested(1);
+            record.setHarvested(FarmYesNoEnum.YES.getValue());
             record.setHarvestedTime(now);
             plantRecordMapper.updateById(record);
         }
 
-        land.setStatus(0);
+        land.setStatus(FarmLandStatusEnum.IDLE.getValue());
         land.setPlantedCropId(null);
         land.setPlantedTime(null);
         land.setHarvestTime(null);

@@ -14,6 +14,9 @@ import com.cong.fishisland.model.dto.farm.FarmFriendListVO;
 import com.cong.fishisland.model.dto.farm.LandDTO;
 import com.cong.fishisland.model.entity.farm.*;
 import com.cong.fishisland.model.entity.user.User;
+import com.cong.fishisland.model.enums.farm.FarmConstants;
+import com.cong.fishisland.model.enums.farm.FarmLandStatusEnum;
+import com.cong.fishisland.model.enums.farm.FarmYesNoEnum;
 import com.cong.fishisland.service.FarmFriendService;
 import com.cong.fishisland.service.FarmLandService;
 import com.cong.fishisland.service.FarmUserService;
@@ -31,8 +34,6 @@ import java.util.stream.Collectors;
 
 @Service
 public class FarmFriendServiceImpl implements FarmFriendService {
-
-    private static final int STEAL_COOLDOWN_MINUTES = 10;
 
     @Resource
     private FarmLandService farmLandService;
@@ -206,7 +207,7 @@ public class FarmFriendServiceImpl implements FarmFriendService {
                         .orderByDesc(FarmStealRecord::getStolenTime));
         for (FarmStealRecord record : records) {
             result.putIfAbsent(record.getOwnerId(),
-                    record.getStolenTime().plusMinutes(STEAL_COOLDOWN_MINUTES));
+                    record.getStolenTime().plusMinutes(FarmConstants.STEAL_COOLDOWN_MINUTES));
         }
         return result;
     }
@@ -220,7 +221,7 @@ public class FarmFriendServiceImpl implements FarmFriendService {
         if (last == null || last.getStolenTime() == null) {
             return null;
         }
-        return last.getStolenTime().plusMinutes(STEAL_COOLDOWN_MINUTES);
+        return last.getStolenTime().plusMinutes(FarmConstants.STEAL_COOLDOWN_MINUTES);
     }
 
     private Map<Long, Boolean> batchCanSteal(Long farmUserId, List<Long> friendFarmIds,
@@ -268,7 +269,7 @@ public class FarmFriendServiceImpl implements FarmFriendService {
         }
         LocalDateTime now = LocalDateTime.now();
         for (FarmLand land : lands) {
-            if (land.getStatus() < 1 || land.getPlantedCropId() == null) {
+            if (!FarmLandStatusEnum.isPlanted(land.getStatus()) || land.getPlantedCropId() == null) {
                 continue;
             }
             if (land.getHarvestTime() != null && land.getHarvestTime().isAfter(now)) {
@@ -280,7 +281,7 @@ public class FarmFriendServiceImpl implements FarmFriendService {
             }
             FarmPlantRecord record = farmPlantRecordMapper.selectOne(new LambdaQueryWrapper<FarmPlantRecord>()
                     .eq(FarmPlantRecord::getLandId, land.getId())
-                    .eq(FarmPlantRecord::getHarvested, 0)
+                    .eq(FarmPlantRecord::getHarvested, FarmYesNoEnum.NO.getValue())
                     .last("LIMIT 1"));
             if (record == null) {
                 continue;
@@ -297,7 +298,7 @@ public class FarmFriendServiceImpl implements FarmFriendService {
                                              Map<Long, FarmCrop> cropMap) {
         LocalDateTime now = LocalDateTime.now();
         for (FarmLand land : lands) {
-            if (land.getStatus() < 1 || land.getPlantedCropId() == null) {
+            if (!FarmLandStatusEnum.isPlanted(land.getStatus()) || land.getPlantedCropId() == null) {
                 continue;
             }
             if (land.getHarvestTime() != null && land.getHarvestTime().isAfter(now)) {
@@ -374,7 +375,7 @@ public class FarmFriendServiceImpl implements FarmFriendService {
     }
 
     private boolean canStealLand(FarmLand land, Map<Long, FarmCrop> cropMap, Map<Long, FarmPlantRecord> recordMap) {
-        if (land.getStatus() < 1 || land.getPlantedCropId() == null) {
+        if (!FarmLandStatusEnum.isPlanted(land.getStatus()) || land.getPlantedCropId() == null) {
             return false;
         }
         LocalDateTime now = LocalDateTime.now();
@@ -392,7 +393,7 @@ public class FarmFriendServiceImpl implements FarmFriendService {
         if (record == null) {
             record = farmPlantRecordMapper.selectOne(new LambdaQueryWrapper<FarmPlantRecord>()
                     .eq(FarmPlantRecord::getLandId, land.getId())
-                    .eq(FarmPlantRecord::getHarvested, 0)
+                    .eq(FarmPlantRecord::getHarvested, FarmYesNoEnum.NO.getValue())
                     .last("LIMIT 1"));
         }
         if (record == null) {

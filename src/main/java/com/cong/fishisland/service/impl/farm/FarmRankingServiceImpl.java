@@ -5,6 +5,7 @@ import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import com.cong.fishisland.mapper.farm.FarmRankingMapper;
 import com.cong.fishisland.model.dto.farm.RankingDTO;
 import com.cong.fishisland.model.entity.farm.FarmRanking;
+import com.cong.fishisland.model.enums.farm.FarmRankingTypeEnum;
 import com.cong.fishisland.service.FarmRankingService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
@@ -22,54 +23,54 @@ public class FarmRankingServiceImpl extends ServiceImpl<FarmRankingMapper, FarmR
     @Override
     public List<RankingDTO> getTodayStealExpRanking() {
         LocalDate today = LocalDate.now();
-        return rankingMapper.selectTodayStealExpRanking(today);
+        return rankingMapper.selectTodayStealExpRanking(today, FarmRankingTypeEnum.STEAL_EXP.getValue());
     }
 
     @Override
     public List<RankingDTO> getTodayStealCountRanking() {
         LocalDate today = LocalDate.now();
-        return rankingMapper.selectTodayStealCountRanking(today);
+        return rankingMapper.selectTodayStealCountRanking(today, FarmRankingTypeEnum.STEAL_COUNT.getValue());
     }
 
     @Override
     public List<RankingDTO> getTodayDefenseRanking() {
         LocalDate today = LocalDate.now();
-        return rankingMapper.selectTodayDefenseRanking(today);
+        return rankingMapper.selectTodayDefenseRanking(today, FarmRankingTypeEnum.DEFENSE.getValue());
     }
 
     @Override
     public List<RankingDTO> getTotalStealExpRanking() {
-        return rankingMapper.selectTotalStealExpRanking();
+        return rankingMapper.selectTotalStealExpRanking(FarmRankingTypeEnum.STEAL_EXP.getValue());
     }
 
     @Override
     public List<RankingDTO> getTotalStealCountRanking() {
-        return rankingMapper.selectTotalStealCountRanking();
+        return rankingMapper.selectTotalStealCountRanking(FarmRankingTypeEnum.STEAL_COUNT.getValue());
     }
 
     @Override
     public List<RankingDTO> getTotalDefenseRanking() {
-        return rankingMapper.selectTotalDefenseRanking();
+        return rankingMapper.selectTotalDefenseRanking(FarmRankingTypeEnum.DEFENSE.getValue());
     }
 
     @Override
     public void updateStealCountRanking(Long stealerId) {
-        updateRanking(stealerId, "steal_count", 1);
+        updateRanking(stealerId, FarmRankingTypeEnum.STEAL_COUNT, 1);
     }
 
     @Override
     public void updateDefenseRanking(Long ownerId, int damage) {
-        updateRanking(ownerId, "defense", damage);
+        updateRanking(ownerId, FarmRankingTypeEnum.DEFENSE, damage);
     }
 
-    private void updateRanking(Long userId, String type, int value) {
+    private void updateRanking(Long userId, FarmRankingTypeEnum type, int value) {
         LocalDate today = LocalDate.now();
-        int updated = rankingMapper.updateRankingValue(userId, type, today, value, value);
+        int updated = rankingMapper.updateRankingValue(userId, type.getValue(), today, value, value);
         if (updated == 0) {
             LocalDateTime now = LocalDateTime.now();
             FarmRanking ranking = new FarmRanking();
             ranking.setUserId(userId);
-            ranking.setType(type);
+            ranking.setType(type.getValue());
             ranking.setDate(today);
             ranking.setTodayValue(value);
             ranking.setTotalValue(value);

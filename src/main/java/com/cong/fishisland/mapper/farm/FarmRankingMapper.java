@@ -18,15 +18,15 @@ public interface FarmRankingMapper extends BaseMapper<FarmRanking> {
     int updateRankingValue(@Param("userId") Long userId, @Param("type") String type, @Param("date") LocalDate date,
                            @Param("todayValue") Integer todayValue, @Param("totalValue") Integer totalValue);
 
-    List<RankingDTO> selectTodayStealExpRanking(@Param("date") LocalDate date);
+    List<RankingDTO> selectTodayStealExpRanking(@Param("date") LocalDate date, @Param("type") String type);
 
-    List<RankingDTO> selectTodayStealCountRanking(@Param("date") LocalDate date);
+    List<RankingDTO> selectTodayStealCountRanking(@Param("date") LocalDate date, @Param("type") String type);
 
-    List<RankingDTO> selectTodayDefenseRanking(@Param("date") LocalDate date);
+    List<RankingDTO> selectTodayDefenseRanking(@Param("date") LocalDate date, @Param("type") String type);
 
-    List<RankingDTO> selectTotalStealExpRanking();
+    List<RankingDTO> selectTotalStealExpRanking(@Param("type") String type);
 
-    List<RankingDTO> selectTotalStealCountRanking();
+    List<RankingDTO> selectTotalStealCountRanking(@Param("type") String type);
 
-    List<RankingDTO> selectTotalDefenseRanking();
+    List<RankingDTO> selectTotalDefenseRanking(@Param("type") String type);
 }

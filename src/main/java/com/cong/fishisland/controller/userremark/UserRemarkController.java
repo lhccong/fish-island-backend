@@ -4,6 +4,7 @@ import cn.dev33.satoken.stp.StpUtil;
 import com.cong.fishisland.common.BaseResponse;
 import com.cong.fishisland.common.ErrorCode;
 import com.cong.fishisland.common.ResultUtils;
+import com.cong.fishisland.common.exception.BusinessException;
 import com.cong.fishisland.model.dto.userremark.UserRemarkAddRequest;
 import com.cong.fishisland.model.entity.userremark.UserRemark;
 import com.cong.fishisland.service.UserRemarkService;

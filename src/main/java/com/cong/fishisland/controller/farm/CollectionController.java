@@ -1,41 +1,1 @@
-package com.cong.fishisland.controller.farm;
-
-import cn.dev33.satoken.stp.StpUtil;
-import com.cong.fishisland.common.BaseResponse;
-import com.cong.fishisland.common.ResultUtils;
-import com.cong.fishisland.model.dto.farm.CollectionDTO;
-import com.cong.fishisland.model.dto.farm.CollectionStatsVO;
-import com.cong.fishisland.service.FarmCollectionService;
-import com.cong.fishisland.service.FarmUserService;
-import io.swagger.annotations.ApiOperation;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.web.bind.annotation.*;
-
-import java.util.List;
-
-@RestController
-@RequestMapping("/collection")
-public class CollectionController {
-
-    @Autowired
-    private FarmCollectionService collectionService;
-
-    @Autowired
-    private FarmUserService farmUserService;
-
-    @GetMapping("/my")
-    @ApiOperation(value = "获取我的收集册信息")
-    public BaseResponse<List<CollectionDTO>> getMyCollections() {
-        Long userId = StpUtil.getLoginIdAsLong();
-        Long farmUserId = farmUserService.getFarmUserId(userId);
-        return ResultUtils.success(collectionService.toDTOList(collectionService.getUserCollections(farmUserId)));
-    }
-
-    @GetMapping("/stats")
-    @ApiOperation(value = "获取收集册统计信息")
-    public BaseResponse<CollectionStatsVO> getCollectionStats() {
-        Long userId = StpUtil.getLoginIdAsLong();
-        Long farmUserId = farmUserService.getFarmUserId(userId);
-        return ResultUtils.success(collectionService.getCollectionStats(farmUserId));
-    }
-}
+package com.cong.fishisland.controller.farm;import cn.dev33.satoken.stp.StpUtil;import com.cong.fishisland.common.BaseResponse;import com.cong.fishisland.common.ResultUtils;import com.cong.fishisland.model.dto.farm.CollectionDTO;import com.cong.fishisland.model.dto.farm.CollectionStatsVO;import com.cong.fishisland.service.FarmCollectionService;import com.cong.fishisland.service.FarmUserService;import io.swagger.annotations.ApiOperation;import org.springframework.beans.factory.annotation.Autowired;import org.springframework.web.bind.annotation.*;import java.util.List;@RestController@RequestMapping("/collection")public class CollectionController {    @Autowired    private FarmCollectionService collectionService;    @Autowired    private FarmUserService farmUserService;    @GetMapping("/my")    @ApiOperation(value = "获取我的收集册信息")    public BaseResponse<List<CollectionDTO>> getMyCollections() {        Long userId = StpUtil.getLoginIdAsLong();        Long farmUserId = farmUserService.getFarmUserId(userId);        return ResultUtils.success(collectionService.toDTOList(collectionService.getUserCollections(farmUserId)));    }    @GetMapping("/stats")    @ApiOperation(value = "获取收集册统计信息")    public BaseResponse<CollectionStatsVO> getCollectionStats() {        Long userId = StpUtil.getLoginIdAsLong();        Long farmUserId = farmUserService.getFarmUserId(userId);        return ResultUtils.success(collectionService.getCollectionStats(farmUserId));    }}

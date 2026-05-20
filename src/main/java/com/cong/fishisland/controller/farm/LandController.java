@@ -9,6 +9,7 @@ import com.cong.fishisland.model.dto.farm.LandDTO;
 import com.cong.fishisland.model.dto.farm.request.HarvestRequest;
 import com.cong.fishisland.model.dto.farm.request.PlantRequest;
 import com.cong.fishisland.model.entity.farm.FarmLand;
+import com.cong.fishisland.model.enums.farm.FarmTaskTypeEnum;
 import com.cong.fishisland.service.FarmLandService;
 import com.cong.fishisland.service.FarmTaskService;
 import com.cong.fishisland.service.FarmUserService;
@@ -49,7 +50,7 @@ public class LandController {
             throw new BusinessException(ErrorCode.OPERATION_ERROR);
         }
 
-        taskService.updateTaskProgress(farmUserId, "plant");
+        taskService.updateTaskProgress(farmUserId, FarmTaskTypeEnum.PLANT);
 
         return ResultUtils.success(landService.toDTO(land));
     }
@@ -64,7 +65,7 @@ public class LandController {
             throw new BusinessException(ErrorCode.OPERATION_ERROR);
         }
 
-        taskService.updateTaskProgress(farmUserId, "harvest");
+        taskService.updateTaskProgress(farmUserId, FarmTaskTypeEnum.HARVEST);
 
         return ResultUtils.success("收获成功");
     }
