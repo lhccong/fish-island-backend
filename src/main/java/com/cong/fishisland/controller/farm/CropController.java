@@ -36,9 +36,9 @@ public class CropController {
         return ResultUtils.success(cropService.toDTOList(cropService.getAllCrops(), farmLevel));
     }
 
-    @GetMapping("/category/{category}")
+    @GetMapping("/category")
     @ApiOperation(value = "根据分类获取作物列表")
-    public BaseResponse<List<CropDTO>> getCropsByCategory(@PathVariable String category) {
+    public BaseResponse<List<CropDTO>> getCropsByCategory(@RequestParam String category) {
         if (FarmCropCategoryEnum.fromValue(category) == null) {
             throw new BusinessException(ErrorCode.PARAMS_ERROR);
         }
@@ -57,8 +57,7 @@ public class CropController {
     }
 
     private int getCurrentFarmLevel() {
-        Long userId = StpUtil.getLoginIdAsLong();
-        FarmUser farmUser = farmUserService.getOrCreateFarmUser(userId);
+        FarmUser farmUser = farmUserService.getOrCreateFarmUser();
         return farmUser.getLevel() != null ? farmUser.getLevel() : 1;
     }
 

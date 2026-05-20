@@ -13,7 +13,7 @@ import java.time.LocalDateTime;
 @ApiModel(description = "农场互关好友列表VO")
 public class FarmFriendListVO {
 
-    @ApiModelProperty(value = "好友农场用户ID")
+    @ApiModelProperty(value = "好友系统用户ID")
     private Long friendId;
 
     @ApiModelProperty(value = "好友系统用户ID")

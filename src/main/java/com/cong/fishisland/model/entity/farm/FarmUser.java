@@ -20,11 +20,8 @@ import java.time.LocalDateTime;
 @ApiModel(description = "农场用户实体")
 public class FarmUser {
 
-    @TableId(type = IdType.AUTO)
-    @ApiModelProperty(value = "农场用户ID")
-    private Long id;
-
-    @ApiModelProperty(value = "关联的系统用户ID")
+    @TableId(value = "userId", type = IdType.INPUT)
+    @ApiModelProperty(value = "系统用户ID（主键，关联 user 表）")
     private Long userId;
 
     @ApiModelProperty(value = "农场等级")

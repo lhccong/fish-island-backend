@@ -29,7 +29,7 @@ public class FarmCollection {
     @ApiModelProperty(value = "收集记录ID")
     private Long id;
 
-    @ApiModelProperty(value = "农场用户ID（关联farm_user表的id）")
+    @ApiModelProperty(value = "系统用户ID（关联 user 表）")
     private Long userId;
 
     @ApiModelProperty(value = "作物ID")

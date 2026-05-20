@@ -27,9 +27,9 @@ public class FarmUserController {
     }
 
     @PostMapping("/get-by-ids")
-    @ApiOperation(value = "根据农场用户ID批量获取用户信息")
-    public BaseResponse<List<FarmUserVO>> getFarmUsersByIds(@RequestBody List<Long> farmUserIds) {
-        List<FarmUser> users = farmUserService.getFarmUsersByIds(farmUserIds);
+    @ApiOperation(value = "根据系统用户ID批量获取农场用户信息")
+    public BaseResponse<List<FarmUserVO>> getFarmUsersByUserIds(@RequestBody List<Long> userIds) {
+        List<FarmUser> users = farmUserService.getFarmUsersByUserIds(userIds);
         return ResultUtils.success(farmUserService.toVOList(users));
     }
 }

@@ -12,10 +12,7 @@ import java.time.LocalDateTime;
 @ApiModel(description = "农场用户信息VO")
 public class FarmUserVO {
 
-    @ApiModelProperty(value = "农场用户ID")
-    private Long id;
-
-    @ApiModelProperty(value = "关联的系统用户ID")
+    @ApiModelProperty(value = "系统用户ID（与 user 表 id 一致）")
     private Long userId;
 
     @ApiModelProperty(value = "用户昵称（来自用户表）")
@@ -56,7 +53,6 @@ public class FarmUserVO {
 
     public static FarmUserVO from(FarmUser farmUser, User user) {
         FarmUserVO vo = new FarmUserVO();
-        vo.setId(farmUser.getId());
         vo.setUserId(farmUser.getUserId());
         vo.setLevel(farmUser.getLevel());
         vo.setExperience(farmUser.getExperience());

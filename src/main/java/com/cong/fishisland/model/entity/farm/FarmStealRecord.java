@@ -22,10 +22,10 @@ public class FarmStealRecord {
     @ApiModelProperty(value = "偷菜记录ID")
     private Long id;
 
-    @ApiModelProperty(value = "偷菜者农场用户ID（关联farm_user表的id）")
+    @ApiModelProperty(value = "偷菜者系统用户ID")
     private Long stealerId;
 
-    @ApiModelProperty(value = "农场主人农场用户ID（关联farm_user表的id）")
+    @ApiModelProperty(value = "农场主人系统用户ID")
     private Long ownerId;
 
     @ApiModelProperty(value = "种植记录ID")

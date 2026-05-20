@@ -28,20 +28,19 @@ public interface FarmUserService extends IService<FarmUser> {
     FarmUser createFarmUser(Long userId);
 
     /**
-     * 获取或创建农场用户。
+     * 获取或创建当前登录用户的农场用户。
+     *
+     * @return 农场用户
+     */
+    FarmUser getOrCreateFarmUser();
+
+    /**
+     * 获取或创建指定系统用户的农场用户。
      *
      * @param userId 系统用户 ID
      * @return 农场用户
      */
     FarmUser getOrCreateFarmUser(Long userId);
-
-    /**
-     * 获取或创建农场用户，并返回其农场用户 ID。
-     *
-     * @param userId 系统用户 ID
-     * @return 农场用户 ID（{@code farm_user.id}）
-     */
-    Long getFarmUserId(Long userId);
 
     /**
      * 获取或创建农场用户，并转换为 VO（含系统用户昵称、头像）。
@@ -70,7 +69,7 @@ public interface FarmUserService extends IService<FarmUser> {
     /**
      * 为农场用户增加经验，并按经验值自动升级。
      *
-     * @param userId 农场用户 ID（{@code farm_user.id}）
+     * @param userId 系统用户 ID
      * @param exp    增加的经验值
      * @return 是否更新成功
      */
@@ -87,7 +86,7 @@ public interface FarmUserService extends IService<FarmUser> {
     /**
      * 累计收获次数 +1。
      *
-     * @param userId 农场用户 ID（{@code farm_user.id}）
+     * @param userId 系统用户 ID
      * @return 是否更新成功
      */
     boolean incrementTotalHarvest(Long userId);
@@ -95,7 +94,7 @@ public interface FarmUserService extends IService<FarmUser> {
     /**
      * 累计偷菜次数 +1。
      *
-     * @param userId 农场用户 ID（{@code farm_user.id}）
+     * @param userId 系统用户 ID
      * @return 是否更新成功
      */
     boolean incrementTotalSteal(Long userId);
@@ -103,7 +102,7 @@ public interface FarmUserService extends IService<FarmUser> {
     /**
      * 累计被防御（被偷）次数 +1。
      *
-     * @param userId 农场用户 ID（{@code farm_user.id}）
+     * @param userId 系统用户 ID
      * @return 是否更新成功
      */
     boolean incrementTotalDefense(Long userId);
@@ -111,17 +110,16 @@ public interface FarmUserService extends IService<FarmUser> {
     /**
      * 被访问次数 +1。
      *
-     * @param userId 农场用户 ID（{@code farm_user.id}）
+     * @param userId 系统用户 ID
      * @return 是否更新成功
      */
     boolean incrementVisitedCount(Long userId);
 
-
     /**
-     * 按农场用户 ID 列表批量查询。
+     * 按系统用户 ID 列表批量查询。
      *
-     * @param farmUserIds 农场用户 ID 列表
+     * @param userIds 系统用户 ID 列表
      * @return 农场用户列表
      */
-    List<FarmUser> getFarmUsersByIds(List<Long> farmUserIds);
+    List<FarmUser> getFarmUsersByUserIds(List<Long> userIds);
 }

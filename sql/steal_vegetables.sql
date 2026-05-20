@@ -153,8 +153,7 @@ CREATE TABLE `farm_task_record`
 
 CREATE TABLE `farm_user`
 (
-    `id`              bigint NOT NULL AUTO_INCREMENT COMMENT '农场用户ID',
-    `userId`          bigint NOT NULL COMMENT '关联的系统用户ID',
+    `userId`          bigint NOT NULL COMMENT '系统用户ID（主键，关联 user 表）',
     `level`           int          DEFAULT '1' COMMENT '农场等级',
     `experience`      int          DEFAULT '0' COMMENT '经验值',
     `totalHarvest`    int          DEFAULT '0' COMMENT '总收获次数',
@@ -165,11 +164,10 @@ CREATE TABLE `farm_user`
     `status`          tinyint      DEFAULT '1' COMMENT '状态:0-封禁,1-正常',
     `createTime` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
     `updateTime` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
-    PRIMARY KEY (`id`),
-    UNIQUE KEY `uk_user_id` (`userId`),
+    PRIMARY KEY (`userId`),
     KEY               `idx_level` (`level`),
     KEY               `idx_experience` (`experience`)
-) ENGINE=InnoDB AUTO_INCREMENT=4 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='农场用户表';
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='农场用户表';
 
 -- 农场好友已改为 user_follow 互相关注，不再使用 farm_friend 表
 -- DROP TABLE IF EXISTS `farm_friend`;

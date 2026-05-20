@@ -14,7 +14,7 @@ public interface FarmCollectionService {
     /**
      * 查询指定农场用户的图鉴记录。
      *
-     * @param userId 农场用户 ID（{@code farm_user.id}）
+     * @param userId 系统用户 ID
      * @return 图鉴列表
      */
     List<FarmCollection> getUserCollections(Long userId);
@@ -22,7 +22,7 @@ public interface FarmCollectionService {
     /**
      * 收获作物后更新图鉴（首次获得标记已获得，获得次数累加）。
      *
-     * @param userId 农场用户 ID（{@code farm_user.id}）
+     * @param userId 系统用户 ID
      * @param cropId 作物 ID
      */
     void updateCollection(Long userId, Long cropId);
@@ -30,7 +30,7 @@ public interface FarmCollectionService {
     /**
      * 统计指定用户已获得的图鉴数量。
      *
-     * @param userId 农场用户 ID（{@code farm_user.id}）
+     * @param userId 系统用户 ID
      * @return 已获得图鉴数
      */
     long getObtainedCount(Long userId);
@@ -38,7 +38,7 @@ public interface FarmCollectionService {
     /**
      * 为指定用户初始化未获得的图鉴占位记录。
      *
-     * @param userId 农场用户 ID（{@code farm_user.id}）
+     * @param userId 系统用户 ID
      */
     void initCollections(Long userId);
 
@@ -61,7 +61,7 @@ public interface FarmCollectionService {
     /**
      * 获取指定用户的收集册统计信息。
      *
-     * @param userId 农场用户 ID（{@code farm_user.id}）
+     * @param userId 系统用户 ID
      * @return 收集册统计 VO
      */
     CollectionStatsVO getCollectionStats(Long userId);

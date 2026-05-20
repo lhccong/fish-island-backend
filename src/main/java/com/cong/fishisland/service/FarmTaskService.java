@@ -22,7 +22,7 @@ public interface FarmTaskService {
     /**
      * 查询指定用户当日的任务进度记录；若当日无记录则自动初始化。
      *
-     * @param userId 农场用户 ID（{@code farm_user.id}）
+     * @param userId 系统用户 ID
      * @return 当日任务记录列表
      */
     List<FarmTaskRecord> getUserTaskRecords(Long userId);
@@ -30,7 +30,7 @@ public interface FarmTaskService {
     /**
      * 按任务类型更新当日任务进度（如种植、收获、偷菜）。
      *
-     * @param userId   农场用户 ID（{@code farm_user.id}）
+     * @param userId   系统用户 ID
      * @param taskType 任务类型
      */
     void updateTaskProgress(Long userId, FarmTaskTypeEnum taskType);
@@ -38,7 +38,7 @@ public interface FarmTaskService {
     /**
      * 领取已完成任务的奖励。
      *
-     * @param userId 农场用户 ID（{@code farm_user.id}）
+     * @param userId 系统用户 ID
      * @param taskId 任务配置 ID
      * @return 领取的奖励积分；失败或不可领取时返回 0
      */

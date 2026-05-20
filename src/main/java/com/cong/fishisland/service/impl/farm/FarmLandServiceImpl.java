@@ -1,8 +1,11 @@
 package com.cong.fishisland.service.impl.farm;
 
+import cn.dev33.satoken.stp.StpUtil;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.core.toolkit.CollectionUtils;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
+import com.cong.fishisland.common.ErrorCode;
+import com.cong.fishisland.common.exception.BusinessException;
 import com.cong.fishisland.mapper.farm.FarmCropMapper;
 import com.cong.fishisland.mapper.farm.FarmLandMapper;
 import com.cong.fishisland.mapper.farm.FarmPlantRecordMapper;
@@ -14,10 +17,12 @@ import com.cong.fishisland.model.entity.farm.FarmUser;
 import com.cong.fishisland.model.enums.farm.FarmConstants;
 import com.cong.fishisland.model.enums.farm.FarmLandStatusEnum;
 import com.cong.fishisland.model.enums.farm.FarmYesNoEnum;
+import com.cong.fishisland.model.enums.user.PointsRecordSourceEnum;
 import com.cong.fishisland.service.FarmCollectionService;
 import com.cong.fishisland.service.FarmCropService;
 import com.cong.fishisland.service.FarmLandService;
 import com.cong.fishisland.service.FarmUserService;
+import com.cong.fishisland.service.UserPointsService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -45,6 +50,9 @@ public class FarmLandServiceImpl extends ServiceImpl<FarmLandMapper, FarmLand> i
 
     @Autowired
     private FarmCropService cropService;
+
+    @Autowired
+    private UserPointsService userPointsService;
 
     @Override
     public List<FarmLand> getLandsByUserId(Long userId) {
@@ -85,28 +93,43 @@ public class FarmLandServiceImpl extends ServiceImpl<FarmLandMapper, FarmLand> i
 
     @Override
     @Transactional(rollbackFor = Exception.class)
-    public FarmLand plant(Long userId, Long landId, Long cropId) {
+    public FarmLand plant(Long landId, Long cropId) {
+
+        Long userId = StpUtil.getLoginIdAsLong();
+        farmUserService.getOrCreateFarmUser(userId);
 
         FarmLand land = getById(landId);
-        if (land == null || !land.getUserId().equals(userId)) {
-            return null;
+        if (land == null) {
+            throw new BusinessException(ErrorCode.NOT_FOUND_ERROR, "地块不存在");
+        }
+        if (!land.getUserId().equals(userId)) {
+            throw new BusinessException(ErrorCode.NO_AUTH_ERROR, "无权操作该地块");
         }
         if (!Integer.valueOf(FarmLandStatusEnum.IDLE.getValue()).equals(land.getStatus())) {
-            return null;
+            throw new BusinessException(ErrorCode.OPERATION_ERROR, "地块未空闲，无法种植");
         }
 
         FarmCrop crop = cropMapper.selectById(cropId);
         if (crop == null) {
-            return null;
+            throw new BusinessException(ErrorCode.NOT_FOUND_ERROR, "作物不存在");
         }
 
         FarmUser farmUser = farmUserService.getById(userId);
-        if (farmUser == null || !cropService.isUnlocked(crop, farmUser.getLevel())) {
-            return null;
+        if (farmUser == null) {
+            throw new BusinessException(ErrorCode.NOT_FOUND_ERROR, "农场用户不存在");
+        }
+        if (!cropService.isUnlocked(crop, farmUser.getLevel())) {
+            throw new BusinessException(ErrorCode.OPERATION_ERROR, "农场等级不足，该作物未解锁");
         }
 
-        //更新土地信息
-        // TODO: 种植时扣减种子积分（校验余额并记录 FARM_PLANT 流水）
+        int seedCost = crop.getPrice() != null ? crop.getPrice() : 0;
+        if (seedCost > 0) {
+            userPointsService.deductPoints(farmUser.getUserId(), seedCost,
+                    PointsRecordSourceEnum.FARM_PLANT.getValue(),
+                    cropId.toString(),
+                    "农场种植购买种子-" + crop.getName());
+        }
+
         LocalDateTime now = LocalDateTime.now();
         LocalDateTime harvestTime = now.plusMinutes(crop.getGrowthTime());
 

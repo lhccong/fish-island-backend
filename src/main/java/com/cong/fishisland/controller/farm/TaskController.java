@@ -28,16 +28,14 @@ public class TaskController {
     @ApiOperation(value = "获取每日任务列表")
     public BaseResponse<List<TaskDTO>> getDailyTasks() {
         Long userId = StpUtil.getLoginIdAsLong();
-        Long farmUserId = farmUserService.getFarmUserId(userId);
-        return ResultUtils.success(taskService.toDTOList(taskService.getUserTaskRecords(farmUserId)));
+        return ResultUtils.success(taskService.toDTOList(taskService.getUserTaskRecords(userId)));
     }
 
     @PostMapping("/claim/{taskId}")
     @ApiOperation(value = "领取任务奖励")
     public BaseResponse<Integer> claimReward(@PathVariable Long taskId) {
         Long userId = StpUtil.getLoginIdAsLong();
-        Long farmUserId = farmUserService.getFarmUserId(userId);
-        int exp = taskService.claimTaskReward(farmUserId, taskId);
+        int exp = taskService.claimTaskReward(userId, taskId);
         if (exp == 0) {
             throw new BusinessException(ErrorCode.OPERATION_ERROR);
         }

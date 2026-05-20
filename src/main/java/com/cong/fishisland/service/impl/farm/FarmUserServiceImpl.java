@@ -1,9 +1,7 @@
 package com.cong.fishisland.service.impl.farm;
 
-import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
+import cn.dev33.satoken.stp.StpUtil;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
-import com.cong.fishisland.common.ErrorCode;
-import com.cong.fishisland.common.exception.BusinessException;
 import com.cong.fishisland.mapper.farm.FarmUserMapper;
 import com.cong.fishisland.model.dto.farm.FarmUserVO;
 import com.cong.fishisland.model.entity.farm.FarmUser;
@@ -31,9 +29,7 @@ public class FarmUserServiceImpl extends ServiceImpl<FarmUserMapper, FarmUser> i
 
     @Override
     public FarmUser getFarmUserByUserId(Long systemUserId) {
-        return getOne(new LambdaQueryWrapper<FarmUser>()
-                .eq(FarmUser::getUserId, systemUserId)
-                .last("LIMIT 1"));
+        return getById(systemUserId);
     }
 
     @Override
@@ -64,19 +60,18 @@ public class FarmUserServiceImpl extends ServiceImpl<FarmUserMapper, FarmUser> i
 
     @Override
     @Transactional(rollbackFor = Exception.class)
+    public FarmUser getOrCreateFarmUser() {
+        return getOrCreateFarmUser(StpUtil.getLoginIdAsLong());
+    }
+
+    @Override
+    @Transactional(rollbackFor = Exception.class)
     public FarmUser getOrCreateFarmUser(Long systemUserId) {
         FarmUser farmUser = getFarmUserByUserId(systemUserId);
         if (farmUser == null) {
             return createFarmUser(systemUserId);
         }
         return farmUser;
-    }
-
-    @Override
-    @Transactional(rollbackFor = Exception.class)
-    public Long getFarmUserId(Long systemUserId) {
-        FarmUser farmUser = getOrCreateFarmUser(systemUserId);
-        return farmUser.getId();
     }
 
     @Override
@@ -112,17 +107,17 @@ public class FarmUserServiceImpl extends ServiceImpl<FarmUserMapper, FarmUser> i
     }
 
     @Override
-    public boolean addExperience(Long farmUserId, Integer exp) {
+    public boolean addExperience(Long userId, Integer exp) {
         if (exp <= 0) {
             return false;
         }
-        int result = baseMapper.addExperience(farmUserId, exp);
+        int result = baseMapper.addExperience(userId, exp);
         if (result > 0) {
-            FarmUser farmUser = getById(farmUserId);
+            FarmUser farmUser = getById(userId);
             if (farmUser != null) {
                 int newLevel = calculateLevel(farmUser.getExperience());
                 if (newLevel > farmUser.getLevel()) {
-                    baseMapper.updateLevel(farmUserId, newLevel);
+                    baseMapper.updateLevel(userId, newLevel);
                 }
             }
             return true;
@@ -139,30 +134,30 @@ public class FarmUserServiceImpl extends ServiceImpl<FarmUserMapper, FarmUser> i
     }
 
     @Override
-    public boolean incrementTotalHarvest(Long farmUserId) {
-        return baseMapper.incrementTotalHarvest(farmUserId) > 0;
+    public boolean incrementTotalHarvest(Long userId) {
+        return baseMapper.incrementTotalHarvest(userId) > 0;
     }
 
     @Override
-    public boolean incrementTotalSteal(Long farmUserId) {
-        return baseMapper.incrementTotalSteal(farmUserId) > 0;
+    public boolean incrementTotalSteal(Long userId) {
+        return baseMapper.incrementTotalSteal(userId) > 0;
     }
 
     @Override
-    public boolean incrementTotalDefense(Long farmUserId) {
-        return baseMapper.incrementTotalDefense(farmUserId) > 0;
+    public boolean incrementTotalDefense(Long userId) {
+        return baseMapper.incrementTotalDefense(userId) > 0;
     }
 
     @Override
-    public boolean incrementVisitedCount(Long farmUserId) {
-        return baseMapper.incrementVisitedCount(farmUserId) > 0;
+    public boolean incrementVisitedCount(Long userId) {
+        return baseMapper.incrementVisitedCount(userId) > 0;
     }
 
     @Override
-    public List<FarmUser> getFarmUsersByIds(List<Long> farmUserIds) {
-        if (farmUserIds == null || farmUserIds.isEmpty()) {
+    public List<FarmUser> getFarmUsersByUserIds(List<Long> userIds) {
+        if (userIds == null || userIds.isEmpty()) {
             return new ArrayList<>();
         }
-        return listByIds(farmUserIds);
+        return listByIds(userIds);
     }
 }

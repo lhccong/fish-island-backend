@@ -55,14 +55,14 @@ public interface FarmRankingService {
     /**
      * 偷菜成功后更新今日/累计偷菜次数排行。
      *
-     * @param stealerId 偷菜者的农场用户 ID
+     * @param stealerId 偷菜者的系统用户 ID
      */
     void updateStealCountRanking(Long stealerId);
 
     /**
      * 被偷后更新今日/累计防御排行。
      *
-     * @param ownerId 农场主的农场用户 ID
+     * @param ownerId 农场主的系统用户 ID
      * @param damage  本次被偷损失的积分（用于排行分值）
      */
     void updateDefenseRanking(Long ownerId, int damage);

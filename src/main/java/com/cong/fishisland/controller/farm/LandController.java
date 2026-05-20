@@ -36,21 +36,17 @@ public class LandController {
     @ApiOperation(value = "获取我的地块列表")
     public BaseResponse<List<LandDTO>> getMyLands() {
         Long userId = StpUtil.getLoginIdAsLong();
-        Long farmUserId = farmUserService.getFarmUserId(userId);
-        return ResultUtils.success(landService.toDTOList(landService.getLandsByUserId(farmUserId)));
+        farmUserService.getOrCreateFarmUser(userId);
+        return ResultUtils.success(landService.toDTOList(landService.getLandsByUserId(userId)));
     }
 
     @PostMapping("/plant")
     @ApiOperation(value = "种植作物")
     public BaseResponse<LandDTO> plant(@RequestBody PlantRequest request) {
-        Long userId = StpUtil.getLoginIdAsLong();
-        Long farmUserId = farmUserService.getFarmUserId(userId);
-        FarmLand land = landService.plant(farmUserId, request.getLandId(), request.getCropId());
-        if (land == null) {
-            throw new BusinessException(ErrorCode.OPERATION_ERROR);
-        }
 
-        taskService.updateTaskProgress(farmUserId, FarmTaskTypeEnum.PLANT);
+        FarmLand land = landService.plant(request.getLandId(), request.getCropId());
+
+//        taskService.updateTaskProgress(farmUserId, FarmTaskTypeEnum.PLANT);
 
         return ResultUtils.success(landService.toDTO(land));
     }
@@ -59,13 +55,12 @@ public class LandController {
     @ApiOperation(value = "收获作物")
     public BaseResponse<String> harvest(@RequestBody HarvestRequest request) {
         Long userId = StpUtil.getLoginIdAsLong();
-        Long farmUserId = farmUserService.getFarmUserId(userId);
-        FarmLand land = landService.harvest(farmUserId, request.getLandId());
+        FarmLand land = landService.harvest(userId, request.getLandId());
         if (land == null) {
             throw new BusinessException(ErrorCode.OPERATION_ERROR);
         }
 
-        taskService.updateTaskProgress(farmUserId, FarmTaskTypeEnum.HARVEST);
+        taskService.updateTaskProgress(userId, FarmTaskTypeEnum.HARVEST);
 
         return ResultUtils.success("收获成功");
     }

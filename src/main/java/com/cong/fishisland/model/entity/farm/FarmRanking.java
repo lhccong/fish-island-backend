@@ -23,7 +23,7 @@ public class FarmRanking {
     @ApiModelProperty(value = "排行榜记录ID")
     private Long id;
 
-    @ApiModelProperty(value = "农场用户ID（关联farm_user表的id）")
+    @ApiModelProperty(value = "系统用户ID（关联 user 表）")
     private Long userId;
 
     @ApiModelProperty(value = "排行类型（steal_exp/steal_count/defense）")

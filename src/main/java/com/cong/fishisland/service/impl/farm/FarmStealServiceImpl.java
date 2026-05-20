@@ -10,7 +10,6 @@ import com.cong.fishisland.model.dto.farm.FarmStealRecordVO;
 import com.cong.fishisland.model.entity.farm.FarmCrop;
 import com.cong.fishisland.model.entity.farm.FarmPlantRecord;
 import com.cong.fishisland.model.entity.farm.FarmStealRecord;
-import com.cong.fishisland.model.entity.farm.FarmUser;
 import com.cong.fishisland.model.enums.farm.FarmConstants;
 import com.cong.fishisland.model.enums.farm.FarmTaskTypeEnum;
 import com.cong.fishisland.model.enums.farm.FarmYesNoEnum;
@@ -152,13 +151,8 @@ public class FarmStealServiceImpl implements FarmStealService {
     }
 
     @Override
-    public boolean validateFriend(Long stealerFarmUserId, Long ownerFarmUserId) {
-        FarmUser stealer = farmUserService.getById(stealerFarmUserId);
-        FarmUser owner = farmUserService.getById(ownerFarmUserId);
-        if (stealer == null || owner == null) {
-            return false;
-        }
-        return userFollowService.isMutualFollow(stealer.getUserId(), owner.getUserId());
+    public boolean validateFriend(Long stealerUserId, Long ownerUserId) {
+        return userFollowService.isMutualFollow(stealerUserId, ownerUserId);
     }
 
     @Override

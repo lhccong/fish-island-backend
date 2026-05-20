@@ -5,8 +5,7 @@
     <select id="selectTodayStealExpRanking" resultType="com.cong.fishisland.model.dto.farm.RankingDTO">
         SELECT fr.*, u.userName AS username
         FROM farm_ranking fr
-                 LEFT JOIN farm_user fu ON fr.userId = fu.id
-                 LEFT JOIN user u ON fu.userId = u.id AND u.isDelete = 0
+                 LEFT JOIN user u ON fr.userId = u.id AND u.isDelete = 0
         WHERE fr.type = #{type}
           AND fr.date = #{date}
         ORDER BY fr.todayValue DESC
@@ -15,8 +14,7 @@
     <select id="selectTodayStealCountRanking" resultType="com.cong.fishisland.model.dto.farm.RankingDTO">
         SELECT fr.*, u.userName AS username
         FROM farm_ranking fr
-                 LEFT JOIN farm_user fu ON fr.userId = fu.id
-                 LEFT JOIN user u ON fu.userId = u.id AND u.isDelete = 0
+                 LEFT JOIN user u ON fr.userId = u.id AND u.isDelete = 0
         WHERE fr.type = #{type}
           AND fr.date = #{date}
         ORDER BY fr.todayValue DESC
@@ -25,8 +23,7 @@
     <select id="selectTodayDefenseRanking" resultType="com.cong.fishisland.model.dto.farm.RankingDTO">
         SELECT fr.*, u.userName AS username
         FROM farm_ranking fr
-                 LEFT JOIN farm_user fu ON fr.userId = fu.id
-                 LEFT JOIN user u ON fu.userId = u.id AND u.isDelete = 0
+                 LEFT JOIN user u ON fr.userId = u.id AND u.isDelete = 0
         WHERE fr.type = #{type}
           AND fr.date = #{date}
         ORDER BY fr.todayValue DESC
@@ -35,8 +32,7 @@
     <select id="selectTotalStealExpRanking" resultType="com.cong.fishisland.model.dto.farm.RankingDTO">
         SELECT fr.*, u.userName AS username
         FROM farm_ranking fr
-                 LEFT JOIN farm_user fu ON fr.userId = fu.id
-                 LEFT JOIN user u ON fu.userId = u.id AND u.isDelete = 0
+                 LEFT JOIN user u ON fr.userId = u.id AND u.isDelete = 0
         WHERE fr.type = #{type}
         ORDER BY fr.totalValue DESC
     </select>
@@ -44,8 +40,7 @@
     <select id="selectTotalStealCountRanking" resultType="com.cong.fishisland.model.dto.farm.RankingDTO">
         SELECT fr.*, u.userName AS username
         FROM farm_ranking fr
-                 LEFT JOIN farm_user fu ON fr.userId = fu.id
-                 LEFT JOIN user u ON fu.userId = u.id AND u.isDelete = 0
+                 LEFT JOIN user u ON fr.userId = u.id AND u.isDelete = 0
         WHERE fr.type = #{type}
         ORDER BY fr.totalValue DESC
     </select>
@@ -53,8 +48,7 @@
     <select id="selectTotalDefenseRanking" resultType="com.cong.fishisland.model.dto.farm.RankingDTO">
         SELECT fr.*, u.userName AS username
         FROM farm_ranking fr
-                 LEFT JOIN farm_user fu ON fr.userId = fu.id
-                 LEFT JOIN user u ON fu.userId = u.id AND u.isDelete = 0
+                 LEFT JOIN user u ON fr.userId = u.id AND u.isDelete = 0
         WHERE fr.type = #{type}
         ORDER BY fr.totalValue DESC
     </select>
