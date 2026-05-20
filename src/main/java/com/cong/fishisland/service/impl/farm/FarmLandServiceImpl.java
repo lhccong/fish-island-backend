@@ -1,6 +1,5 @@
 package com.cong.fishisland.service.impl.farm;
 
-import cn.dev33.satoken.stp.StpUtil;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.core.toolkit.CollectionUtils;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
@@ -11,12 +10,9 @@ import com.cong.fishisland.model.dto.farm.LandDTO;
 import com.cong.fishisland.model.entity.farm.FarmCrop;
 import com.cong.fishisland.model.entity.farm.FarmLand;
 import com.cong.fishisland.model.entity.farm.FarmPlantRecord;
-import com.cong.fishisland.model.entity.user.UserPoints;
 import com.cong.fishisland.service.FarmCollectionService;
 import com.cong.fishisland.service.FarmLandService;
 import com.cong.fishisland.service.FarmUserService;
-import com.cong.fishisland.service.UserPointsRecordService;
-import com.cong.fishisland.service.UserPointsService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -27,9 +23,6 @@ import java.util.Collections;
 import java.util.List;
 import java.util.stream.Collectors;
 
-import static com.cong.fishisland.model.enums.user.PointsRecordSourceEnum.FARM_HARVEST;
-import static com.cong.fishisland.model.enums.user.PointsRecordSourceEnum.FARM_PLANT;
-
 @Service
 public class FarmLandServiceImpl extends ServiceImpl<FarmLandMapper, FarmLand> implements FarmLandService {
 
@@ -38,12 +31,6 @@ public class FarmLandServiceImpl extends ServiceImpl<FarmLandMapper, FarmLand> i
 
     @Autowired
     private FarmPlantRecordMapper plantRecordMapper;
-
-    @Autowired
-    private UserPointsService userPointsService;
-
-    @Autowired
-    private UserPointsRecordService userPointsRecordService;
 
     @Autowired
     private FarmUserService farmUserService;
@@ -103,13 +90,7 @@ public class FarmLandServiceImpl extends ServiceImpl<FarmLandMapper, FarmLand> i
             return null;
         }
 
-        Long systemUserId = StpUtil.getLoginIdAsLong();
-
-        if (crop.getPrice() != null && crop.getPrice() > 0) {
-            userPointsService.checkAvailablePoints(systemUserId, crop.getPrice());
-            userPointsService.deductPoints(systemUserId, crop.getPrice(), FARM_PLANT.getValue(),
-                    "crop_" + cropId, "购买作物种子: " + crop.getName());
-        }
+        // TODO: 种植时扣减种子积分（校验余额并记录 FARM_PLANT 流水）
 
         LocalDateTime now = LocalDateTime.now();
         LocalDateTime harvestTime = now.plusMinutes(crop.getGrowthTime());
@@ -154,24 +135,7 @@ public class FarmLandServiceImpl extends ServiceImpl<FarmLandMapper, FarmLand> i
                 .last("LIMIT 1"));
 
         if (crop != null && record != null) {
-            int baseReward = record.getPlantedPointsReward() != null ? record.getPlantedPointsReward() : crop.getCoin();
-            int stolenPoints = record.getStolenPoints() != null ? record.getStolenPoints() : 0;
-            int minReward = crop.getPrice() != null ? crop.getPrice() : 0;
-            int actualReward = Math.max(baseReward - stolenPoints, minReward);
-
-            if (actualReward > 0) {
-                Long systemUserId = StpUtil.getLoginIdAsLong();
-                UserPoints userPoints = userPointsService.getById(systemUserId);
-                int beforePoints = userPoints.getPoints();
-                int afterPoints = beforePoints + actualReward;
-                int usedPoints = userPoints.getUsedPoints() == null ? 0 : userPoints.getUsedPoints();
-
-                userPointsService.updatePoints(systemUserId, actualReward, false);
-
-                userPointsRecordService.addPointsIncreaseRecord(systemUserId, actualReward, FARM_HARVEST.getValue(),
-                        "收获作物: " + crop.getName() + (stolenPoints > 0 ? " (被偷损失" + stolenPoints + "积分)" : ""),
-                        beforePoints, afterPoints, usedPoints, usedPoints);
-            }
+            // TODO: 收获时发放积分（按被偷损失计算实际奖励并更新用户积分、记录 FARM_HARVEST 流水）
 
             farmUserService.addExperience(userId, crop.getExperience());
             farmUserService.incrementTotalHarvest(userId);

@@ -1,6 +1,5 @@
 package com.cong.fishisland.service.impl.farm;
 
-import cn.dev33.satoken.stp.StpUtil;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.cong.fishisland.common.ErrorCode;
 import com.cong.fishisland.common.exception.BusinessException;
@@ -12,7 +11,6 @@ import com.cong.fishisland.model.entity.farm.FarmCrop;
 import com.cong.fishisland.model.entity.farm.FarmPlantRecord;
 import com.cong.fishisland.model.entity.farm.FarmStealRecord;
 import com.cong.fishisland.model.entity.farm.FarmUser;
-import com.cong.fishisland.model.entity.user.UserPoints;
 import com.cong.fishisland.service.*;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
@@ -20,8 +18,6 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
 import java.util.List;
-
-import static com.cong.fishisland.model.enums.user.PointsRecordSourceEnum.FARM_STEAL;
 
 @Service
 public class FarmStealServiceImpl implements FarmStealService {
@@ -36,12 +32,6 @@ public class FarmStealServiceImpl implements FarmStealService {
 
     @Autowired
     private FarmCropMapper cropMapper;
-
-    @Autowired
-    private UserPointsService userPointsService;
-
-    @Autowired
-    private UserPointsRecordService userPointsRecordService;
 
     @Autowired
     private FarmRankingService rankingService;
@@ -110,19 +100,7 @@ public class FarmStealServiceImpl implements FarmStealService {
         plantRecord.setStolenPoints(currentStolenPoints + stealPoints);
         plantRecordMapper.updateById(plantRecord);
 
-        Long stealerSystemUserId = StpUtil.getLoginIdAsLong();
-        UserPoints stealerPoints = userPointsService.getById(stealerSystemUserId);
-        if (stealerPoints != null) {
-            int beforePoints = stealerPoints.getPoints();
-            int afterPoints = beforePoints + stealPoints;
-            int usedPoints = stealerPoints.getUsedPoints() == null ? 0 : stealerPoints.getUsedPoints();
-
-            userPointsService.updatePoints(stealerSystemUserId, stealPoints, false);
-
-            userPointsRecordService.addPointsIncreaseRecord(stealerSystemUserId, stealPoints, FARM_STEAL.getValue(),
-                    "偷取作物: " + crop.getName(),
-                    beforePoints, afterPoints, usedPoints, usedPoints);
-        }
+        // TODO: 偷菜成功后为偷取者发放积分（更新用户积分并记录 FARM_STEAL 流水）
 
         rankingService.updateStealCountRanking(stealerId);
 
