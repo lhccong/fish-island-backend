@@ -1,5 +1,6 @@
 package com.cong.fishisland.service;
 
+import com.cong.fishisland.model.dto.farm.CropCategoryVO;
 import com.cong.fishisland.model.dto.farm.CropDTO;
 import com.cong.fishisland.model.entity.farm.FarmCrop;
 
@@ -44,23 +45,34 @@ public interface FarmCropService {
     /**
      * 获取支持的作物分类列表。
      *
-     * @return 分类名称列表
+     * @return 分类选项列表（枚举 value + label）
      */
-    List<String> getCategories();
+    List<CropCategoryVO> getCategories();
 
     /**
-     * 将作物实体转换为 DTO。
+     * 将作物实体转换为 DTO，并根据农场等级计算是否未解锁。
      *
-     * @param crop 作物实体
+     * @param crop      作物实体
+     * @param farmLevel 当前农场等级
      * @return 作物 DTO；入参为 null 时返回 null
      */
-    CropDTO toDTO(FarmCrop crop);
+    CropDTO toDTO(FarmCrop crop, Integer farmLevel);
 
     /**
      * 批量将作物实体转换为 DTO。
      *
-     * @param crops 作物列表
+     * @param crops     作物列表
+     * @param farmLevel 当前农场等级
      * @return 作物 DTO 列表
      */
-    List<CropDTO> toDTOList(List<FarmCrop> crops);
+    List<CropDTO> toDTOList(List<FarmCrop> crops, Integer farmLevel);
+
+    /**
+     * 判断作物是否已对指定农场等级解锁。
+     *
+     * @param crop      作物
+     * @param farmLevel 农场等级
+     * @return 已解锁返回 true
+     */
+    boolean isUnlocked(FarmCrop crop, Integer farmLevel);
 }

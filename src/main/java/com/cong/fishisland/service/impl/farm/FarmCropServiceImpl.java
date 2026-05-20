@@ -3,8 +3,10 @@ package com.cong.fishisland.service.impl.farm;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import com.cong.fishisland.mapper.farm.FarmCropMapper;
+import com.cong.fishisland.model.dto.farm.CropCategoryVO;
 import com.cong.fishisland.model.dto.farm.CropDTO;
 import com.cong.fishisland.model.entity.farm.FarmCrop;
+import com.cong.fishisland.model.enums.farm.FarmCropCategoryEnum;
 import com.cong.fishisland.service.FarmCropService;
 import org.springframework.stereotype.Service;
 
@@ -40,12 +42,14 @@ public class FarmCropServiceImpl extends ServiceImpl<FarmCropMapper, FarmCrop> i
     }
 
     @Override
-    public List<String> getCategories() {
-        return List.of("grain", "vegetable", "fruit", "flower");
+    public List<CropCategoryVO> getCategories() {
+        return FarmCropCategoryEnum.all().stream()
+                .map(c -> new CropCategoryVO(c.getValue(), c.getLabel()))
+                .collect(Collectors.toList());
     }
 
     @Override
-    public CropDTO toDTO(FarmCrop crop) {
+    public CropDTO toDTO(FarmCrop crop, Integer farmLevel) {
         if (crop == null) {
             return null;
         }
@@ -57,16 +61,29 @@ public class FarmCropServiceImpl extends ServiceImpl<FarmCropMapper, FarmCrop> i
         dto.setExperience(crop.getExperience());
         dto.setCoin(crop.getCoin());
         dto.setRarity(crop.getRarity());
+        int unlockLevel = crop.getUnlockLevel() != null ? crop.getUnlockLevel() : 1;
+        dto.setUnlockLevel(unlockLevel);
+        dto.setLocked(!isUnlocked(crop, farmLevel));
         dto.setIcon(crop.getIcon());
         dto.setDescription(crop.getDescription());
         return dto;
     }
 
     @Override
-    public List<CropDTO> toDTOList(List<FarmCrop> crops) {
+    public List<CropDTO> toDTOList(List<FarmCrop> crops, Integer farmLevel) {
         if (crops == null || crops.isEmpty()) {
             return Collections.emptyList();
         }
-        return crops.stream().map(this::toDTO).collect(Collectors.toList());
+        return crops.stream().map(c -> toDTO(c, farmLevel)).collect(Collectors.toList());
+    }
+
+    @Override
+    public boolean isUnlocked(FarmCrop crop, Integer farmLevel) {
+        if (crop == null) {
+            return false;
+        }
+        int requiredLevel = crop.getUnlockLevel() != null ? crop.getUnlockLevel() : 1;
+        int currentLevel = farmLevel != null ? farmLevel : 1;
+        return currentLevel >= requiredLevel;
     }
 }

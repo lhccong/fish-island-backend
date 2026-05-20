@@ -51,6 +51,9 @@ public class FarmCrop {
     @ApiModelProperty(value = "稀有度")
     private Integer rarity = 1;
 
+    @ApiModelProperty(value = "解锁所需农场等级")
+    private Integer unlockLevel = 1;
+
     @ApiModelProperty(value = "作物图标")
     private String icon = "";
 

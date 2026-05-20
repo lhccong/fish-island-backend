@@ -10,10 +10,12 @@ import com.cong.fishisland.model.dto.farm.LandDTO;
 import com.cong.fishisland.model.entity.farm.FarmCrop;
 import com.cong.fishisland.model.entity.farm.FarmLand;
 import com.cong.fishisland.model.entity.farm.FarmPlantRecord;
+import com.cong.fishisland.model.entity.farm.FarmUser;
 import com.cong.fishisland.model.enums.farm.FarmConstants;
 import com.cong.fishisland.model.enums.farm.FarmLandStatusEnum;
 import com.cong.fishisland.model.enums.farm.FarmYesNoEnum;
 import com.cong.fishisland.service.FarmCollectionService;
+import com.cong.fishisland.service.FarmCropService;
 import com.cong.fishisland.service.FarmLandService;
 import com.cong.fishisland.service.FarmUserService;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -40,6 +42,9 @@ public class FarmLandServiceImpl extends ServiceImpl<FarmLandMapper, FarmLand> i
 
     @Autowired
     private FarmCollectionService collectionService;
+
+    @Autowired
+    private FarmCropService cropService;
 
     @Override
     public List<FarmLand> getLandsByUserId(Long userId) {
@@ -92,6 +97,11 @@ public class FarmLandServiceImpl extends ServiceImpl<FarmLandMapper, FarmLand> i
 
         FarmCrop crop = cropMapper.selectById(cropId);
         if (crop == null) {
+            return null;
+        }
+
+        FarmUser farmUser = farmUserService.getById(userId);
+        if (farmUser == null || !cropService.isUnlocked(crop, farmUser.getLevel())) {
             return null;
         }
 

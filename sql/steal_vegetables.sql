@@ -31,6 +31,7 @@ CREATE TABLE `farm_crop`
     `coin`        int         NOT NULL COMMENT '收获积分',
     `price`       int         NOT NULL DEFAULT '0' COMMENT '购买价格(积分)',
     `rarity`      tinyint              DEFAULT '1' COMMENT '稀有度:1-普通,2-稀有,3-史诗,4-传说',
+    `unlockLevel` int         NOT NULL DEFAULT '1' COMMENT '解锁所需农场等级',
     `icon`        varchar(255)         DEFAULT '' COMMENT '图标',
     `description` varchar(200)         DEFAULT '' COMMENT '描述',
     `createTime` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
@@ -174,41 +175,41 @@ CREATE TABLE `farm_user`
 -- DROP TABLE IF EXISTS `farm_friend`;
 
 -- 蔬菜类作物
-INSERT INTO farm_crop (name, category, growthTime, experience, coin, rarity, icon, description, createTime)
-VALUES ('胡萝卜', 'vegetable', 30, 7, 3, 1, '', '普通蔬菜', NOW()),
-       ('卷心菜', 'vegetable', 45, 8, 4, 1, '', '普通蔬菜', NOW()),
-       ('番茄', 'vegetable', 60, 10, 5, 2, '', '普通蔬菜', NOW()),
-       ('黄瓜', 'vegetable', 75, 11, 5, 2, '', '普通蔬菜', NOW()),
-       ('辣椒', 'vegetable', 90, 13, 6, 3, '', '普通蔬菜', NOW()),
-       ('茄子', 'vegetable', 105, 14, 7, 3, '', '普通蔬菜', NOW()),
-       ('豌豆', 'vegetable', 90, 13, 6, 3, '', '普通蔬菜', NOW()),
-       ('芹菜', 'vegetable', 100, 14, 7, 3, '', '普通蔬菜', NOW()),
-       ('土豆', 'vegetable', 120, 15, 7, 4, '', '普通蔬菜', NOW()),
-       ('洋葱', 'vegetable', 150, 17, 8, 4, '', '普通蔬菜', NOW()),
-       ('豆角', 'vegetable', 135, 16, 8, 4, '', '普通蔬菜', NOW());
+INSERT INTO farm_crop (name, category, growthTime, experience, coin, rarity, unlockLevel, icon, description, createTime)
+VALUES ('胡萝卜', 'vegetable', 30, 7, 3, 1, 1, '', '普通蔬菜', NOW()),
+       ('卷心菜', 'vegetable', 45, 8, 4, 1, 1, '', '普通蔬菜', NOW()),
+       ('番茄', 'vegetable', 60, 10, 5, 2, 3, '', '普通蔬菜', NOW()),
+       ('黄瓜', 'vegetable', 75, 11, 5, 2, 3, '', '普通蔬菜', NOW()),
+       ('辣椒', 'vegetable', 90, 13, 6, 3, 5, '', '普通蔬菜', NOW()),
+       ('茄子', 'vegetable', 105, 14, 7, 3, 5, '', '普通蔬菜', NOW()),
+       ('豌豆', 'vegetable', 90, 13, 6, 3, 5, '', '普通蔬菜', NOW()),
+       ('芹菜', 'vegetable', 100, 14, 7, 3, 5, '', '普通蔬菜', NOW()),
+       ('土豆', 'vegetable', 120, 15, 7, 4, 8, '', '普通蔬菜', NOW()),
+       ('洋葱', 'vegetable', 150, 17, 8, 4, 8, '', '普通蔬菜', NOW()),
+       ('豆角', 'vegetable', 135, 16, 8, 4, 8, '', '普通蔬菜', NOW());
 
 -- 粮食类作物
-INSERT INTO farm_crop (name, category, growthTime, experience, coin, rarity, icon, description, createTime)
-VALUES ('大麦', 'grain', 25, 6, 3, 1, '', '普通粮食作物', NOW()),
-       ('燕麦', 'grain', 40, 8, 4, 1, '', '普通粮食作物', NOW()),
-       ('黑麦', 'grain', 60, 10, 5, 2, '', '普通粮食作物', NOW()),
-       ('高粱', 'grain', 90, 13, 6, 3, '', '普通粮食作物', NOW()),
-       ('荞麦', 'grain', 120, 17, 8, 2, '', '优良品质粮食作物', NOW()),
-       ('玉米', 'grain', 60, 10, 5, 3, '', '普通粮食作物', NOW());
+INSERT INTO farm_crop (name, category, growthTime, experience, coin, rarity, unlockLevel, icon, description, createTime)
+VALUES ('大麦', 'grain', 25, 6, 3, 1, 1, '', '普通粮食作物', NOW()),
+       ('燕麦', 'grain', 40, 8, 4, 1, 1, '', '普通粮食作物', NOW()),
+       ('黑麦', 'grain', 60, 10, 5, 2, 3, '', '普通粮食作物', NOW()),
+       ('高粱', 'grain', 90, 13, 6, 3, 5, '', '普通粮食作物', NOW()),
+       ('荞麦', 'grain', 120, 17, 8, 2, 3, '', '优良品质粮食作物', NOW()),
+       ('玉米', 'grain', 60, 10, 5, 3, 5, '', '普通粮食作物', NOW());
 
 -- 水果类作物
-INSERT INTO farm_crop (name, category, growthTime, experience, coin, rarity, icon, description, createTime)
-VALUES ('草莓', 'fruit', 0, 0, 4, 1, '', '普通水果', NOW()),
-       ('葡萄', 'fruit', 0, 0, 7, 1, '', '普通水果', NOW()),
-       ('西瓜', 'fruit', 0, 0, 8, 1, '', '普通水果', NOW());
+INSERT INTO farm_crop (name, category, growthTime, experience, coin, rarity, unlockLevel, icon, description, createTime)
+VALUES ('草莓', 'fruit', 0, 0, 4, 1, 1, '', '普通水果', NOW()),
+       ('葡萄', 'fruit', 0, 0, 7, 1, 1, '', '普通水果', NOW()),
+       ('西瓜', 'fruit', 0, 0, 8, 1, 1, '', '普通水果', NOW());
 
 -- 花卉类作物
-INSERT INTO farm_crop (name, category, growthTime, experience, coin, rarity, icon, description, createTime)
-VALUES ('向日葵', 'flower', 60, 10, 5, 1, '', '普通花卉', NOW()),
-       ('郁金香', 'flower', 90, 13, 6, 2, '', '普通花卉', NOW()),
-       ('雏菊', 'flower', 75, 11, 5, 2, '', '普通花卉', NOW()),
-       ('康乃馨', 'flower', 120, 15, 7, 3, '', '普通花卉', NOW()),
-       ('玫瑰', 'flower', 150, 20, 10, 2, '', '优良品质花卉', NOW());
+INSERT INTO farm_crop (name, category, growthTime, experience, coin, rarity, unlockLevel, icon, description, createTime)
+VALUES ('向日葵', 'flower', 60, 10, 5, 1, 1, '', '普通花卉', NOW()),
+       ('郁金香', 'flower', 90, 13, 6, 2, 3, '', '普通花卉', NOW()),
+       ('雏菊', 'flower', 75, 11, 5, 2, 3, '', '普通花卉', NOW()),
+       ('康乃馨', 'flower', 120, 15, 7, 3, 5, '', '普通花卉', NOW()),
+       ('玫瑰', 'flower', 150, 20, 10, 2, 3, '', '优良品质花卉', NOW());
 
 
 INSERT INTO fish.farm_daily_task

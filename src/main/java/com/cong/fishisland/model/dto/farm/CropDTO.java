@@ -29,6 +29,12 @@ public class CropDTO {
     @ApiModelProperty(value = "稀有度")
     private Integer rarity;
 
+    @ApiModelProperty(value = "解锁所需农场等级")
+    private Integer unlockLevel;
+
+    @ApiModelProperty(value = "是否未解锁（农场等级不足时为 true）")
+    private Boolean locked;
+
     @ApiModelProperty(value = "作物图标")
     private String icon;
 
