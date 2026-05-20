@@ -7,18 +7,17 @@ import lombok.Data;
 import java.time.LocalDateTime;
 
 /**
- * 农场好友列表VO
- * 包含好友基本信息和是否可以偷菜的标识
+ * 农场互关好友列表 VO
  */
 @Data
-@ApiModel(description = "农场好友列表VO")
+@ApiModel(description = "农场互关好友列表VO")
 public class FarmFriendListVO {
 
-    @ApiModelProperty(value = "好友关系ID")
-    private Long id;
-
-    @ApiModelProperty(value = "好友ID")
+    @ApiModelProperty(value = "好友农场用户ID")
     private Long friendId;
+
+    @ApiModelProperty(value = "好友系统用户ID")
+    private Long systemUserId;
 
     @ApiModelProperty(value = "好友昵称")
     private String nickname;
@@ -29,13 +28,7 @@ public class FarmFriendListVO {
     @ApiModelProperty(value = "好友等级")
     private Integer level;
 
-    @ApiModelProperty(value = "好友关系状态（0-拉黑，1-正常）")
-    private Integer status;
-
-    @ApiModelProperty(value = "最后访问时间")
-    private LocalDateTime lastVisitTime;
-
-    @ApiModelProperty(value = "偷菜冷却时间")
+    @ApiModelProperty(value = "偷菜冷却结束时间（对该好友最近一次偷菜后10分钟内）")
     private LocalDateTime stealCooldown;
 
     @ApiModelProperty(value = "是否可以偷菜")

@@ -160,6 +160,43 @@ public class UserFollowServiceImpl extends ServiceImpl<UserFollowMapper, UserFol
         return toCountMap(this.baseMapper.batchCountFollowers(userIds), "followUserId");
     }
 
+    @Override
+    public boolean isMutualFollow(Long userId, Long targetUserId) {
+        if (userId == null || targetUserId == null || userId.equals(targetUserId)) {
+            return false;
+        }
+        boolean followsTarget = this.count(
+                new LambdaQueryWrapper<UserFollow>()
+                        .eq(UserFollow::getUserId, userId)
+                        .eq(UserFollow::getFollowUserId, targetUserId)
+        ) > 0;
+        if (!followsTarget) {
+            return false;
+        }
+        return this.count(
+                new LambdaQueryWrapper<UserFollow>()
+                        .eq(UserFollow::getUserId, targetUserId)
+                        .eq(UserFollow::getFollowUserId, userId)
+        ) > 0;
+    }
+
+    @Override
+    public List<Long> listMutualFollowUserIds(Long userId) {
+        if (userId == null) {
+            return new ArrayList<>();
+        }
+        List<Long> mutualIds = this.baseMapper.listMutualFollowUserIds(userId);
+        return mutualIds != null ? mutualIds : new ArrayList<>();
+    }
+
+    @Override
+    public long countMutualFollows(Long userId) {
+        if (userId == null) {
+            return 0;
+        }
+        return this.baseMapper.countMutualFollows(userId);
+    }
+
     // ==================== 私有方法 ====================
 
     /**

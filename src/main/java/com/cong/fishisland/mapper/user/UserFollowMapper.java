@@ -53,4 +53,20 @@ public interface UserFollowMapper extends BaseMapper<UserFollow> {
             " GROUP BY followUserId" +
             "</script>")
     List<Map<String, Object>> batchCountFollowers(@Param("userIds") Collection<Long> userIds);
+
+    /**
+     * 查询与指定用户互相关注的用户 ID 列表
+     */
+    @Select("SELECT uf1.followUserId FROM user_follow uf1 " +
+            "INNER JOIN user_follow uf2 ON uf1.followUserId = uf2.userId AND uf2.followUserId = uf1.userId " +
+            "WHERE uf1.userId = #{userId}")
+    List<Long> listMutualFollowUserIds(@Param("userId") Long userId);
+
+    /**
+     * 统计互相关注数量
+     */
+    @Select("SELECT COUNT(*) FROM user_follow uf1 " +
+            "INNER JOIN user_follow uf2 ON uf1.followUserId = uf2.userId AND uf2.followUserId = uf1.userId " +
+            "WHERE uf1.userId = #{userId}")
+    long countMutualFollows(@Param("userId") Long userId);
 }

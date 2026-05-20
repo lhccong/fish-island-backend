@@ -170,23 +170,8 @@ CREATE TABLE `farm_user`
     KEY               `idx_experience` (`experience`)
 ) ENGINE=InnoDB AUTO_INCREMENT=4 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='农场用户表';
 
--- fish.farm_friend definition
-
-CREATE TABLE `farm_friend`
-(
-    `id`            bigint NOT NULL AUTO_INCREMENT COMMENT '好友关系ID',
-    `userId`        bigint NOT NULL COMMENT '用户ID（主人）',
-    `friendId`      bigint NOT NULL COMMENT '好友用户ID',
-    `status`        tinyint  DEFAULT '1' COMMENT '好友状态:0-拉黑,1-正常',
-    `lastVisitTime` datetime DEFAULT NULL COMMENT '上次访问好友农场时间',
-    `stealCooldown` datetime DEFAULT NULL COMMENT '偷菜冷却结束时间',
-    `createTime` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
-    `updateTime` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
-    PRIMARY KEY (`id`),
-    UNIQUE KEY `uk_user_friend` (`userId`,`friendId`),
-    KEY             `idx_user_id` (`userId`),
-    KEY             `idx_friend_id` (`friendId`)
-) ENGINE=InnoDB AUTO_INCREMENT=2 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='农场好友表';
+-- 农场好友已改为 user_follow 互相关注，不再使用 farm_friend 表
+-- DROP TABLE IF EXISTS `farm_friend`;
 
 -- 蔬菜类作物
 INSERT INTO farm_crop (name, category, growthTime, experience, coin, rarity, icon, description, createTime)
@@ -234,10 +219,10 @@ INSERT INTO fish.farm_daily_task
 VALUES (2, '收获作物', '收获3次作物', 3, 10, 'harvest', 2, '2026-05-18 02:00:53');
 INSERT INTO fish.farm_daily_task
 (id, name, description, targetCount, rewardExp, `type`, sortOrder, createTime)
-VALUES (3, '偷取好友作物', '偷取2次好友作物', 2, 15, 'steal', 3, '2026-05-18 02:00:53');
+VALUES (3, '偷取互关好友作物', '偷取2次互关好友作物', 2, 15, 'steal', 3, '2026-05-18 02:00:53');
 INSERT INTO fish.farm_daily_task
 (id, name, description, targetCount, rewardExp, `type`, sortOrder, createTime)
-VALUES (4, '访问好友农场', '访问3个好友农场', 3, 5, 'visit', 4, '2026-05-18 02:00:53');
+VALUES (4, '访问互关好友农场', '访问3个互关好友农场', 3, 5, 'visit', 4, '2026-05-18 02:00:53');
 INSERT INTO fish.farm_daily_task
 (id, name, description, targetCount, rewardExp, `type`, sortOrder, createTime)
 VALUES (5, '农场签到', '完成每日签到', 1, 5, 'signin', 5, '2026-05-18 02:00:53');

@@ -80,4 +80,19 @@ public interface UserFollowService extends IService<UserFollow> {
      * @return 粉丝数
      */
     long countFollowers(Long userId);
+
+    /**
+     * 判断两个用户是否互相关注
+     */
+    boolean isMutualFollow(Long userId, Long targetUserId);
+
+    /**
+     * 查询与指定用户互相关注的用户 ID 列表
+     */
+    List<Long> listMutualFollowUserIds(Long userId);
+
+    /**
+     * 统计互相关注数量
+     */
+    long countMutualFollows(Long userId);
 }

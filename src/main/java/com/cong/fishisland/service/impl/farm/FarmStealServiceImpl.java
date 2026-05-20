@@ -5,15 +5,13 @@ import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.cong.fishisland.common.ErrorCode;
 import com.cong.fishisland.common.exception.BusinessException;
 import com.cong.fishisland.mapper.farm.FarmCropMapper;
-import com.cong.fishisland.mapper.farm.FarmFriendMapper;
-import com.cong.fishisland.mapper.farm.FarmLandMapper;
 import com.cong.fishisland.mapper.farm.FarmPlantRecordMapper;
 import com.cong.fishisland.mapper.farm.FarmStealRecordMapper;
 import com.cong.fishisland.model.dto.farm.FarmStealRecordVO;
 import com.cong.fishisland.model.entity.farm.FarmCrop;
-import com.cong.fishisland.model.entity.farm.FarmFriend;
 import com.cong.fishisland.model.entity.farm.FarmPlantRecord;
 import com.cong.fishisland.model.entity.farm.FarmStealRecord;
+import com.cong.fishisland.model.entity.farm.FarmUser;
 import com.cong.fishisland.model.entity.user.UserPoints;
 import com.cong.fishisland.service.*;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -27,6 +25,8 @@ import static com.cong.fishisland.model.enums.user.PointsRecordSourceEnum.FARM_S
 
 @Service
 public class FarmStealServiceImpl implements FarmStealService {
+
+    private static final int STEAL_COOLDOWN_MINUTES = 10;
 
     @Autowired
     private FarmStealRecordMapper stealRecordMapper;
@@ -47,13 +47,13 @@ public class FarmStealServiceImpl implements FarmStealService {
     private FarmRankingService rankingService;
 
     @Autowired
-    private FarmFriendMapper farmFriendMapper;
-
-    @Autowired
     private FarmTaskService farmTaskService;
 
     @Autowired
     private FarmUserService farmUserService;
+
+    @Autowired
+    private UserFollowService userFollowService;
 
     @Override
     @Transactional(rollbackFor = Exception.class)
@@ -86,7 +86,7 @@ public class FarmStealServiceImpl implements FarmStealService {
         }
 
         if (!validateFriend(stealerId, ownerId)) {
-            throw new BusinessException(ErrorCode.OPERATION_ERROR, "只能偷好友的作物");
+            throw new BusinessException(ErrorCode.OPERATION_ERROR, "只能偷互相关注用户的作物");
         }
 
         if (!checkCooldown(stealerId, plantRecordId)) {
@@ -126,8 +126,6 @@ public class FarmStealServiceImpl implements FarmStealService {
 
         rankingService.updateStealCountRanking(stealerId);
 
-        farmFriendMapper.updateStealCooldown(stealerId, ownerId, now.plusMinutes(10));
-
         farmUserService.incrementTotalSteal(stealerId);
         farmUserService.incrementTotalDefense(ownerId);
 
@@ -159,30 +157,29 @@ public class FarmStealServiceImpl implements FarmStealService {
             return false;
         }
 
-        FarmFriend friend = farmFriendMapper.selectOne(new LambdaQueryWrapper<FarmFriend>()
-                .eq(FarmFriend::getUserId, stealerId)
-                .eq(FarmFriend::getFriendId, plantRecord.getUserId())
-                .eq(FarmFriend::getStatus, 1)
+        if (!validateFriend(stealerId, plantRecord.getUserId())) {
+            return false;
+        }
+
+        FarmStealRecord last = stealRecordMapper.selectOne(new LambdaQueryWrapper<FarmStealRecord>()
+                .eq(FarmStealRecord::getStealerId, stealerId)
+                .eq(FarmStealRecord::getOwnerId, plantRecord.getUserId())
+                .orderByDesc(FarmStealRecord::getStolenTime)
                 .last("LIMIT 1"));
-        if (friend == null) {
-            return false;
+        if (last == null || last.getStolenTime() == null) {
+            return true;
         }
-
-        if (friend.getStealCooldown() != null && friend.getStealCooldown().isAfter(LocalDateTime.now())) {
-            return false;
-        }
-
-        return true;
+        return !last.getStolenTime().plusMinutes(STEAL_COOLDOWN_MINUTES).isAfter(LocalDateTime.now());
     }
 
     @Override
-    public boolean validateFriend(Long stealerId, Long ownerId) {
-        FarmFriend friend = farmFriendMapper.selectOne(new LambdaQueryWrapper<FarmFriend>()
-                .eq(FarmFriend::getUserId, stealerId)
-                .eq(FarmFriend::getFriendId, ownerId)
-                .eq(FarmFriend::getStatus, 1)
-                .last("LIMIT 1"));
-        return friend != null;
+    public boolean validateFriend(Long stealerFarmUserId, Long ownerFarmUserId) {
+        FarmUser stealer = farmUserService.getById(stealerFarmUserId);
+        FarmUser owner = farmUserService.getById(ownerFarmUserId);
+        if (stealer == null || owner == null) {
+            return false;
+        }
+        return userFollowService.isMutualFollow(stealer.getUserId(), owner.getUserId());
     }
 
     @Override
