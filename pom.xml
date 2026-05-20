@@ -215,12 +215,12 @@
                     <allowInsecureRegistries>true</allowInsecureRegistries>
                     <from>
                         <image>39.105.4.252:5000/eclipse-temurin:17</image>
-<!--                        <platforms>-->
-<!--                            <platform>-->
-<!--                                <architecture>arm64</architecture>-->
-<!--                                <os>linux</os>-->
-<!--                            </platform>-->
-<!--                        </platforms>-->
+                        <!--                        <platforms>-->
+                        <!--                            <platform>-->
+                        <!--                                <architecture>arm64</architecture>-->
+                        <!--                                <os>linux</os>-->
+                        <!--                            </platform>-->
+                        <!--                        </platforms>-->
                         <auth>
                             <!--在私有镜像仓库上的账号和密码-->
                             <username>admin</username>

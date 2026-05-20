@@ -30,6 +30,10 @@ public enum PointsRecordSourceEnum {
     MOMENTS_LIKE("moments_like", "朋友圈点赞"),
     MOMENTS_REWARD("moments_reward", "朋友圈打赏"),
     REDEEM_CODE("redeem_code", "兑换码"),
+    FARM_PLANT("farm_plant", "农场种植"),
+    FARM_HARVEST("farm_harvest", "农场收获"),
+    FARM_STEAL("farm_steal", "农场偷菜"),
+    FARM_STEAL_LOSS("farm_steal_loss", "农场被偷损失"),
     OTHER("other", "其他");
 
     private final String value;
