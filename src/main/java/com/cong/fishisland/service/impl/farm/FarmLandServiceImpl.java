@@ -7,6 +7,7 @@ import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import com.cong.fishisland.mapper.farm.FarmCropMapper;
 import com.cong.fishisland.mapper.farm.FarmLandMapper;
 import com.cong.fishisland.mapper.farm.FarmPlantRecordMapper;
+import com.cong.fishisland.model.dto.farm.LandDTO;
 import com.cong.fishisland.model.entity.farm.FarmCrop;
 import com.cong.fishisland.model.entity.farm.FarmLand;
 import com.cong.fishisland.model.entity.farm.FarmPlantRecord;
@@ -22,7 +23,9 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
+import java.util.stream.Collectors;
 
 import static com.cong.fishisland.model.enums.user.PointsRecordSourceEnum.FARM_HARVEST;
 import static com.cong.fishisland.model.enums.user.PointsRecordSourceEnum.FARM_PLANT;
@@ -60,11 +63,6 @@ public class FarmLandServiceImpl extends ServiceImpl<FarmLandMapper, FarmLand> i
                     .orderByAsc(FarmLand::getLandIndex));
         }
         return farmLands;
-    }
-
-    @Override
-    public FarmLand getLand(Long landId) {
-        return getById(landId);
     }
 
     @Override
@@ -197,9 +195,34 @@ public class FarmLandServiceImpl extends ServiceImpl<FarmLandMapper, FarmLand> i
     }
 
     @Override
-    public void updateLandStatus() {
-        LocalDateTime now = LocalDateTime.now();
-        baseMapper.updateMatureLands(now);
+    public LandDTO toDTO(FarmLand land) {
+        if (land == null) {
+            return null;
+        }
+        LandDTO dto = new LandDTO();
+        dto.setId(land.getId());
+        dto.setLandIndex(land.getLandIndex());
+        dto.setStatus(land.getStatus());
+        dto.setPlantedCropId(land.getPlantedCropId());
+        dto.setPlantedTime(land.getPlantedTime());
+        dto.setHarvestTime(land.getHarvestTime());
+        dto.setLocked(land.getLocked());
+
+        if (land.getPlantedCropId() != null) {
+            FarmCrop crop = cropMapper.selectById(land.getPlantedCropId());
+            if (crop != null) {
+                dto.setCropName(crop.getName());
+            }
+        }
+        return dto;
+    }
+
+    @Override
+    public List<LandDTO> toDTOList(List<FarmLand> lands) {
+        if (lands == null || lands.isEmpty()) {
+            return Collections.emptyList();
+        }
+        return lands.stream().map(this::toDTO).collect(Collectors.toList());
     }
 
 }

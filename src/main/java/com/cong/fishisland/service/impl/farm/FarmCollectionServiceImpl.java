@@ -3,16 +3,26 @@ package com.cong.fishisland.service.impl.farm;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import com.cong.fishisland.mapper.farm.FarmCollectionMapper;
+import com.cong.fishisland.model.dto.farm.CollectionDTO;
+import com.cong.fishisland.model.dto.farm.CollectionStatsVO;
 import com.cong.fishisland.model.entity.farm.FarmCollection;
+import com.cong.fishisland.model.entity.farm.FarmCrop;
 import com.cong.fishisland.service.FarmCollectionService;
+import com.cong.fishisland.service.FarmCropService;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
 import java.time.LocalDateTime;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
+import java.util.stream.Collectors;
 
 @Service
 public class FarmCollectionServiceImpl extends ServiceImpl<FarmCollectionMapper, FarmCollection> implements FarmCollectionService {
+
+    @Autowired
+    private FarmCropService cropService;
 
     @Override
     public List<FarmCollection> getUserCollections(Long userId) {
@@ -78,5 +88,44 @@ public class FarmCollectionServiceImpl extends ServiceImpl<FarmCollectionMapper,
                 this.saveBatch(toInsert);
             }
         }
+    }
+
+    @Override
+    public CollectionDTO toDTO(FarmCollection collection) {
+        if (collection == null) {
+            return null;
+        }
+        CollectionDTO dto = new CollectionDTO();
+        dto.setId(collection.getId());
+        dto.setCropId(collection.getCropId());
+        dto.setObtained(collection.getObtained());
+        dto.setCount(collection.getCount());
+        dto.setObtainedTime(collection.getObtainedTime());
+
+        FarmCrop crop = cropService.getCropById(collection.getCropId());
+        if (crop != null) {
+            dto.setCropName(crop.getName());
+            dto.setCategory(crop.getCategory());
+        }
+        return dto;
+    }
+
+    @Override
+    public List<CollectionDTO> toDTOList(List<FarmCollection> collections) {
+        if (collections == null || collections.isEmpty()) {
+            return Collections.emptyList();
+        }
+        return collections.stream().map(this::toDTO).collect(Collectors.toList());
+    }
+
+    @Override
+    public CollectionStatsVO getCollectionStats(Long userId) {
+        long obtained = getObtainedCount(userId);
+        long total = cropService.getAllCrops().size();
+        CollectionStatsVO stats = new CollectionStatsVO();
+        stats.setObtained(obtained);
+        stats.setTotal(total);
+        stats.setProgress(total > 0 ? (obtained * 100 / total) : 0);
+        return stats;
     }
 }

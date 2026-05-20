@@ -158,11 +158,6 @@ public class FarmUserServiceImpl extends ServiceImpl<FarmUserMapper, FarmUser> i
     }
 
     @Override
-    public boolean incrementFriendCount(Long farmUserId) {
-        return baseMapper.updateFriendCount(farmUserId, 1) > 0;
-    }
-
-    @Override
     public List<FarmUser> getFarmUsersByIds(List<Long> farmUserIds) {
         if (farmUserIds == null || farmUserIds.isEmpty()) {
             return new ArrayList<>();

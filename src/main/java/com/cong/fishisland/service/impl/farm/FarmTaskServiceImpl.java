@@ -4,6 +4,7 @@ import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import com.cong.fishisland.mapper.farm.FarmDailyTaskMapper;
 import com.cong.fishisland.mapper.farm.FarmTaskRecordMapper;
+import com.cong.fishisland.model.dto.farm.TaskDTO;
 import com.cong.fishisland.model.entity.farm.FarmDailyTask;
 import com.cong.fishisland.model.entity.farm.FarmTaskRecord;
 import com.cong.fishisland.service.FarmTaskService;
@@ -13,9 +14,12 @@ import org.springframework.stereotype.Service;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
+import java.util.function.Function;
 import java.util.stream.Collectors;
 
 @Service
@@ -149,5 +153,60 @@ public class FarmTaskServiceImpl extends ServiceImpl<FarmTaskRecordMapper, FarmT
         task.setSortOrder(order);
         task.setCreateTime(LocalDateTime.now());
         dailyTaskMapper.insert(task);
+    }
+
+    @Override
+    public TaskDTO toDTO(FarmTaskRecord record) {
+        if (record == null) {
+            return null;
+        }
+        TaskDTO dto = new TaskDTO();
+        dto.setId(record.getTaskId());
+        dto.setCurrentCount(record.getCurrentCount());
+        dto.setCompleted(record.getCompleted());
+        dto.setClaimed(record.getClaimed());
+
+        FarmDailyTask task = dailyTaskMapper.selectById(record.getTaskId());
+        if (task != null) {
+            dto.setName(task.getName());
+            dto.setDescription(task.getDescription());
+            dto.setTargetCount(task.getTargetCount());
+            dto.setRewardExp(task.getRewardExp());
+            dto.setType(task.getType());
+        }
+        return dto;
+    }
+
+    @Override
+    public List<TaskDTO> toDTOList(List<FarmTaskRecord> records) {
+        if (records == null || records.isEmpty()) {
+            return Collections.emptyList();
+        }
+        List<Long> taskIds = records.stream()
+                .map(FarmTaskRecord::getTaskId)
+                .filter(Objects::nonNull)
+                .distinct()
+                .collect(Collectors.toList());
+        Map<Long, FarmDailyTask> taskMap = taskIds.isEmpty()
+                ? Collections.emptyMap()
+                : dailyTaskMapper.selectBatchIds(taskIds).stream()
+                        .collect(Collectors.toMap(FarmDailyTask::getId, Function.identity()));
+
+        return records.stream().map(record -> {
+            TaskDTO dto = new TaskDTO();
+            dto.setId(record.getTaskId());
+            dto.setCurrentCount(record.getCurrentCount());
+            dto.setCompleted(record.getCompleted());
+            dto.setClaimed(record.getClaimed());
+            FarmDailyTask task = taskMap.get(record.getTaskId());
+            if (task != null) {
+                dto.setName(task.getName());
+                dto.setDescription(task.getDescription());
+                dto.setTargetCount(task.getTargetCount());
+                dto.setRewardExp(task.getRewardExp());
+                dto.setType(task.getType());
+            }
+            return dto;
+        }).collect(Collectors.toList());
     }
 }

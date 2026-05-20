@@ -5,7 +5,7 @@ import io.swagger.annotations.ApiModelProperty;
 import lombok.Data;
 
 @Data
-@ApiModel(description = "偷菜请求")
+@ApiModel(value = "StealRequest", description = "偷菜请求")
 public class StealRequest {
 
     @ApiModelProperty(value = "种植记录ID", required = true)

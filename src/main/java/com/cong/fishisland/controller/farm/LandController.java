@@ -4,12 +4,11 @@ import cn.dev33.satoken.stp.StpUtil;
 import com.cong.fishisland.common.BaseResponse;
 import com.cong.fishisland.common.ErrorCode;
 import com.cong.fishisland.common.ResultUtils;
+import com.cong.fishisland.common.exception.BusinessException;
 import com.cong.fishisland.model.dto.farm.LandDTO;
 import com.cong.fishisland.model.dto.farm.request.HarvestRequest;
 import com.cong.fishisland.model.dto.farm.request.PlantRequest;
-import com.cong.fishisland.model.entity.farm.FarmCrop;
 import com.cong.fishisland.model.entity.farm.FarmLand;
-import com.cong.fishisland.service.FarmCropService;
 import com.cong.fishisland.service.FarmLandService;
 import com.cong.fishisland.service.FarmTaskService;
 import com.cong.fishisland.service.FarmUserService;
@@ -18,7 +17,6 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
-import java.util.stream.Collectors;
 
 @RestController
 @RequestMapping("/land")
@@ -26,9 +24,6 @@ public class LandController {
 
     @Autowired
     private FarmLandService landService;
-
-    @Autowired
-    private FarmCropService cropService;
 
     @Autowired
     private FarmTaskService taskService;
@@ -41,9 +36,7 @@ public class LandController {
     public BaseResponse<List<LandDTO>> getMyLands() {
         Long userId = StpUtil.getLoginIdAsLong();
         Long farmUserId = farmUserService.getFarmUserId(userId);
-        List<FarmLand> lands = landService.getLandsByUserId(farmUserId);
-        List<LandDTO> dtos = lands.stream().map(this::convertToDTO).collect(Collectors.toList());
-        return ResultUtils.success(dtos);
+        return ResultUtils.success(landService.toDTOList(landService.getLandsByUserId(farmUserId)));
     }
 
     @PostMapping("/plant")
@@ -58,7 +51,7 @@ public class LandController {
 
         taskService.updateTaskProgress(farmUserId, "plant");
 
-        return ResultUtils.success(convertToDTO(land));
+        return ResultUtils.success(landService.toDTO(land));
     }
 
     @PostMapping("/harvest")
@@ -74,24 +67,5 @@ public class LandController {
         taskService.updateTaskProgress(farmUserId, "harvest");
 
         return ResultUtils.success("收获成功");
-    }
-
-    private LandDTO convertToDTO(FarmLand land) {
-        LandDTO dto = new LandDTO();
-        dto.setId(land.getId());
-        dto.setLandIndex(land.getLandIndex());
-        dto.setStatus(land.getStatus());
-        dto.setPlantedCropId(land.getPlantedCropId());
-        dto.setPlantedTime(land.getPlantedTime());
-        dto.setHarvestTime(land.getHarvestTime());
-        dto.setLocked(land.getLocked());
-
-        if (land.getPlantedCropId() != null) {
-            FarmCrop crop = cropService.getCropById(land.getPlantedCropId());
-            if (crop != null) {
-                dto.setCropName(crop.getName());
-            }
-        }
-        return dto;
     }
 }

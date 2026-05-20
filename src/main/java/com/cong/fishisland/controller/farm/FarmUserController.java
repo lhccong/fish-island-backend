@@ -26,18 +26,6 @@ public class FarmUserController {
         return ResultUtils.success(farmUserService.getFarmUserVO(userId));
     }
 
-    @GetMapping("/level")
-    @ApiOperation(value = "获取农场等级")
-    public BaseResponse<Integer> getLevel() {
-        Long userId = StpUtil.getLoginIdAsLong();
-        Long farmUserId = farmUserService.getFarmUserId(userId);
-        FarmUser farmUser = farmUserService.getById(farmUserId);
-        if (farmUser == null) {
-            return ResultUtils.success(1);
-        }
-        return ResultUtils.success(farmUser.getLevel());
-    }
-
     @GetMapping("/experience")
     @ApiOperation(value = "获取经验值")
     public BaseResponse<Integer> getExperience() {
@@ -48,12 +36,6 @@ public class FarmUserController {
             return ResultUtils.success(0);
         }
         return ResultUtils.success(farmUser.getExperience());
-    }
-
-    @GetMapping("/coin")
-    @ApiOperation(value = "获取金币数量")
-    public BaseResponse<Integer> getCoin() {
-        return ResultUtils.success(0);
     }
 
     @PostMapping("/get-by-ids")
