@@ -2,8 +2,8 @@
 <!-- @author <a href="https://github.com/lhccong">程序员聪</a> -->
 <!--   -->
 <project xmlns="http://maven.apache.org/POM/4.0.0"
-        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
-        xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
     <modelVersion>4.0.0</modelVersion>
     <parent>
         <groupId>org.springframework.boot</groupId>
@@ -18,6 +18,7 @@
     <properties>
         <java.version>1.8</java.version>
         <netty-all.version>4.1.76.Final</netty-all.version>
+        <maven.test.skip>true</maven.test.skip>
     </properties>
     <dependencies>
         <dependency>
@@ -206,6 +207,58 @@
 
     <build>
         <plugins>
+            <plugin>
+                <groupId>com.google.cloud.tools</groupId>
+                <artifactId>jib-maven-plugin</artifactId>
+                <version>3.4.6</version>
+                <configuration>
+                    <allowInsecureRegistries>true</allowInsecureRegistries>
+                    <from>
+                        <image>39.105.4.252:5000/eclipse-temurin:17</image>
+                        <!--                        <platforms>-->
+                        <!--                            <platform>-->
+                        <!--                                <architecture>arm64</architecture>-->
+                        <!--                                <os>linux</os>-->
+                        <!--                            </platform>-->
+                        <!--                        </platforms>-->
+                        <auth>
+                            <!--在私有镜像仓库上的账号和密码-->
+                            <username>admin</username>
+                            <password>password</password>
+                        </auth>
+                    </from>
+                    <!-- 最后生成的镜像配置 -->
+                    <to>
+                        <!-- push到私有镜像仓库 -->
+                        <image>39.105.4.252:5000/fish-island-backend</image>
+                        <!-- 镜像版本号 -->
+                        <tags>
+                            <tag>0.0.1</tag>
+                        </tags>
+                        <auth>
+                            <!--在私有镜像仓库上的账号和密码-->
+                            <username>admin</username>
+                            <password>password</password>
+                        </auth>
+                    </to>
+                    <container>
+                        <mainClass>com.cong.fishisland.MainApplication</mainClass>
+                        <creationTime>USE_CURRENT_TIMESTAMP</creationTime>
+                        <ports>
+                            <!--指定镜像端口 , 这里没用 dockerfile的操作-->
+                            <port>8123</port>
+                        </ports>
+                    </container>
+                </configuration>
+                <executions>
+                    <execution>
+                        <phase>package</phase>
+                        <goals>
+                            <goal>build</goal>
+                        </goals>
+                    </execution>
+                </executions>
+            </plugin>
             <plugin>
                 <groupId>org.springframework.boot</groupId>
                 <artifactId>spring-boot-maven-plugin</artifactId>
