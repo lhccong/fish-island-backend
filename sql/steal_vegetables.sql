@@ -152,10 +152,8 @@ CREATE TABLE `farm_task_record`
 
 CREATE TABLE `farm_user`
 (
-    `id`              bigint      NOT NULL AUTO_INCREMENT COMMENT '农场用户ID',
-    `userId`          bigint      NOT NULL COMMENT '关联的系统用户ID',
-    `nickname`        varchar(50) NOT NULL COMMENT '农场昵称',
-    `avatar`          varchar(255) DEFAULT '' COMMENT '农场头像',
+    `id`              bigint NOT NULL AUTO_INCREMENT COMMENT '农场用户ID',
+    `userId`          bigint NOT NULL COMMENT '关联的系统用户ID',
     `level`           int          DEFAULT '1' COMMENT '农场等级',
     `experience`      int          DEFAULT '0' COMMENT '经验值',
     `totalHarvest`    int          DEFAULT '0' COMMENT '总收获次数',
@@ -163,8 +161,6 @@ CREATE TABLE `farm_user`
     `totalDefense`    int          DEFAULT '0' COMMENT '总防御次数',
     `friendCount`     int          DEFAULT '0' COMMENT '好友数量',
     `visitedCount`    int          DEFAULT '0' COMMENT '被访问次数',
-    `lastSignInDate`  datetime     DEFAULT NULL COMMENT '最后签到时间',
-    `consecutiveDays` int          DEFAULT '0' COMMENT '连续签到天数',
     `status`          tinyint      DEFAULT '1' COMMENT '状态:0-封禁,1-正常',
     `createTime` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
     `updateTime` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',

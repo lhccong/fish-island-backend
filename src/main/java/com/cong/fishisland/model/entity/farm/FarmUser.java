@@ -27,12 +27,6 @@ public class FarmUser {
     @ApiModelProperty(value = "关联的系统用户ID")
     private Long userId;
 
-    @ApiModelProperty(value = "农场昵称")
-    private String nickname;
-
-    @ApiModelProperty(value = "农场头像")
-    private String avatar;
-
     @ApiModelProperty(value = "农场等级")
     private Integer level = 1;
 
@@ -53,12 +47,6 @@ public class FarmUser {
 
     @ApiModelProperty(value = "被访问次数")
     private Integer visitedCount = 0;
-
-    @ApiModelProperty(value = "最后签到日期")
-    private LocalDateTime lastSignInDate;
-
-    @ApiModelProperty(value = "连续签到天数")
-    private Integer consecutiveDays = 0;
 
     @ApiModelProperty(value = "状态（0-禁用，1-正常）")
     private Integer status = 1;

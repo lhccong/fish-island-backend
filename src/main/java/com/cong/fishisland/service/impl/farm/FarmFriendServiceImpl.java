@@ -14,20 +14,19 @@ import com.cong.fishisland.model.dto.farm.FarmFriendFarmVO;
 import com.cong.fishisland.model.dto.farm.FarmFriendListVO;
 import com.cong.fishisland.model.dto.farm.LandDTO;
 import com.cong.fishisland.model.entity.farm.*;
+import com.cong.fishisland.model.entity.user.User;
 import com.cong.fishisland.service.FarmCropService;
 import com.cong.fishisland.service.FarmFriendService;
 import com.cong.fishisland.service.FarmLandService;
 import com.cong.fishisland.service.FarmUserService;
+import com.cong.fishisland.service.UserService;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import javax.annotation.Resource;
 import java.time.Duration;
 import java.time.LocalDateTime;
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
@@ -58,12 +57,15 @@ public class FarmFriendServiceImpl extends ServiceImpl<FarmFriendMapper, FarmFri
     @Resource
     private FarmUserService farmUserService;
 
+    @Resource
+    private UserService userService;
+
     @Override
     public List<FarmFriend> getFriendsByUserId(Long userId) {
         return farmFriendMapper.selectList(new LambdaQueryWrapper<FarmFriend>()
                 .eq(FarmFriend::getUserId, userId)
                 .eq(FarmFriend::getStatus, 1)
-                .orderByDesc(FarmFriend::getCreatedAt));
+                .orderByDesc(FarmFriend::getCreateTime));
     }
 
     @Override
@@ -71,9 +73,9 @@ public class FarmFriendServiceImpl extends ServiceImpl<FarmFriendMapper, FarmFri
         List<FarmFriend> friends = farmFriendMapper.selectList(new LambdaQueryWrapper<FarmFriend>()
                 .eq(FarmFriend::getUserId, userId)
                 .eq(FarmFriend::getStatus, 1)
-                .orderByDesc(FarmFriend::getCreatedAt));
+                .orderByDesc(FarmFriend::getCreateTime));
         if (CollectionUtils.isEmpty(friends)) {
-            return List.of();
+            return new ArrayList<>();
         }
 
         List<Long> friendIds = friends.stream()
@@ -84,6 +86,15 @@ public class FarmFriendServiceImpl extends ServiceImpl<FarmFriendMapper, FarmFri
                 .in(FarmUser::getId, friendIds));
         Map<Long, FarmUser> userMap = farmUsers.stream()
                 .collect(Collectors.toMap(FarmUser::getId, Function.identity()));
+
+        List<Long> systemUserIds = farmUsers.stream()
+                .map(FarmUser::getUserId)
+                .distinct()
+                .collect(Collectors.toList());
+        Map<Long, User> systemUserMap = systemUserIds.isEmpty()
+                ? Collections.emptyMap()
+                : userService.listByIds(systemUserIds).stream()
+                        .collect(Collectors.toMap(User::getId, Function.identity()));
 
         List<FarmLand> allLands = farmLandMapper.selectList(new LambdaQueryWrapper<FarmLand>()
                 .in(FarmLand::getUserId, friendIds));
@@ -111,9 +122,12 @@ public class FarmFriendServiceImpl extends ServiceImpl<FarmFriendMapper, FarmFri
 
             FarmUser farmUser = userMap.get(friend.getFriendId());
             if (farmUser != null) {
-                vo.setNickname(farmUser.getNickname());
-                vo.setAvatar(farmUser.getAvatar());
                 vo.setLevel(farmUser.getLevel());
+                User systemUser = systemUserMap.get(farmUser.getUserId());
+                if (systemUser != null) {
+                    vo.setNickname(systemUser.getUserName());
+                    vo.setAvatar(systemUser.getUserAvatar());
+                }
             }
 
             vo.setCanSteal(canStealMap.getOrDefault(friend.getFriendId(), false));
@@ -370,7 +384,7 @@ public class FarmFriendServiceImpl extends ServiceImpl<FarmFriendMapper, FarmFri
         return farmFriendMapper.selectList(new LambdaQueryWrapper<FarmFriend>()
                 .eq(FarmFriend::getUserId, userId)
                 .eq(FarmFriend::getStatus, 1)
-                .orderByDesc(FarmFriend::getCreatedAt));
+                .orderByDesc(FarmFriend::getCreateTime));
     }
 
     @Override
@@ -408,10 +422,14 @@ public class FarmFriendServiceImpl extends ServiceImpl<FarmFriendMapper, FarmFri
             cooldownMinutes = (int) minutes;
         }
 
+        User systemUser = userService.getById(farmUser.getUserId());
+
         FarmFriendFarmVO vo = new FarmFriendFarmVO();
         vo.setFriendId(friendId);
-        vo.setFriendName(farmUser.getNickname());
-        vo.setFriendAvatar(farmUser.getAvatar());
+        if (systemUser != null) {
+            vo.setFriendName(systemUser.getUserName());
+            vo.setFriendAvatar(systemUser.getUserAvatar());
+        }
         vo.setLands(landDTOs);
         vo.setCanSteal(canSteal);
         vo.setLastVisitTime(LocalDateTime.now());
@@ -422,7 +440,7 @@ public class FarmFriendServiceImpl extends ServiceImpl<FarmFriendMapper, FarmFri
 
     private List<LandDTO> convertToLandDTOs(List<FarmLand> lands) {
         if (CollectionUtils.isEmpty(lands)) {
-            return List.of();
+            return new ArrayList<>();
         }
 
         List<Long> cropIds = lands.stream()

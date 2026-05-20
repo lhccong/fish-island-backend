@@ -5,18 +5,28 @@ import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import com.cong.fishisland.common.ErrorCode;
 import com.cong.fishisland.common.exception.BusinessException;
 import com.cong.fishisland.mapper.farm.FarmUserMapper;
+import com.cong.fishisland.model.dto.farm.FarmUserVO;
 import com.cong.fishisland.model.entity.farm.FarmUser;
+import com.cong.fishisland.model.entity.user.User;
 import com.cong.fishisland.service.FarmUserService;
+import com.cong.fishisland.service.UserService;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.time.LocalDate;
+import javax.annotation.Resource;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
+import java.util.Map;
+import java.util.function.Function;
+import java.util.stream.Collectors;
 
 @Service
 public class FarmUserServiceImpl extends ServiceImpl<FarmUserMapper, FarmUser> implements FarmUserService {
+
+    @Resource
+    private UserService userService;
 
     @Override
     public FarmUser getFarmUserByUserId(Long systemUserId) {
@@ -36,8 +46,6 @@ public class FarmUserServiceImpl extends ServiceImpl<FarmUserMapper, FarmUser> i
         LocalDateTime now = LocalDateTime.now();
         FarmUser farmUser = FarmUser.builder()
                 .userId(systemUserId)
-                .nickname("农场用户" + System.currentTimeMillis())
-                .avatar("")
                 .level(1)
                 .experience(0)
                 .totalHarvest(0)
@@ -45,7 +53,6 @@ public class FarmUserServiceImpl extends ServiceImpl<FarmUserMapper, FarmUser> i
                 .totalDefense(0)
                 .friendCount(0)
                 .visitedCount(0)
-                .consecutiveDays(0)
                 .status(1)
                 .createTime(now)
                 .updateTime(now)
@@ -65,18 +72,42 @@ public class FarmUserServiceImpl extends ServiceImpl<FarmUserMapper, FarmUser> i
     }
 
     @Override
+    @Transactional(rollbackFor = Exception.class)
     public Long getFarmUserId(Long systemUserId) {
         FarmUser farmUser = getOrCreateFarmUser(systemUserId);
         return farmUser.getId();
     }
 
     @Override
-    public Long getSystemUserId(Long farmUserId) {
-        FarmUser farmUser = getById(farmUserId);
+    @Transactional(rollbackFor = Exception.class)
+    public FarmUserVO getFarmUserVO(Long systemUserId) {
+        FarmUser farmUser = getOrCreateFarmUser(systemUserId);
+        return toVO(farmUser);
+    }
+
+    @Override
+    public FarmUserVO toVO(FarmUser farmUser) {
         if (farmUser == null) {
-            throw new BusinessException(ErrorCode.NOT_FOUND_ERROR, "农场用户不存在");
+            return null;
         }
-        return farmUser.getUserId();
+        User user = userService.getById(farmUser.getUserId());
+        return FarmUserVO.from(farmUser, user);
+    }
+
+    @Override
+    public List<FarmUserVO> toVOList(List<FarmUser> farmUsers) {
+        if (farmUsers == null || farmUsers.isEmpty()) {
+            return Collections.emptyList();
+        }
+        List<Long> systemUserIds = farmUsers.stream()
+                .map(FarmUser::getUserId)
+                .distinct()
+                .collect(Collectors.toList());
+        Map<Long, User> userMap = userService.listByIds(systemUserIds).stream()
+                .collect(Collectors.toMap(User::getId, Function.identity()));
+        return farmUsers.stream()
+                .map(fu -> FarmUserVO.from(fu, userMap.get(fu.getUserId())))
+                .collect(Collectors.toList());
     }
 
     @Override
@@ -99,90 +130,11 @@ public class FarmUserServiceImpl extends ServiceImpl<FarmUserMapper, FarmUser> i
     }
 
     @Override
-    public boolean addCoin(Long farmUserId, Integer coin) {
-        if (coin <= 0) {
-            return false;
-        }
-        return baseMapper.addCoin(farmUserId, coin) > 0;
-    }
-
-    @Override
-    public boolean spendCoin(Long farmUserId, Integer coin) {
-        if (coin <= 0) {
-            return false;
-        }
-        FarmUser farmUser = getById(farmUserId);
-        return baseMapper.addCoin(farmUserId, -coin) > 0;
-    }
-
-    @Override
-    public boolean updateLevel(Long farmUserId, Integer level) {
-        return baseMapper.updateLevel(farmUserId, level) > 0;
-    }
-
-    @Override
-    @Transactional(rollbackFor = Exception.class)
-    public boolean signIn(Long farmUserId) {
-        FarmUser farmUser = getById(farmUserId);
-        if (farmUser == null) {
-            throw new BusinessException(ErrorCode.NOT_FOUND_ERROR, "农场用户不存在");
-        }
-
-        LocalDateTime now = LocalDateTime.now();
-        LocalDate today = now.toLocalDate();
-
-        if (farmUser.getLastSignInDate() != null) {
-            LocalDate lastSignIn = farmUser.getLastSignInDate().toLocalDate();
-            if (lastSignIn.equals(today)) {
-                throw new BusinessException(ErrorCode.OPERATION_ERROR, "今日已签到");
-            }
-
-            long daysBetween = java.time.temporal.ChronoUnit.DAYS.between(lastSignIn, today);
-            if (daysBetween == 1) {
-                baseMapper.updateSignIn(farmUserId, now);
-            } else {
-                baseMapper.resetSignIn(farmUserId, now);
-            }
-        } else {
-            baseMapper.updateSignIn(farmUserId, now);
-        }
-
-        addExperience(farmUserId, 5);
-        return true;
-    }
-
-    @Override
-    public boolean isSignedToday(Long farmUserId) {
-        FarmUser farmUser = getById(farmUserId);
-        if (farmUser == null || farmUser.getLastSignInDate() == null) {
-            return false;
-        }
-        return farmUser.getLastSignInDate().toLocalDate().equals(LocalDate.now());
-    }
-
-    @Override
     public int calculateLevel(Integer experience) {
         if (experience == null || experience < 0) {
             return 1;
         }
         return (experience / 100) + 1;
-    }
-
-    @Override
-    public boolean updateProfile(Long farmUserId, String nickname, String avatar) {
-        FarmUser farmUser = getById(farmUserId);
-        if (farmUser == null) {
-            throw new BusinessException(ErrorCode.NOT_FOUND_ERROR, "农场用户不存在");
-        }
-
-        if (nickname != null && !nickname.trim().isEmpty()) {
-            farmUser.setNickname(nickname.trim());
-        }
-        if (avatar != null) {
-            farmUser.setAvatar(avatar);
-        }
-        farmUser.setUpdateTime(LocalDateTime.now());
-        return updateById(farmUser);
     }
 
     @Override

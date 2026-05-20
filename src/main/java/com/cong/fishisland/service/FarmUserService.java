@@ -1,6 +1,7 @@
 package com.cong.fishisland.service;
 
 import com.baomidou.mybatisplus.extension.service.IService;
+import com.cong.fishisland.model.dto.farm.FarmUserVO;
 import com.cong.fishisland.model.entity.farm.FarmUser;
 
 import java.util.List;
@@ -15,23 +16,15 @@ public interface FarmUserService extends IService<FarmUser> {
 
     Long getFarmUserId(Long userId);
 
-    Long getSystemUserId(Long farmUserId);
+    FarmUserVO getFarmUserVO(Long systemUserId);
+
+    FarmUserVO toVO(FarmUser farmUser);
+
+    List<FarmUserVO> toVOList(List<FarmUser> farmUsers);
 
     boolean addExperience(Long userId, Integer exp);
 
-    boolean addCoin(Long userId, Integer coin);
-
-    boolean spendCoin(Long userId, Integer coin);
-
-    boolean updateLevel(Long userId, Integer level);
-
-    boolean signIn(Long userId);
-
-    boolean isSignedToday(Long userId);
-
     int calculateLevel(Integer experience);
-
-    boolean updateProfile(Long userId, String nickname, String avatar);
 
     boolean incrementTotalHarvest(Long userId);
 

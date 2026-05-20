@@ -4,19 +4,13 @@ import com.baomidou.mybatisplus.core.mapper.BaseMapper;
 import com.cong.fishisland.model.entity.farm.FarmUser;
 import org.apache.ibatis.annotations.Mapper;
 import org.apache.ibatis.annotations.Param;
-import org.apache.ibatis.annotations.Select;
 import org.apache.ibatis.annotations.Update;
-
-import java.util.List;
 
 @Mapper
 public interface FarmUserMapper extends BaseMapper<FarmUser> {
 
     @Update("UPDATE farm_user SET experience = experience + #{exp}, updateTime = NOW() WHERE id = #{userId}")
     int addExperience(@Param("userId") Long userId, @Param("exp") Integer exp);
-
-    @Update("UPDATE farm_user SET coin = coin + #{coin}, updateTime = NOW() WHERE id = #{userId}")
-    int addCoin(@Param("userId") Long userId, @Param("coin") Integer coin);
 
     @Update("UPDATE farm_user SET level = #{level}, updateTime = NOW() WHERE id = #{userId}")
     int updateLevel(@Param("userId") Long userId, @Param("level") Integer level);
@@ -35,10 +29,4 @@ public interface FarmUserMapper extends BaseMapper<FarmUser> {
 
     @Update("UPDATE farm_user SET visitedCount = visitedCount + 1, updateTime = NOW() WHERE id = #{userId}")
     int incrementVisitedCount(@Param("userId") Long userId);
-
-    @Update("UPDATE farm_user SET lastSignInDate = #{date}, consecutiveDays = consecutiveDays + 1, updateTime = NOW() WHERE id = #{userId}")
-    int updateSignIn(@Param("userId") Long userId, @Param("date") java.time.LocalDateTime date);
-
-    @Update("UPDATE farm_user SET consecutiveDays = 1, lastSignInDate = #{date}, updateTime = NOW() WHERE id = #{userId}")
-    int resetSignIn(@Param("userId") Long userId, @Param("date") java.time.LocalDateTime date);
 }

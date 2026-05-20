@@ -9,12 +9,13 @@
                fsr.cropId         AS cropId,
                fsr.stolenTime     AS stolenTime,
                fsr.coinGained     AS coinGained,
-               fu.nickname         AS stealerNickname,
-               fu.avatar           AS stealerAvatar,
+               u.userName          AS stealerNickname,
+               u.userAvatar        AS stealerAvatar,
                fc.name             AS cropName
         FROM farm_steal_record fsr
                  LEFT JOIN farm_user fu ON fsr.stealerId = fu.id
-        LEFT JOIN farm_crop fc ON fsr.cropId = fc.id
+                 LEFT JOIN user u ON fu.userId = u.id AND u.isDelete = 0
+                 LEFT JOIN farm_crop fc ON fsr.cropId = fc.id
         WHERE fsr.ownerId = #{ownerId}
         ORDER BY fsr.stolenTime DESC
     </select>
