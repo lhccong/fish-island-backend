@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.cong.fishisland.mapper.farm.FarmStealRecordMapper">
+
+    <select id="selectStealRecordsWithStealerInfo" resultType="com.cong.fishisland.model.dto.farm.FarmStealRecordVO">
+        SELECT fsr.id,
+               fsr.stealerId      AS stealerId,
+               fsr.plantRecordId AS plantRecordId,
+               fsr.cropId         AS cropId,
+               fsr.stolenTime     AS stolenTime,
+               fsr.expGained      AS expGained,
+               fsr.coinGained     AS coinGained,
+               fu.nickname         AS stealerNickname,
+               fu.avatar           AS stealerAvatar,
+               fc.name             AS cropName
+        FROM farm_steal_record fsr
+                 LEFT JOIN farm_user fu ON fsr.stealerId = fu.id
+        LEFT JOIN farm_crop fc ON fsr.cropId = fc.id
+        WHERE fsr.ownerId = #{ownerId}
+        ORDER BY fsr.stolenTime DESC
+    </select>
+
+</mapper>

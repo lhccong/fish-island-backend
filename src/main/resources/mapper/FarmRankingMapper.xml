@@ -1,0 +1,56 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.cong.fishisland.mapper.farm.FarmRankingMapper">
+
+    <select id="selectTodayStealExpRanking" resultType="com.cong.fishisland.model.dto.farm.RankingDTO">
+        SELECT fr.*, fu.nickname AS username
+        FROM farm_ranking fr
+                 LEFT JOIN farm_user fu ON fr.userId = fu.id
+        WHERE fr.type = 'steal_exp'
+          AND fr.date = #{date}
+        ORDER BY fr.todayValue DESC
+    </select>
+
+    <select id="selectTodayStealCountRanking" resultType="com.cong.fishisland.model.dto.farm.RankingDTO">
+        SELECT fr.*, fu.nickname AS username
+        FROM farm_ranking fr
+                 LEFT JOIN farm_user fu ON fr.userId = fu.id
+        WHERE fr.type = 'steal_count'
+          AND fr.date = #{date}
+        ORDER BY fr.todayValue DESC
+    </select>
+
+    <select id="selectTodayDefenseRanking" resultType="com.cong.fishisland.model.dto.farm.RankingDTO">
+        SELECT fr.*, fu.nickname AS username
+        FROM farm_ranking fr
+                 LEFT JOIN farm_user fu ON fr.userId = fu.id
+        WHERE fr.type = 'defense'
+          AND fr.date = #{date}
+        ORDER BY fr.todayValue DESC
+    </select>
+
+    <select id="selectTotalStealExpRanking" resultType="com.cong.fishisland.model.dto.farm.RankingDTO">
+        SELECT fr.*, fu.nickname AS username
+        FROM farm_ranking fr
+                 LEFT JOIN farm_user fu ON fr.userId = fu.id
+        WHERE fr.type = 'steal_exp'
+        ORDER BY fr.totalValue DESC
+    </select>
+
+    <select id="selectTotalStealCountRanking" resultType="com.cong.fishisland.model.dto.farm.RankingDTO">
+        SELECT fr.*, fu.nickname AS username
+        FROM farm_ranking fr
+                 LEFT JOIN farm_user fu ON fr.userId = fu.id
+        WHERE fr.type = 'steal_count'
+        ORDER BY fr.totalValue DESC
+    </select>
+
+    <select id="selectTotalDefenseRanking" resultType="com.cong.fishisland.model.dto.farm.RankingDTO">
+        SELECT fr.*, fu.nickname AS username
+        FROM farm_ranking fr
+                 LEFT JOIN farm_user fu ON fr.userId = fu.id
+        WHERE fr.type = 'defense'
+        ORDER BY fr.totalValue DESC
+    </select>
+
+</mapper>
