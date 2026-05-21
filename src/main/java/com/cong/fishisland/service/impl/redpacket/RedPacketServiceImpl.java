@@ -76,6 +76,8 @@ public class RedPacketServiceImpl implements RedPacketService {
     private static final long GRAB_SCRIPT_MARK_TTL_SECONDS = 24 * 60 * 60;
     // 脚本用户抢红包前强制等待时间（秒）
     private static final int GRAB_SCRIPT_DELAY_SECONDS = 10;
+    // 脚本用户单次抢红包最多获得积分
+    private static final int GRAB_SCRIPT_MAX_AMOUNT = 1;
     // 判定为脚本的阈值：红包发出后多少毫秒内抢到视为脚本
     private static final long GRAB_SCRIPT_THRESHOLD_MS = 1000;
     // 每日触发快速抢包超过此次数才标记为脚本用户
@@ -371,6 +373,11 @@ public class RedPacketServiceImpl implements RedPacketService {
                 amount = redPacket.getAmountPerPacket();
             }
 
+            // 脚本用户最多只能抢到 1 积分
+            if (isScriptUser(userId)) {
+                amount = Math.min(amount, GRAB_SCRIPT_MAX_AMOUNT);
+            }
+
             // 更新红包信息
             redPacket.setRemainingAmount(redPacket.getRemainingAmount() - amount);
             redPacket.setRemainingCount(redPacket.getRemainingCount() - 1);
@@ -531,11 +538,18 @@ public class RedPacketServiceImpl implements RedPacketService {
     }
 
     /**
+     * 是否已被标记为脚本用户
+     */
+    private boolean isScriptUser(Long userId) {
+        String scriptKey = RED_PACKET_GRAB_SCRIPT_KEY_PREFIX + userId;
+        return Boolean.TRUE.equals(redisTemplate.hasKey(scriptKey));
+    }
+
+    /**
      * 脚本用户前置检测：若被标记则强制等待 10 秒
      */
     private void applyScriptDelay(Long userId) {
-        String scriptKey = RED_PACKET_GRAB_SCRIPT_KEY_PREFIX + userId;
-        if (Boolean.TRUE.equals(redisTemplate.hasKey(scriptKey))) {
+        if (isScriptUser(userId)) {
             log.info("用户 {} 被标记为脚本用户，强制等待 {}s", userId, GRAB_SCRIPT_DELAY_SECONDS);
             try {
                 Thread.sleep(GRAB_SCRIPT_DELAY_SECONDS * 1000L);

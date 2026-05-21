@@ -207,58 +207,58 @@
 
     <build>
         <plugins>
-            <plugin>
-                <groupId>com.google.cloud.tools</groupId>
-                <artifactId>jib-maven-plugin</artifactId>
-                <version>3.4.6</version>
-                <configuration>
-                    <allowInsecureRegistries>true</allowInsecureRegistries>
-                    <from>
-                        <image>39.105.4.252:5000/eclipse-temurin:17</image>
-                        <!--                        <platforms>-->
-                        <!--                            <platform>-->
-                        <!--                                <architecture>arm64</architecture>-->
-                        <!--                                <os>linux</os>-->
-                        <!--                            </platform>-->
-                        <!--                        </platforms>-->
-                        <auth>
-                            <!--在私有镜像仓库上的账号和密码-->
-                            <username>admin</username>
-                            <password>password</password>
-                        </auth>
-                    </from>
-                    <!-- 最后生成的镜像配置 -->
-                    <to>
-                        <!-- push到私有镜像仓库 -->
-                        <image>39.105.4.252:5000/fish-island-backend</image>
-                        <!-- 镜像版本号 -->
-                        <tags>
-                            <tag>0.0.1</tag>
-                        </tags>
-                        <auth>
-                            <!--在私有镜像仓库上的账号和密码-->
-                            <username>admin</username>
-                            <password>password</password>
-                        </auth>
-                    </to>
-                    <container>
-                        <mainClass>com.cong.fishisland.MainApplication</mainClass>
-                        <creationTime>USE_CURRENT_TIMESTAMP</creationTime>
-                        <ports>
-                            <!--指定镜像端口 , 这里没用 dockerfile的操作-->
-                            <port>8123</port>
-                        </ports>
-                    </container>
-                </configuration>
-                <executions>
-                    <execution>
-                        <phase>package</phase>
-                        <goals>
-                            <goal>build</goal>
-                        </goals>
-                    </execution>
-                </executions>
-            </plugin>
+<!--            <plugin>-->
+<!--                <groupId>com.google.cloud.tools</groupId>-->
+<!--                <artifactId>jib-maven-plugin</artifactId>-->
+<!--                <version>3.4.6</version>-->
+<!--                <configuration>-->
+<!--                    <allowInsecureRegistries>true</allowInsecureRegistries>-->
+<!--                    <from>-->
+<!--                        <image>39.105.4.252:5000/eclipse-temurin:17</image>-->
+<!--                        &lt;!&ndash;                        <platforms>&ndash;&gt;-->
+<!--                        &lt;!&ndash;                            <platform>&ndash;&gt;-->
+<!--                        &lt;!&ndash;                                <architecture>arm64</architecture>&ndash;&gt;-->
+<!--                        &lt;!&ndash;                                <os>linux</os>&ndash;&gt;-->
+<!--                        &lt;!&ndash;                            </platform>&ndash;&gt;-->
+<!--                        &lt;!&ndash;                        </platforms>&ndash;&gt;-->
+<!--                        <auth>-->
+<!--                            &lt;!&ndash;在私有镜像仓库上的账号和密码&ndash;&gt;-->
+<!--                            <username>admin</username>-->
+<!--                            <password>password</password>-->
+<!--                        </auth>-->
+<!--                    </from>-->
+<!--                    &lt;!&ndash; 最后生成的镜像配置 &ndash;&gt;-->
+<!--                    <to>-->
+<!--                        &lt;!&ndash; push到私有镜像仓库 &ndash;&gt;-->
+<!--                        <image>39.105.4.252:5000/fish-island-backend</image>-->
+<!--                        &lt;!&ndash; 镜像版本号 &ndash;&gt;-->
+<!--                        <tags>-->
+<!--                            <tag>0.0.1</tag>-->
+<!--                        </tags>-->
+<!--                        <auth>-->
+<!--                            &lt;!&ndash;在私有镜像仓库上的账号和密码&ndash;&gt;-->
+<!--                            <username>admin</username>-->
+<!--                            <password>password</password>-->
+<!--                        </auth>-->
+<!--                    </to>-->
+<!--                    <container>-->
+<!--                        <mainClass>com.cong.fishisland.MainApplication</mainClass>-->
+<!--                        <creationTime>USE_CURRENT_TIMESTAMP</creationTime>-->
+<!--                        <ports>-->
+<!--                            &lt;!&ndash;指定镜像端口 , 这里没用 dockerfile的操作&ndash;&gt;-->
+<!--                            <port>8123</port>-->
+<!--                        </ports>-->
+<!--                    </container>-->
+<!--                </configuration>-->
+<!--                <executions>-->
+<!--                    <execution>-->
+<!--                        <phase>package</phase>-->
+<!--                        <goals>-->
+<!--                            <goal>build</goal>-->
+<!--                        </goals>-->
+<!--                    </execution>-->
+<!--                </executions>-->
+<!--            </plugin>-->
             <plugin>
                 <groupId>org.springframework.boot</groupId>
                 <artifactId>spring-boot-maven-plugin</artifactId>

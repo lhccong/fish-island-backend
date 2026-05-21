@@ -1,6 +1,7 @@
 package com.cong.fishisland.service;
 
 import com.cong.fishisland.model.dto.farm.LandDTO;
+import com.cong.fishisland.model.dto.farm.PlantItem;
 import com.cong.fishisland.model.entity.farm.FarmLand;
 
 import java.util.List;
@@ -20,29 +21,30 @@ public interface FarmLandService {
     List<FarmLand> getLandsByUserId(Long userId);
 
     /**
-     * 为指定农场用户初始化地块（最多 9 块，前 3 块默认解锁）。
+     * 为指定农场用户初始化地块（最多 24 块，前 8 块默认解锁）。
      *
      * @param userId 系统用户 ID
      */
     void initLands(Long userId);
 
     /**
-     * 在指定地块种植作物，扣减种子积分并创建种植记录。
+     * 批量在指定地块种植作物，扣减种子积分并创建种植记录。
+     * 任一块地校验失败时整批回滚。
      *
-     * @param landId 地块 ID
-     * @param cropId 作物 ID
-     * @return 更新后的地块；地块不存在、非空闲或作物不存在时返回 null
+     * @param items 种植项列表（每项含地块 ID、作物 ID）
+     * @return 更新后的地块列表（顺序与入参一致）
      */
-    FarmLand plant(Long landId, Long cropId);
+    List<FarmLand> plantBatch(List<PlantItem> items);
 
     /**
-     * 收获指定地块上的成熟作物，发放积分并更新图鉴与农场用户统计。
+     * 批量收获指定地块上的成熟作物，发放积分并更新图鉴与农场用户统计。
+     * 任一块地校验失败时整批回滚。
      *
-     * @param userId 系统用户 ID
-     * @param landId 地块 ID
-     * @return 清空种植状态后的地块；地块不存在或未成熟时返回 null
+     * @param landIds 地块 ID 列表
+     * @return 清空种植状态后的地块列表（顺序与入参一致）
+     * @throws com.cong.fishisland.common.exception.BusinessException 地块不存在、无权操作、未种植或未成熟时
      */
-    FarmLand harvest(Long userId, Long landId);
+    List<FarmLand> harvestBatch(List<Long> landIds);
 
     /**
      * 将地块实体转换为 DTO。

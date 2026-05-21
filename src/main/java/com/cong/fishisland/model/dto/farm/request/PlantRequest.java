@@ -1,19 +1,16 @@
 package com.cong.fishisland.model.dto.farm.request;
 
+import com.cong.fishisland.model.dto.farm.PlantItem;
 import io.swagger.annotations.ApiModel;
 import io.swagger.annotations.ApiModelProperty;
 import lombok.Data;
 
+import java.util.List;
+
 @Data
-@ApiModel(value = "PlantRequest", description = "种植作物请求")
+@ApiModel(value = "PlantRequest", description = "批量种植作物请求")
 public class PlantRequest {
 
-    @ApiModelProperty(value = "农场用户ID（可不传，以当前登录用户为准）")
-    private Long userId;
-
-    @ApiModelProperty(value = "地块ID", required = true)
-    private Long landId;
-
-    @ApiModelProperty(value = "作物ID", required = true)
-    private Long cropId;
+    @ApiModelProperty(value = "种植项列表（地块ID + 作物ID）", required = true)
+    private List<PlantItem> items;
 }

@@ -1,5 +1,6 @@
 package com.cong.fishisland.service.impl.farm;
 
+import cn.dev33.satoken.stp.StpUtil;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import com.cong.fishisland.mapper.farm.FarmDailyTaskMapper;
@@ -12,6 +13,7 @@ import com.cong.fishisland.model.enums.farm.FarmYesNoEnum;
 import com.cong.fishisland.service.FarmTaskService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDate;
 import java.time.LocalDateTime;
@@ -77,7 +79,8 @@ public class FarmTaskServiceImpl extends ServiceImpl<FarmTaskRecordMapper, FarmT
     }
 
     @Override
-    public void updateTaskProgress(Long userId, FarmTaskTypeEnum taskType) {
+    @Transactional(rollbackFor = Exception.class)
+    public void updateTaskProgress(FarmTaskTypeEnum taskType) {
         List<FarmDailyTask> tasks = dailyTaskMapper.selectList(new LambdaQueryWrapper<FarmDailyTask>()
                 .eq(FarmDailyTask::getType, taskType.getValue()));
         if (tasks.isEmpty()) {
@@ -86,7 +89,7 @@ public class FarmTaskServiceImpl extends ServiceImpl<FarmTaskRecordMapper, FarmT
         LocalDate today = LocalDate.now();
         List<Long> taskIds = tasks.stream().map(FarmDailyTask::getId).collect(Collectors.toList());
         List<FarmTaskRecord> records = list(new LambdaQueryWrapper<FarmTaskRecord>()
-                .eq(FarmTaskRecord::getUserId, userId)
+                .eq(FarmTaskRecord::getUserId, StpUtil.getLoginIdAsLong())
                 .in(FarmTaskRecord::getTaskId, taskIds)
                 .eq(FarmTaskRecord::getDate, today));
 
@@ -193,7 +196,7 @@ public class FarmTaskServiceImpl extends ServiceImpl<FarmTaskRecordMapper, FarmT
         Map<Long, FarmDailyTask> taskMap = taskIds.isEmpty()
                 ? Collections.emptyMap()
                 : dailyTaskMapper.selectBatchIds(taskIds).stream()
-                        .collect(Collectors.toMap(FarmDailyTask::getId, Function.identity()));
+                .collect(Collectors.toMap(FarmDailyTask::getId, Function.identity()));
 
         return records.stream().map(record -> {
             TaskDTO dto = new TaskDTO();

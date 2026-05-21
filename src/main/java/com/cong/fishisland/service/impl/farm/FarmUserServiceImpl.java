@@ -134,18 +134,18 @@ public class FarmUserServiceImpl extends ServiceImpl<FarmUserMapper, FarmUser> i
     }
 
     @Override
-    public boolean incrementTotalHarvest(Long userId) {
-        return baseMapper.incrementTotalHarvest(userId) > 0;
+    public void incrementTotalHarvest(Long userId) {
+        baseMapper.incrementTotalHarvest(userId);
     }
 
     @Override
-    public boolean incrementTotalSteal(Long userId) {
-        return baseMapper.incrementTotalSteal(userId) > 0;
+    public void incrementTotalSteal(Long userId) {
+        baseMapper.incrementTotalSteal(userId);
     }
 
     @Override
-    public boolean incrementTotalDefense(Long userId) {
-        return baseMapper.incrementTotalDefense(userId) > 0;
+    public void incrementTotalDefense(Long userId) {
+        baseMapper.incrementTotalDefense(userId);
     }
 
     @Override

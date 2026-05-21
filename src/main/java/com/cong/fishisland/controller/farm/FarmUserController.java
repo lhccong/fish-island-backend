@@ -25,11 +25,4 @@ public class FarmUserController {
         Long userId = StpUtil.getLoginIdAsLong();
         return ResultUtils.success(farmUserService.getFarmUserVO(userId));
     }
-
-    @PostMapping("/get-by-ids")
-    @ApiOperation(value = "根据系统用户ID批量获取农场用户信息")
-    public BaseResponse<List<FarmUserVO>> getFarmUsersByUserIds(@RequestBody List<Long> userIds) {
-        List<FarmUser> users = farmUserService.getFarmUsersByUserIds(userIds);
-        return ResultUtils.success(farmUserService.toVOList(users));
-    }
 }

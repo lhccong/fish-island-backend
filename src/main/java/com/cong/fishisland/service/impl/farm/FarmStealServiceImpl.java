@@ -107,7 +107,7 @@ public class FarmStealServiceImpl implements FarmStealService {
         farmUserService.incrementTotalSteal(stealerId);
         farmUserService.incrementTotalDefense(ownerId);
 
-        farmTaskService.updateTaskProgress(stealerId, FarmTaskTypeEnum.STEAL);
+        farmTaskService.updateTaskProgress(FarmTaskTypeEnum.STEAL);
 
         return stealRecord;
     }
@@ -157,7 +157,7 @@ public class FarmStealServiceImpl implements FarmStealService {
 
     @Override
     public void updateTaskProgress(Long stealerId) {
-        farmTaskService.updateTaskProgress(stealerId, FarmTaskTypeEnum.STEAL);
+        farmTaskService.updateTaskProgress(FarmTaskTypeEnum.STEAL);
     }
 
     @Override

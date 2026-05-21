@@ -87,25 +87,22 @@ public interface FarmUserService extends IService<FarmUser> {
      * 累计收获次数 +1。
      *
      * @param userId 系统用户 ID
-     * @return 是否更新成功
      */
-    boolean incrementTotalHarvest(Long userId);
+    void incrementTotalHarvest(Long userId);
 
     /**
      * 累计偷菜次数 +1。
      *
      * @param userId 系统用户 ID
-     * @return 是否更新成功
      */
-    boolean incrementTotalSteal(Long userId);
+    void incrementTotalSteal(Long userId);
 
     /**
      * 累计被防御（被偷）次数 +1。
      *
      * @param userId 系统用户 ID
-     * @return 是否更新成功
      */
-    boolean incrementTotalDefense(Long userId);
+    void incrementTotalDefense(Long userId);
 
     /**
      * 被访问次数 +1。

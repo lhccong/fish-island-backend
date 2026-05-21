@@ -31,9 +31,9 @@ public class TaskController {
         return ResultUtils.success(taskService.toDTOList(taskService.getUserTaskRecords(userId)));
     }
 
-    @PostMapping("/claim/{taskId}")
+    @PostMapping("/claim}")
     @ApiOperation(value = "领取任务奖励")
-    public BaseResponse<Integer> claimReward(@PathVariable Long taskId) {
+    public BaseResponse<Integer> claimReward(Long taskId) {
         Long userId = StpUtil.getLoginIdAsLong();
         int exp = taskService.claimTaskReward(userId, taskId);
         if (exp == 0) {

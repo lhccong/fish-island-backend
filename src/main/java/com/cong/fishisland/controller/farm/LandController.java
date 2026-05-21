@@ -2,9 +2,7 @@ package com.cong.fishisland.controller.farm;
 
 import cn.dev33.satoken.stp.StpUtil;
 import com.cong.fishisland.common.BaseResponse;
-import com.cong.fishisland.common.ErrorCode;
 import com.cong.fishisland.common.ResultUtils;
-import com.cong.fishisland.common.exception.BusinessException;
 import com.cong.fishisland.model.dto.farm.LandDTO;
 import com.cong.fishisland.model.dto.farm.request.HarvestRequest;
 import com.cong.fishisland.model.dto.farm.request.PlantRequest;
@@ -41,27 +39,24 @@ public class LandController {
     }
 
     @PostMapping("/plant")
-    @ApiOperation(value = "种植作物")
-    public BaseResponse<LandDTO> plant(@RequestBody PlantRequest request) {
+    @ApiOperation(value = "批量种植作物")
+    public BaseResponse<List<LandDTO>> plant(@RequestBody PlantRequest request) {
+        List<FarmLand> lands = landService.plantBatch(request.getItems());
 
-        FarmLand land = landService.plant(request.getLandId(), request.getCropId());
+        taskService.updateTaskProgress(FarmTaskTypeEnum.PLANT);
 
-//        taskService.updateTaskProgress(farmUserId, FarmTaskTypeEnum.PLANT);
-
-        return ResultUtils.success(landService.toDTO(land));
+        return ResultUtils.success(landService.toDTOList(lands));
     }
 
     @PostMapping("/harvest")
-    @ApiOperation(value = "收获作物")
-    public BaseResponse<String> harvest(@RequestBody HarvestRequest request) {
-        Long userId = StpUtil.getLoginIdAsLong();
-        FarmLand land = landService.harvest(userId, request.getLandId());
-        if (land == null) {
-            throw new BusinessException(ErrorCode.OPERATION_ERROR);
+    @ApiOperation(value = "批量收获作物")
+    public BaseResponse<List<LandDTO>> harvest(@RequestBody HarvestRequest request) {
+        List<FarmLand> lands = landService.harvestBatch(request.getLandIds());
+
+        for (int i = 0; i < lands.size(); i++) {
+            taskService.updateTaskProgress(FarmTaskTypeEnum.HARVEST);
         }
 
-        taskService.updateTaskProgress(userId, FarmTaskTypeEnum.HARVEST);
-
-        return ResultUtils.success("收获成功");
+        return ResultUtils.success(landService.toDTOList(lands));
     }
 }

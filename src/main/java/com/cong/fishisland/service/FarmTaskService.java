@@ -30,10 +30,9 @@ public interface FarmTaskService {
     /**
      * 按任务类型更新当日任务进度（如种植、收获、偷菜）。
      *
-     * @param userId   系统用户 ID
      * @param taskType 任务类型
      */
-    void updateTaskProgress(Long userId, FarmTaskTypeEnum taskType);
+    void updateTaskProgress(FarmTaskTypeEnum taskType);
 
     /**
      * 领取已完成任务的奖励。
