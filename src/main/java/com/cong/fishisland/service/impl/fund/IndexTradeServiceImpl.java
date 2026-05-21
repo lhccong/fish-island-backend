@@ -57,6 +57,8 @@ public class IndexTradeServiceImpl extends ServiceImpl<IndexTradeMapper, IndexTr
 
     private static final int MIN_BUY_AMOUNT = 100;
     private static final BigDecimal MIN_SHARES = new BigDecimal("0.0001");
+    /** 卖出手续费率 0.15% */
+    private static final BigDecimal SELL_FEE_RATE = new BigDecimal("0.0015");
 
     private static final LocalTime TRADE_START = LocalTime.of(9, 30);
     private static final LocalTime TRADE_END = LocalTime.of(15, 0);
@@ -82,9 +84,11 @@ public class IndexTradeServiceImpl extends ServiceImpl<IndexTradeMapper, IndexTr
     public IndexTradeResultVO sellIndexWithResult(Long userId, String indexCode, BigDecimal shares) {
         checkTradeTime();
         BigDecimal currentNav = getCurrentNav(indexCode);
-        Long amount = calculateAmount(shares, currentNav);
-        Long tradeId = executeSell(userId, indexCode, shares, amount, currentNav);
-        return buildSellResult(tradeId, shares, amount, currentNav);
+        Long grossAmount = calculateAmount(shares, currentNav);
+        Long fee = calculateSellFee(grossAmount);
+        Long netAmount = grossAmount - fee;
+        Long tradeId = executeSell(userId, indexCode, shares, netAmount, currentNav);
+        return buildSellResult(tradeId, shares, grossAmount, netAmount, fee, currentNav);
     }
 
     @Override
@@ -181,7 +185,7 @@ public class IndexTradeServiceImpl extends ServiceImpl<IndexTradeMapper, IndexTr
     /**
      * 执行卖出操作
      */
-    private Long executeSell(Long userId, String indexCode, BigDecimal shares, Long amount, BigDecimal nav) {
+    private Long executeSell(Long userId, String indexCode, BigDecimal shares, Long netAmount, BigDecimal nav) {
         if (shares.compareTo(MIN_SHARES) < 0) {
             throw new BusinessException(ErrorCode.PARAMS_ERROR, "卖出份额不能低于" + MIN_SHARES);
         }
@@ -191,25 +195,35 @@ public class IndexTradeServiceImpl extends ServiceImpl<IndexTradeMapper, IndexTr
             throw new BusinessException(ErrorCode.OPERATION_ERROR, "可用份额不足");
         }
 
-        returnUserPoints(userId, amount);
-        Long profitLoss = calculateProfitLoss(userId, indexCode, shares, nav);
-        return saveSellRecord(userId, indexCode, shares, amount, nav, profitLoss);
+        returnUserPoints(userId, netAmount);
+        Long profitLoss = calculateProfitLoss(userId, indexCode, shares, netAmount);
+        return saveSellRecord(userId, indexCode, shares, netAmount, nav, profitLoss);
     }
 
     /**
-     * 计算卖出金额
+     * 计算卖出成交额（扣费前）
      */
     private Long calculateAmount(BigDecimal shares, BigDecimal nav) {
         return shares.multiply(nav).setScale(0, RoundingMode.DOWN).longValue();
     }
 
     /**
-     * 返还用户积分（T+0）
+     * 计算卖出手续费（成交额 × 0.15%，向下取整）
      */
-    private void returnUserPoints(Long userId, Long amount) {
+    private Long calculateSellFee(Long grossAmount) {
+        return new BigDecimal(grossAmount)
+                .multiply(SELL_FEE_RATE)
+                .setScale(0, RoundingMode.DOWN)
+                .longValue();
+    }
+
+    /**
+     * 返还用户积分（T+0，已扣手续费）
+     */
+    private void returnUserPoints(Long userId, Long netAmount) {
         userPointsService.updateUsedPoints(
                 userId,
-                -amount.intValue(),
+                -netAmount.intValue(),
                 INDEX_SELL,
                 null,
                 "指数卖出"
@@ -217,19 +231,20 @@ public class IndexTradeServiceImpl extends ServiceImpl<IndexTradeMapper, IndexTr
     }
 
     /**
-     * 计算盈亏
+     * 计算盈亏（按扣费后实际到账金额）
      */
-    private Long calculateProfitLoss(Long userId, String indexCode, BigDecimal shares, BigDecimal currentNav) {
+    private Long calculateProfitLoss(Long userId, String indexCode, BigDecimal shares, Long netAmount) {
         IndexPosition position = positionService.getOrCreatePosition(userId, indexCode);
-        
-        // 防止成本为0的情况
+
         if (position.getAvgCost().compareTo(BigDecimal.ZERO) == 0) {
             return 0L;
         }
-        
+
         BigDecimal costValue = shares.multiply(position.getAvgCost());
-        BigDecimal currentValue = shares.multiply(currentNav);
-        return currentValue.subtract(costValue).setScale(0, RoundingMode.UP).longValue();
+        return BigDecimal.valueOf(netAmount)
+                .subtract(costValue)
+                .setScale(0, RoundingMode.UP)
+                .longValue();
     }
 
     /**
@@ -326,15 +341,18 @@ public class IndexTradeServiceImpl extends ServiceImpl<IndexTradeMapper, IndexTr
     /**
      * 构建卖出结果 VO
      */
-    private IndexTradeResultVO buildSellResult(Long tradeId, BigDecimal shares, Long amount, BigDecimal nav) {
+    private IndexTradeResultVO buildSellResult(Long tradeId, BigDecimal shares, Long grossAmount,
+                                               Long netAmount, Long fee, BigDecimal nav) {
         IndexTradeResultVO result = new IndexTradeResultVO();
         result.setTransactionId(tradeId);
         result.setTradeType(TRADE_TYPE_SELL);
         result.setTradeTypeName("卖出");
         result.setShares(shares);
-        result.setAmount(amount);
+        result.setGrossAmount(grossAmount);
+        result.setFee(fee);
+        result.setAmount(netAmount);
         result.setNav(nav);
-        result.setMessage("卖出成功，积分已到账");
+        result.setMessage(String.format("卖出成功，到账 %d 积分（已扣除 %d 积分手续费，费率 0.15%%）", netAmount, fee));
         return result;
     }
 

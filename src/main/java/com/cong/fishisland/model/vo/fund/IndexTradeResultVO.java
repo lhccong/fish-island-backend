@@ -40,8 +40,14 @@ public class IndexTradeResultVO implements Serializable {
     @JsonSerialize(using = ToStringSerializer.class)
     private BigDecimal shares;
 
-    @ApiModelProperty(value = "交易金额（积分）", example = "1000")
+    @ApiModelProperty(value = "交易金额（积分，买入为支出，卖出为扣费后到账）", example = "1000")
     private Long amount;
+
+    @ApiModelProperty(value = "卖出成交额（扣费前，仅卖出有效）", example = "1000")
+    private Long grossAmount;
+
+    @ApiModelProperty(value = "手续费（积分，仅卖出有效）", example = "50")
+    private Long fee;
 
     @ApiModelProperty(value = "预计结算日期（仅卖出有效）", example = "2026-04-08")
     private LocalDate expectedSettleDate;

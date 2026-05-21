@@ -43,7 +43,7 @@ public interface IndexTradeService extends IService<IndexTradeRecord> {
      * 流程：
      * 1. 校验交易时间
      * 2. 扣减可用份额（原子操作）
-     * 3. 实时返还积分（T+0）
+     * 3. 扣除 0.15% 手续费后实时返还积分（T+0）
      * 4. 记录交易流水
      * 
      * @param userId 用户ID
