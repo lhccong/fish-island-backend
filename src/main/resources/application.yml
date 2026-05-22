@@ -5,7 +5,7 @@ spring:
     name: fish-island-backend
   # 默认 dev 环境
   profiles:
-    active: dev
+    active: pre
   # 支持 swagger3
   mvc:
     pathmatch:
@@ -124,7 +124,14 @@ minio:
 
 # 热榜数据源相关配置（按需配置）
 fishisland:
+  pet:
+    forge:
+      # 数值计算是否计入项链(5)、翅膀(6)的锻造等级与词条；暂无实体装备时建议 false
+      include-necklace-wings-stats: false
   datasource:
+    nga:
+      # 可选：访客 Cookie 等，部分网络环境访问 NGA 需要；勿将含登录态的 Cookie 写入仓库或提交版本控制
+      cookie: "ngacn0comUserInfo=lhccong%09lhccong%0939%0939%09%0910%090%094%090%090%09; ngaPassportUid=67205300; ngaPassportUrlencodedUname=lhccong; ngaPassportCid=Xa1m9olutuvm702o5e9t7q2etucrafknc0gv53sc; lastvisit=1778842278; lastpath=/thread.php?fid=-7; ngacn0comUserInfoCheck=3d39935a57d6cc0e065ad8715aed4d4a; ngacn0comInfoCheckTime=1778842278; bbsmisccookies=%7B%22uisetting%22%3A%7B0%3A1%2C1%3A1779431628%7D%2C%22pv_count_for_insad%22%3A%7B0%3A-29%2C1%3A1778864400%7D%2C%22insad_views%22%3A%7B0%3A1%2C1%3A1778864400%7D%7D; Hm_lvt_01c4614f24e14020e036f4c3597aa059=1778826293,1778842277; Hm_lpvt_01c4614f24e14020e036f4c3597aa059=1778842277; HMACCOUNT=FD9BEF9D2A854DE0"
     zhihu:
       # 仅在知乎接口需要时配置，建议通过环境变量/外部配置注入，不要写死到仓库
-      cookie: "_xsrf=X8Dsa9qixtotHh1vaKNzgiT3yUhjX61w; _zap=fb2f2912-e6b9-4c4a-97a5-bb3f61327dc4; d_c0=svYTvtbxDBuPTmqhG1JHuVy6a1UJNvLYrIg=|1757505170; q_c1=d844d98c02df4f5ea3188dff41124310|1758332501000|1758332501000; __zse_ck=005_HFP16FiDMrtZjvBxs45IlINmlwmsk0vSu/OMdO/IbL=dmqrYNQM9iB8/FNUv3EitsnJpXzkrAeeuGpuvyJOZGRUfltsU3dm98RbvHD7GGhpJWRQzbHdR40V4MogsJEip-fpMcjZEcyqCLXj39QhsUoNJpp+AhwlJjBQYS0mJ+pJba7BKqZS3nsf1F2HPBPv+TYPmWhiSH1UV49zG+5O7OXEBMho5OokhYeDQ7wAQawhKFXezRC+4vxrVCglnS9fzV; z_c0=2|1:0|10:1775634521|4:z_c0|92:Mi4xUThEb0R3QUFBQUN5OWhPLTF2RU1HeVlBQUFCZ0FsVk5XVmJEYWdBZnlPYW1iMzhWWUlZMHRTN2Vjak43RHdFZEFn|c0cdce601edde0836e5e3d3394529633abde96f7ffb19fedfef5d80a05d1a24d; Hm_lvt_98beee57fd2ef70ccdd5ca52b9740c49=1773711805,1773884579,1775791936; HMACCOUNT=FD9BEF9D2A854DE0; Hm_lpvt_98beee57fd2ef70ccdd5ca52b9740c49=1775813662; BEC=e9bdbc10d489caddf435785a710b7029"
+      cookie: "_xsrf=X8Dsa9qixtotHh1vaKNzgiT3yUhjX61w; _zap=fb2f2912-e6b9-4c4a-97a5-bb3f61327dc4; d_c0=svYTvtbxDBuPTmqhG1JHuVy6a1UJNvLYrIg=|1757505170; q_c1=d844d98c02df4f5ea3188dff41124310|1758332501000|1758332501000; z_c0=2|1:0|10:1778849442|4:z_c0|92:Mi4xUThEb0R3QUFBQUN5OWhPLTF2RU1HeVlBQUFCZ0FsVk5vbVQwYWdBRWRxZzZVQjVDWEJfX0tFYUc0Yjl0TUtLNzJ3|9f98f5a84380d22929fcbf15b17f19e003597aa0374c0ce2d7a8ad6b5d09d99c; __zse_ck=005_3BYEC/0aNl1epsGUfmmoSrCKmV7IzEI2ZiWW81rR8d7FLLjMuTsspy6ku0DlhV6fLi9Yh/7hu1nKrZHJLYA69L0HjrRIO/TwxVSYV5w1fo9kNa8W7TNrh80EqI/tqH72-v9t8nvW+PDk0kTT2b6fsdluozZ+rCg4EYngxvZK2diIeAclTxIyGKK9uaFz0bOBZNrMvPVft7QwlZGtNL49k5O5s74N02MPb7OLh/uP57uQzVb+FgF4fpm25C9F6DHNk; Hm_lvt_98beee57fd2ef70ccdd5ca52b9740c49=1778120515,1778849442,1779195104; Hm_lpvt_98beee57fd2ef70ccdd5ca52b9740c49=1779195104; HMACCOUNT=FD9BEF9D2A854DE0; BEC=8ce9e721fafad59a55ed220f1ad7f253"
