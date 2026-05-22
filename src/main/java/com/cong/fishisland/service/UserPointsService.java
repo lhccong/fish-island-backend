@@ -55,4 +55,9 @@ public interface UserPointsService extends IService<UserPoints> {
      * @param requiredPoints 需要的积分数量
      */
     void checkAvailablePoints(Long userId, Integer requiredPoints);
+
+    /**
+     * 在多个用户的积分锁保护下执行操作（按 userId 升序加锁，避免死锁）
+     */
+    void runWithUserPointsLocks(Long[] userIds, Runnable action);
 }

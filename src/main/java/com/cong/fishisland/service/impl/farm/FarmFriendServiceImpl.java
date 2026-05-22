@@ -190,6 +190,18 @@ public class FarmFriendServiceImpl implements FarmFriendService {
         return vo;
     }
 
+    @Override
+    public List<LandDTO> getFriendLands(Long systemUserId, Long targetSystemUserId) {
+        if (!isMutualFriend(systemUserId, targetSystemUserId)) {
+            throw new BusinessException(ErrorCode.OPERATION_ERROR, "仅可访问互相关注用户的农场");
+        }
+        FarmUser farmUser = farmUserMapper.selectById(targetSystemUserId);
+        if (farmUser == null) {
+            throw new BusinessException(ErrorCode.NOT_FOUND_ERROR, "好友农场用户不存在");
+        }
+        return farmLandService.toDTOList(farmLandService.getLandsByUserId(targetSystemUserId));
+    }
+
     private Map<Long, LocalDateTime> batchStealCooldownEnd(Long stealerUserId, List<Long> friendUserIds) {
         Map<Long, LocalDateTime> result = new HashMap<>();
         if (CollectionUtils.isEmpty(friendUserIds)) {

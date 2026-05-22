@@ -18,6 +18,8 @@ import com.cong.fishisland.service.IndexTradeService;
 import com.cong.fishisland.service.UserPointsService;
 import com.cong.fishisland.service.fund.FundDataService;
 import lombok.extern.slf4j.Slf4j;
+import org.redisson.api.RLock;
+import org.redisson.api.RedissonClient;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -28,6 +30,8 @@ import java.time.LocalTime;
 import java.time.ZoneId;
 import java.util.Date;
 import java.util.List;
+import java.util.concurrent.TimeUnit;
+import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
 /**
@@ -49,7 +53,15 @@ public class IndexTradeServiceImpl extends ServiceImpl<IndexTradeMapper, IndexTr
     @Resource
     private FundDataService fundDataService;
 
+    @Resource
+    private RedissonClient redissonClient;
+
     // ==================== 常量定义 ====================
+
+    /** 指数买入业务锁（与 user:points:lock 形成双重保护） */
+    private static final String INDEX_BUY_LOCK_PREFIX = "index:trade:buy:lock:";
+    private static final long INDEX_BUY_LOCK_WAIT_SECONDS = 5;
+    private static final long INDEX_BUY_LOCK_LEASE_SECONDS = 15;
 
     private static final int TRADE_TYPE_BUY = 1;
     private static final int TRADE_TYPE_SELL = 2;
@@ -72,11 +84,13 @@ public class IndexTradeServiceImpl extends ServiceImpl<IndexTradeMapper, IndexTr
     @Override
     @Transactional(rollbackFor = Exception.class)
     public IndexTradeResultVO buyIndexWithResult(Long userId, String indexCode, Long amount) {
-        checkTradeTime();
-        BigDecimal currentNav = getCurrentNav(indexCode);
-        BigDecimal shares = calculateShares(amount, currentNav);
-        Long tradeId = executeBuy(userId, indexCode, amount, shares, currentNav);
-        return buildBuyResult(tradeId, amount, shares, currentNav);
+        return runWithIndexBuyLock(userId, () -> {
+            checkTradeTime();
+            BigDecimal currentNav = getCurrentNav(indexCode);
+            BigDecimal shares = calculateShares(amount, currentNav);
+            Long tradeId = executeBuy(userId, indexCode, amount, shares, currentNav);
+            return buildBuyResult(tradeId, amount, shares, currentNav);
+        });
     }
 
     @Override
@@ -120,6 +134,28 @@ public class IndexTradeServiceImpl extends ServiceImpl<IndexTradeMapper, IndexTr
     }
 
     // ==================== 买入流程（私有方法） ====================
+
+    /**
+     * 指数买入外层锁：串行化「校验 → 扣积分 → 加仓 → 记流水」整段流程。
+     * 内层 {@link UserPointsService#deductPoints} 仍有 user:points:lock 保护积分字段。
+     */
+    private <T> T runWithIndexBuyLock(Long userId, Supplier<T> action) {
+        RLock lock = redissonClient.getLock(INDEX_BUY_LOCK_PREFIX + userId);
+        try {
+            boolean acquired = lock.tryLock(INDEX_BUY_LOCK_WAIT_SECONDS, INDEX_BUY_LOCK_LEASE_SECONDS, TimeUnit.SECONDS);
+            if (!acquired) {
+                throw new BusinessException(ErrorCode.OPERATION_ERROR, "买入操作频繁，请稍后再试");
+            }
+            return action.get();
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            throw new BusinessException(ErrorCode.SYSTEM_ERROR, "系统繁忙，请稍后再试");
+        } finally {
+            if (lock.isHeldByCurrentThread()) {
+                lock.unlock();
+            }
+        }
+    }
 
     /**
      * 执行买入操作

@@ -2,6 +2,7 @@ package com.cong.fishisland.service;
 
 import com.cong.fishisland.model.dto.farm.FarmFriendFarmVO;
 import com.cong.fishisland.model.dto.farm.FarmFriendListVO;
+import com.cong.fishisland.model.dto.farm.LandDTO;
 
 import java.util.List;
 
@@ -52,4 +53,13 @@ public interface FarmFriendService {
      * @return 好友农场详情 VO
      */
     FarmFriendFarmVO visitFriendFarm(Long systemUserId, Long targetSystemUserId);
+
+    /**
+     * 查询互关好友的地块列表，返回结构与「我的地块」接口一致。
+     *
+     * @param systemUserId       当前访问者的系统用户 ID
+     * @param targetSystemUserId 好友的系统用户 ID
+     * @return 地块 DTO 列表
+     */
+    List<LandDTO> getFriendLands(Long systemUserId, Long targetSystemUserId);
 }

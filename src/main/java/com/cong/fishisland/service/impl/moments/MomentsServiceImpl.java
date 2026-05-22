@@ -138,9 +138,6 @@ public class MomentsServiceImpl extends ServiceImpl<MomentsMapper, Moments>
                 ErrorCode.OPERATION_ERROR, "您的等级不足，无法打赏（需要等级 ≥ 6、VIP 或管理员）"
         );
 
-        // 校验打赏者可用积分是否充足（可用积分 = points - usedPoints）
-        userPointsService.checkAvailablePoints(fromUserId, request.getPoints());
-
         String momentIdStr = String.valueOf(request.getMomentId());
 
         // 限流1：同一用户对同一条动态每天只能打赏一次
@@ -171,15 +168,18 @@ public class MomentsServiceImpl extends ServiceImpl<MomentsMapper, Moments>
         }
 
 
-        // 扣除打赏者 usedPoints
-        userPointsService.updateUsedPoints(fromUserId, request.getPoints(),
-                PointsRecordSourceEnum.MOMENTS_REWARD.getValue(), momentIdStr,
-                "打赏朋友圈动态");
-
-        // 增加作者 usedPoints
-        userPointsService.updateUsedPoints(moments.getUserId(), -request.getPoints(),
-                PointsRecordSourceEnum.MOMENTS_REWARD.getValue(), momentIdStr,
-                "收到朋友圈打赏");
+        // 打赏双方积分变动在同一组锁内完成，避免并发下只扣不加
+        userPointsService.runWithUserPointsLocks(
+                new Long[]{fromUserId, moments.getUserId()},
+                () -> {
+                    userPointsService.checkAvailablePoints(fromUserId, request.getPoints());
+                    userPointsService.updateUsedPoints(fromUserId, request.getPoints(),
+                            PointsRecordSourceEnum.MOMENTS_REWARD.getValue(), momentIdStr,
+                            "打赏朋友圈动态");
+                    userPointsService.updateUsedPoints(moments.getUserId(), -request.getPoints(),
+                            PointsRecordSourceEnum.MOMENTS_REWARD.getValue(), momentIdStr,
+                            "收到朋友圈打赏");
+                });
 
 
         // 通知被打赏者

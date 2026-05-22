@@ -16,6 +16,7 @@ import com.cong.fishisland.model.entity.donation.DonationRecords;
 import com.cong.fishisland.model.dto.pay.PayOrderAttach;
 import com.cong.fishisland.model.dto.pay.XunhuPayNotifyRequest;
 import com.cong.fishisland.model.enums.pay.PayOrderTypeEnum;
+import com.cong.fishisland.constant.TitleConstant;
 import com.cong.fishisland.constant.VipTypeConstant;
 import com.cong.fishisland.model.ws.request.Message;
 import com.cong.fishisland.model.ws.request.MessageWrapper;
@@ -270,7 +271,7 @@ public class PayOrderServiceImpl extends ServiceImpl<PayOrderMapper, PayOrder>
      * 1. 更新打赏榜记录（累加金额）
      * 2. 本次金额 >= 1 元时派发赞助者称号（ID = 1）
      * 3. 查询累计打赏金额
-     * 4. 累计金额 >= 29.9 元时自动派发永久 VIP，并发送系统通知
+     * 4. 累计金额 >= 29.9 元时自动派发永久 VIP、专属称号「闪耀永恒岛民」（ID = 31），并发送系统通知
      * 5. 累计金额 >= 100 元时发送通知，提示联系岛主定制专属称号（只发一次）
      * 6. 向聊天室广播感谢消息
      *
@@ -302,7 +303,7 @@ public class PayOrderServiceImpl extends ServiceImpl<PayOrderMapper, PayOrder>
         // 3. 本次金额 >= 1 元时派发赞助者称号（ID = 1），已拥有则跳过
         if (totalFee != null && totalFee.compareTo(BigDecimal.ONE) >= 0) {
             try {
-                boolean granted = userTitleService.addTitleToUser(userId, 1L);
+                boolean granted = userTitleService.addTitleToUser(userId, TitleConstant.SPONSOR_TITLE_ID);
                 if (granted) {
                     log.info("[XunhuPay] 赞助者称号派发成功，userId={}", userId);
                 } else {
@@ -325,25 +326,45 @@ public class PayOrderServiceImpl extends ServiceImpl<PayOrderMapper, PayOrder>
             log.error("[XunhuPay] 查询累计打赏金额失败，userId={}", userId, e);
         }
 
-        // 5. 累计打赏金额 >= 29.9 元时派发永久 VIP
-        try {
-            BigDecimal vipThreshold = new BigDecimal("29.9");
-            if (totalAmount.compareTo(vipThreshold) >= 0 && !userVipService.isPermanentVip(userId)) {
-                // 派发永久 VIP（内部自动处理月卡升级）
-                UserVipAddRequest vipAddRequest = new UserVipAddRequest();
-                vipAddRequest.setUserId(userId);
-                vipAddRequest.setType(VipTypeConstant.PERMANENT);
-                userVipService.createVip(vipAddRequest);
-                log.info("[XunhuPay] 永久 VIP 派发成功，userId={}, 累计打赏={}", userId, totalAmount);
+        // 5. 累计打赏金额 >= 29.9 元时派发永久 VIP 与专属称号「闪耀永恒岛民」
+        BigDecimal permanentVipThreshold = new BigDecimal("29.9");
+        if (totalAmount.compareTo(permanentVipThreshold) >= 0) {
+            boolean wasPermanentVip = userVipService.isPermanentVip(userId);
+            try {
+                if (!wasPermanentVip) {
+                    UserVipAddRequest vipAddRequest = new UserVipAddRequest();
+                    vipAddRequest.setUserId(userId);
+                    vipAddRequest.setType(VipTypeConstant.PERMANENT);
+                    userVipService.createVip(vipAddRequest);
+                    log.info("[XunhuPay] 永久 VIP 派发成功，userId={}, 累计打赏={}", userId, totalAmount);
 
-                // 发送系统通知
-                String vipNotify = String.format(
-                        "感谢您累计赞助摸鱼岛 %.2f 元，已为您自动开通永久 VIP，感谢支持！", totalAmount);
-                eventRemindService.sendSystemNotify(userId, vipNotify);
-                log.info("[XunhuPay] 永久 VIP 系统通知已发送，userId={}", userId);
+                    String vipNotify = String.format(
+                            "感谢您累计赞助摸鱼岛 %.2f 元，已为您自动开通永久 VIP，并授予专属称号「闪耀永恒岛民」，感谢支持！",
+                            totalAmount);
+                    eventRemindService.sendSystemNotify(userId, vipNotify);
+                    log.info("[XunhuPay] 永久 VIP 系统通知已发送，userId={}", userId);
+                }
+            } catch (Exception e) {
+                log.error("[XunhuPay] 永久 VIP 派发或通知失败，userId={}", userId, e);
             }
-        } catch (Exception e) {
-            log.error("[XunhuPay] 永久 VIP 派发或通知失败，userId={}", userId, e);
+
+            try {
+                boolean titleGranted = userTitleService.addTitleToUser(
+                        userId, TitleConstant.PERMANENT_VIP_EXCLUSIVE_TITLE_ID);
+                if (titleGranted) {
+                    log.info("[XunhuPay] 永久会员专属称号派发成功，userId={}, titleId={}",
+                            userId, TitleConstant.PERMANENT_VIP_EXCLUSIVE_TITLE_ID);
+                    // 已是永久会员、仅补发称号时单独通知，避免与开通 VIP 通知重复
+                    if (wasPermanentVip) {
+                        eventRemindService.sendSystemNotify(userId,
+                                "恭喜获得永久会员专属称号「闪耀永恒岛民」！");
+                    }
+                } else {
+                    log.info("[XunhuPay] 用户已拥有永久会员专属称号，跳过派发，userId={}", userId);
+                }
+            } catch (Exception e) {
+                log.info("[XunhuPay] 永久会员专属称号已拥有或派发跳过，userId={}", userId);
+            }
         }
 
         // 6. 累计打赏金额 >= 100 元时，通知用户联系岛主定制称号（只发一次）

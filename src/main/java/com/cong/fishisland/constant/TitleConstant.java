@@ -36,4 +36,14 @@ public interface TitleConstant {
      * 宠物排行榜第三名额外称号ID
      */
     Long PET_RANK_THIRD_TITLE_ID = 18L;
+
+    /**
+     * 赞助者称号 ID
+     */
+    Long SPONSOR_TITLE_ID = 1L;
+
+    /**
+     * 闪耀永恒岛民 - 累计赞助满 29.9 元永久会员专属称号 ID
+     */
+    Long PERMANENT_VIP_EXCLUSIVE_TITLE_ID = 31L;
 } 

@@ -121,7 +121,7 @@ public class FarmStealServiceImpl implements FarmStealService {
             throw new BusinessException(ErrorCode.OPERATION_ERROR, "该作物已无可偷积分");
         }
 
-        int stealPoints = Math.min(crop.getCoin() / 2, remainingStealable);
+        int stealPoints = Math.min(crop.getCoin() / 3, remainingStealable);
         if (stealPoints <= 0) {
             throw new BusinessException(ErrorCode.OPERATION_ERROR, "可偷积分不足");
         }

@@ -4,6 +4,7 @@ import cn.dev33.satoken.stp.StpUtil;
 import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import com.cong.fishisland.common.ErrorCode;
+import com.cong.fishisland.common.exception.BusinessException;
 import com.cong.fishisland.common.exception.ThrowUtils;
 import com.cong.fishisland.constant.PointConstant;
 import com.cong.fishisland.constant.VipTypeConstant;
@@ -16,6 +17,8 @@ import com.cong.fishisland.service.UserPointsService;
 import com.cong.fishisland.mapper.user.UserPointsMapper;
 import com.cong.fishisland.service.UserSignInService;
 import com.cong.fishisland.utils.RedisUtils;
+import org.redisson.api.RLock;
+import org.redisson.api.RedissonClient;
 import org.springframework.context.annotation.Lazy;
 import org.springframework.stereotype.Service;
 
@@ -23,8 +26,10 @@ import javax.annotation.Resource;
 import java.time.Duration;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.util.Arrays;
 import java.util.Date;
 import java.util.Optional;
+import java.util.concurrent.TimeUnit;
 
 import static com.cong.fishisland.model.enums.user.PointsRecordSourceEnum.*;
 
@@ -48,7 +53,13 @@ public class UserPointsServiceImpl extends ServiceImpl<UserPointsMapper, UserPoi
 
     private static final String SIGN_IN_KEY_PREFIX = "user:signin:";
     private static final String SPEAK_KEY_PREFIX = "user:speak:";
+    private static final String USER_POINTS_LOCK_PREFIX = "user:points:lock:";
     private static final int MAX_DAILY_SPEAK_POINTS = 10;
+    private static final long POINTS_LOCK_WAIT_SECONDS = 5;
+    private static final long POINTS_LOCK_LEASE_SECONDS = 10;
+
+    @Resource
+    private RedissonClient redissonClient;
 
 
     @Override
@@ -113,14 +124,15 @@ public class UserPointsServiceImpl extends ServiceImpl<UserPointsMapper, UserPoi
 
     @Override
     public void updatePoints(Long userId, Integer points, boolean isSignIn) {
-        UserPoints userPoints = this.getById(userId);
-        userPoints.setPoints(userPoints.getPoints() + points);
-        //积分除以 100去整计算等级
-        userPoints.setLevel(calculateLevel(userPoints.getPoints()));
-        if (isSignIn) {
-            userPoints.setLastSignInDate(new Date());
-        }
-        this.updateById(userPoints);
+        runWithUserPointsLock(userId, () -> {
+            UserPoints userPoints = this.getById(userId);
+            userPoints.setPoints(userPoints.getPoints() + points);
+            userPoints.setLevel(calculateLevel(userPoints.getPoints()));
+            if (isSignIn) {
+                userPoints.setLastSignInDate(new Date());
+            }
+            this.updateById(userPoints);
+        });
     }
 
 //    @Override
@@ -139,10 +151,12 @@ public class UserPointsServiceImpl extends ServiceImpl<UserPointsMapper, UserPoi
 
     @Override
     public void updateUsedPoints(Long userId, Integer points) {
-        UserPoints userPoints = this.getById(userId);
-        userPoints.setUsedPoints(userPoints.getPoints() == null ? points : userPoints.getUsedPoints() + points);
-
-        this.updateById(userPoints);
+        runWithUserPointsLock(userId, () -> {
+            UserPoints userPoints = this.getById(userId);
+            int used = userPoints.getUsedPoints() == null ? 0 : userPoints.getUsedPoints();
+            userPoints.setUsedPoints(used + points);
+            this.updateById(userPoints);
+        });
     }
 
     public int calculateLevel(int points) {
@@ -202,80 +216,91 @@ public class UserPointsServiceImpl extends ServiceImpl<UserPointsMapper, UserPoi
      */
     @Override
     public void deductPoints(Long userId, Integer pointsToDeduct) {
-        // 检查用户积分是否足够
-        UserPoints userPoints = this.getById(userId);
-        ThrowUtils.throwIf(userPoints == null, ErrorCode.NOT_FOUND_ERROR, "用户积分不存在");
-        int availablePoints = userPoints.getPoints() - userPoints.getUsedPoints();
-        ThrowUtils.throwIf(availablePoints < pointsToDeduct, ErrorCode.OPERATION_ERROR, "用户积分不足");
-        int beforeUsedPoints = userPoints.getUsedPoints();
-        userPoints.setUsedPoints(userPoints.getUsedPoints() + pointsToDeduct);
-        this.updateById(userPoints);
-
-        // 记录积分变动
-        userPointsRecordService.addPointsRecord(userId, 2, pointsToDeduct,
-                userPoints.getPoints(), userPoints.getPoints(),
-                beforeUsedPoints, userPoints.getUsedPoints(),
-                OTHER.getValue(), null, "积分扣除");
+        deductPoints(userId, pointsToDeduct, OTHER.getValue(), null, "积分扣除");
     }
 
-    /**
-     * 扣除积分（带来源信息）
-     *
-     * @param userId         用户ID
-     * @param pointsToDeduct 要扣除的积分
-     * @param sourceType     来源类型
-     * @param sourceId       来源ID
-     * @param description    描述
-     */
+    @Override
     public void deductPoints(Long userId, Integer pointsToDeduct, String sourceType, String sourceId, String description) {
-        // 检查用户积分是否足够
+        runWithUserPointsLock(userId, () -> doDeductPoints(userId, pointsToDeduct, sourceType, sourceId, description));
+    }
+
+    private void doDeductPoints(Long userId, Integer pointsToDeduct, String sourceType, String sourceId, String description) {
         UserPoints userPoints = this.getById(userId);
         ThrowUtils.throwIf(userPoints == null, ErrorCode.NOT_FOUND_ERROR, "用户积分不存在");
-        int availablePoints = userPoints.getPoints() - userPoints.getUsedPoints();
-
-        ThrowUtils.throwIf(availablePoints < pointsToDeduct, ErrorCode.OPERATION_ERROR, "用户积分不足");
-        int beforeUsedPoints = userPoints.getUsedPoints();
-
-        userPoints.setUsedPoints(userPoints.getUsedPoints() + pointsToDeduct);
+        int total = userPoints.getPoints() == null ? 0 : userPoints.getPoints();
+        int used = userPoints.getUsedPoints() == null ? 0 : userPoints.getUsedPoints();
+        ThrowUtils.throwIf(total - used < pointsToDeduct, ErrorCode.OPERATION_ERROR, "用户积分不足");
+        int beforeUsedPoints = used;
+        userPoints.setUsedPoints(used + pointsToDeduct);
         this.updateById(userPoints);
 
-        // 记录积分变动
         userPointsRecordService.addPointsRecord(userId, 2, pointsToDeduct,
                 userPoints.getPoints(), userPoints.getPoints(),
                 beforeUsedPoints, userPoints.getUsedPoints(),
                 sourceType, sourceId, description);
     }
 
-    /**
-     * 更新已用积分（带来源信息）
-     *
-     * @param userId      用户ID
-     * @param points      积分变动（负数表示返还）
-     * @param sourceType  来源类型
-     * @param sourceId    来源ID
-     * @param description 描述
-     */
+    @Override
     public void updateUsedPoints(Long userId, Integer points, String sourceType, String sourceId, String description) {
+        runWithUserPointsLock(userId, () -> doUpdateUsedPoints(userId, points, sourceType, sourceId, description));
+    }
+
+    private void doUpdateUsedPoints(Long userId, Integer points, String sourceType, String sourceId, String description) {
         UserPoints userPoints = this.getById(userId);
         int beforeUsedPoints = userPoints.getUsedPoints() == null ? 0 : userPoints.getUsedPoints();
         int afterUsedPoints = beforeUsedPoints + points;
         userPoints.setUsedPoints(afterUsedPoints);
         this.updateById(userPoints);
 
-        // 记录积分变动
         if (points < 0) {
-            // 积分返还
             userPointsRecordService.addPointsRecord(userId, 1, -points,
                     userPoints.getPoints(), userPoints.getPoints(),
                     beforeUsedPoints, afterUsedPoints,
                     sourceType, sourceId, description);
         } else {
-            // 积分扣除
             userPointsRecordService.addPointsRecord(userId, 2, points,
                     userPoints.getPoints(), userPoints.getPoints(),
                     beforeUsedPoints, afterUsedPoints,
                     sourceType, sourceId, description);
         }
+    }
+
+    @Override
+    public void runWithUserPointsLocks(Long[] userIds, Runnable action) {
+        Long[] sorted = Arrays.stream(userIds)
+                .filter(id -> id != null)
+                .distinct()
+                .sorted()
+                .toArray(Long[]::new);
+        if (sorted.length == 0) {
+            action.run();
+            return;
+        }
+        RLock[] locks = Arrays.stream(sorted)
+                .map(id -> redissonClient.getLock(USER_POINTS_LOCK_PREFIX + id))
+                .toArray(RLock[]::new);
+        try {
+            for (RLock lock : locks) {
+                boolean acquired = lock.tryLock(POINTS_LOCK_WAIT_SECONDS, POINTS_LOCK_LEASE_SECONDS, TimeUnit.SECONDS);
+                if (!acquired) {
+                    throw new BusinessException(ErrorCode.OPERATION_ERROR, "操作频繁，请稍后再试");
+                }
+            }
+            action.run();
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            throw new BusinessException(ErrorCode.SYSTEM_ERROR, "系统繁忙，请稍后再试");
+        } finally {
+            for (int i = locks.length - 1; i >= 0; i--) {
+                if (locks[i].isHeldByCurrentThread()) {
+                    locks[i].unlock();
+                }
+            }
+        }
+    }
+
+    private void runWithUserPointsLock(Long userId, Runnable action) {
+        runWithUserPointsLocks(new Long[]{userId}, action);
     }
 
     @Override
