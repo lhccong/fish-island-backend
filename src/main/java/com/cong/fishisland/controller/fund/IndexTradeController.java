@@ -37,47 +37,48 @@ public class IndexTradeController {
 
     private static final String INDEX_CODE = "sh000001";
 
-    /**
-     * 买入指数
-     */
-    @PostMapping("/buy")
-    @ApiOperation(value = "买入指数")
-    @SaCheckLogin
-    public BaseResponse<IndexTradeResultVO> buyIndex(@RequestBody IndexBuyRequest request) {
-        // 默认指数代码
-        if (request.getIndexCode() == null || request.getIndexCode().trim().isEmpty()) {
-            request.setIndexCode(INDEX_CODE);
-        }
-        
-        Long userId = userService.getLoginUser().getId();
-        IndexTradeResultVO result = indexTradeService.buyIndexWithResult(
-                userId, 
-                request.getIndexCode(), 
-                request.getAmount()
-        );
-        return ResultUtils.success(result);
-    }
+//    /**
+//     * 买入指数
+//     */
+//    @PostMapping("/buy")
+//    @ApiOperation(value = "买入指数")
+//    @SaCheckLogin
+//    public BaseResponse<IndexTradeResultVO> buyIndex(@RequestBody IndexBuyRequest request) {
+//
+//        // 默认指数代码
+//        if (request.getIndexCode() == null || request.getIndexCode().trim().isEmpty()) {
+//            request.setIndexCode(INDEX_CODE);
+//        }
+//
+//        Long userId = userService.getLoginUser().getId();
+//        IndexTradeResultVO result = indexTradeService.buyIndexWithResult(
+//                userId,
+//                request.getIndexCode(),
+//                request.getAmount()
+//        );
+//        return ResultUtils.success(result);
+//    }
 
-    /**
-     * 卖出指数
-     */
-    @PostMapping("/sell")
-    @ApiOperation(value = "卖出指数")
-    @SaCheckLogin
-    public BaseResponse<IndexTradeResultVO> sellIndex(@RequestBody IndexSellRequest request) {
-        // 默认指数代码
-        if (request.getIndexCode() == null || request.getIndexCode().trim().isEmpty()) {
-            request.setIndexCode(INDEX_CODE);
-        }
-        
-        Long userId = userService.getLoginUser().getId();
-        IndexTradeResultVO result = indexTradeService.sellIndexWithResult(
-                userId, 
-                request.getIndexCode(), 
-                request.getShares()
-        );
-        return ResultUtils.success(result);
-    }
+//    /**
+//     * 卖出指数
+//     */
+//    @PostMapping("/sell")
+//    @ApiOperation(value = "卖出指数")
+//    @SaCheckLogin
+//    public BaseResponse<IndexTradeResultVO> sellIndex(@RequestBody IndexSellRequest request) {
+//        // 默认指数代码
+//        if (request.getIndexCode() == null || request.getIndexCode().trim().isEmpty()) {
+//            request.setIndexCode(INDEX_CODE);
+//        }
+//
+//        Long userId = userService.getLoginUser().getId();
+//        IndexTradeResultVO result = indexTradeService.sellIndexWithResult(
+//                userId,
+//                request.getIndexCode(),
+//                request.getShares()
+//        );
+//        return ResultUtils.success(result);
+//    }
 
     /**
      * 获取用户持仓信息

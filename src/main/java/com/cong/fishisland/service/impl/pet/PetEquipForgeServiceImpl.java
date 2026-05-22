@@ -5,6 +5,7 @@ import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import com.cong.fishisland.common.ErrorCode;
 import com.cong.fishisland.common.exception.BusinessException;
+import com.cong.fishisland.config.PetForgeProperties;
 import com.cong.fishisland.constant.PetForgeConstant;
 import com.cong.fishisland.mapper.pet.PetEquipForgeMapper;
 import com.cong.fishisland.model.dto.pet.ForgeLockRequest;
@@ -45,6 +46,7 @@ public class PetEquipForgeServiceImpl extends ServiceImpl<PetEquipForgeMapper, P
 
     private final FishPetService fishPetService;
     private final UserPointsService userPointsService;
+    private final PetForgeProperties petForgeProperties;
 
     /** 基础刷新消耗积分 */
     private static final int BASE_REFRESH_COST = 100;
@@ -110,6 +112,7 @@ public class PetEquipForgeServiceImpl extends ServiceImpl<PetEquipForgeMapper, P
         FishPet pet = getPetAndCheckOwner(request.getPetId(), userId);
 
         EquipSlotEnum slot = EquipSlotEnum.of(request.getEquipSlot());
+        assertForgeSlotOperable(slot);
         List<Integer> toLock = request.getLockedEntries() == null
                 ? Collections.emptyList() : request.getLockedEntries();
 
@@ -142,8 +145,8 @@ public class PetEquipForgeServiceImpl extends ServiceImpl<PetEquipForgeMapper, P
         FishPet pet = getPetAndCheckOwner(request.getPetId(), userId);
 
         EquipSlotEnum slot = EquipSlotEnum.of(request.getEquipSlot());
+        assertForgeSlotOperable(slot);
 
-        // 查询或初始化装备记录
         PetEquipForge forge = getOrCreateForge(pet, slot);
 
         EquipEntry[] current = {forge.getEntry1(), forge.getEntry2(), forge.getEntry3(), forge.getEntry4()};
@@ -186,6 +189,7 @@ public class PetEquipForgeServiceImpl extends ServiceImpl<PetEquipForgeMapper, P
         FishPet pet = getPetAndCheckOwner(request.getPetId(), userId);
 
         EquipSlotEnum slot = EquipSlotEnum.of(request.getEquipSlot());
+        assertForgeSlotOperable(slot);
 
         PetEquipForge forge = getOrCreateForge(pet, slot);
         int currentLevel = forge.getEquipLevel() == null ? 1 : forge.getEquipLevel();
@@ -218,6 +222,15 @@ public class PetEquipForgeServiceImpl extends ServiceImpl<PetEquipForgeMapper, P
     }
 
     // ==================== 私有方法 ====================
+
+    /**
+     * 项链、翅膀在为 false 时不允许强化/刷新词条
+     */
+    private void assertForgeSlotOperable(EquipSlotEnum slot) {
+        if (!petForgeProperties.includeForgeStatsForSlot(slot.getValue())) {
+            throw new BusinessException(ErrorCode.OPERATION_ERROR, "当前无法强化");
+        }
+    }
 
     /**
      * 校验宠物归属并返回宠物实体
@@ -395,9 +408,12 @@ public class PetEquipForgeServiceImpl extends ServiceImpl<PetEquipForgeMapper, P
                 .list();
 
         for (PetEquipForge forge : forgeList) {
-            // 1. 装备等级加成（按槽位差异化，非线性成长）
             int level = forge.getEquipLevel() == null ? 0 : forge.getEquipLevel();
             int slot  = forge.getEquipSlot()  == null ? 0 : forge.getEquipSlot();
+            if (!petForgeProperties.includeForgeStatsForSlot(slot)) {
+                continue;
+            }
+            // 1. 装备等级加成（按槽位差异化，非线性成长）
             applyLevelBonusBySlot(slot, level, stats);
 
             // 2. 词条属性累加

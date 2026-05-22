@@ -15,8 +15,8 @@ public enum EquipSlotEnum {
     GLOVES(2, "手套"),
     SHOES(3, "鞋子"),
     HELMET(4, "头盔"),
-    NECKLACE(5, "项链"),
-    WINGS(6, "翅膀");
+    NECKLACE(7, "项链"),
+    WINGS(8, "翅膀");
 
     private final int value;
     private final String label;

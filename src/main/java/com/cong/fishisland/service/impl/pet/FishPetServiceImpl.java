@@ -7,6 +7,7 @@ import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import com.cong.fishisland.common.ErrorCode;
 import com.cong.fishisland.common.exception.BusinessException;
+import com.cong.fishisland.config.PetForgeProperties;
 import com.cong.fishisland.constant.PetForgeConstant;
 import com.cong.fishisland.constant.PetRedisKey;
 import com.cong.fishisland.constant.TitleConstant;
@@ -56,6 +57,7 @@ public class FishPetServiceImpl extends ServiceImpl<FishPetMapper, FishPet> impl
     private final EventRemindHandler eventRemindHandler;
     private final ItemInstancesService itemInstancesService;
     private final PetEquipForgeMapper petEquipForgeMapper;
+    private final PetForgeProperties petForgeProperties;
 
 
     // 每次喂食增加的饥饿度
@@ -319,6 +321,9 @@ public class FishPetServiceImpl extends ServiceImpl<FishPetMapper, FishPet> impl
         if (forge != null) {
             int level = forge.getEquipLevel() == null ? 0 : forge.getEquipLevel();
             int slot  = forge.getEquipSlot()  == null ? 0 : forge.getEquipSlot();
+            if (!petForgeProperties.includeForgeStatsForSlot(slot)) {
+                return statsVO;
+            }
             applyLevelBonusBySlotToSingle(slot, level, statsVO);
             applyForgeEntryToSingle(forge.getEntry1(), statsVO);
             applyForgeEntryToSingle(forge.getEntry2(), statsVO);
@@ -1271,9 +1276,11 @@ public class FishPetServiceImpl extends ServiceImpl<FishPetMapper, FishPet> impl
             }
             // 复用 PetEquipForgeServiceImpl 的逻辑：按词条和等级累加
             for (PetEquipForge forge : forgeList) {
-                // 装备等级加成（按槽位差异化，非线性成长）
                 int level = forge.getEquipLevel() == null ? 0 : forge.getEquipLevel();
                 int slot  = forge.getEquipSlot()  == null ? 0 : forge.getEquipSlot();
+                if (!petForgeProperties.includeForgeStatsForSlot(slot)) {
+                    continue;
+                }
                 PetEquipForgeServiceImpl.applyLevelBonusBySlot(slot, level, statsVO);
 
                 applyForgeEntry(forge.getEntry1(), statsVO);
