@@ -47,6 +47,8 @@ import java.util.stream.Collectors;
 @Service
 public class ItemInstancesServiceImpl extends ServiceImpl<ItemInstancesMapper, ItemInstances> implements ItemInstancesService {
 
+    private static final String ITEM_CATEGORY_EQUIPMENT = "equipment";
+
     @Resource
     ItemTemplatesService itemTemplatesService;
 
@@ -645,6 +647,10 @@ public class ItemInstancesServiceImpl extends ServiceImpl<ItemInstancesMapper, I
             }
 
             // 稀有度为1或2，且有分解积分
+            if (!StringUtils.equals(template.getCategory(), ITEM_CATEGORY_EQUIPMENT)) {
+                continue;
+            }
+
             Integer rarity = template.getRarity();
             if (rarity != null && (rarity == 1 || rarity == 2)) {
                 long removePoint = template.getRemovePoint() == null ? 0L : template.getRemovePoint().longValue();

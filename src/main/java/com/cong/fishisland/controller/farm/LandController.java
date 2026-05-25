@@ -38,25 +38,25 @@ public class LandController {
         return ResultUtils.success(landService.toDTOList(landService.getLandsByUserId(userId)));
     }
 
-    @PostMapping("/plant")
-    @ApiOperation(value = "批量种植作物")
-    public BaseResponse<List<LandDTO>> plant(@RequestBody PlantRequest request) {
-        List<FarmLand> lands = landService.plantBatch(request.getItems());
-
-        taskService.updateTaskProgress(FarmTaskTypeEnum.PLANT);
-
-        return ResultUtils.success(landService.toDTOList(lands));
-    }
-
-    @PostMapping("/harvest")
-    @ApiOperation(value = "批量收获作物")
-    public BaseResponse<List<LandDTO>> harvest(@RequestBody HarvestRequest request) {
-        List<FarmLand> lands = landService.harvestBatch(request.getLandIds());
-
-        for (int i = 0; i < lands.size(); i++) {
-            taskService.updateTaskProgress(FarmTaskTypeEnum.HARVEST);
-        }
-
-        return ResultUtils.success(landService.toDTOList(lands));
-    }
+//    @PostMapping("/plant")
+//    @ApiOperation(value = "批量种植作物")
+//    public BaseResponse<List<LandDTO>> plant(@RequestBody PlantRequest request) {
+//        List<FarmLand> lands = landService.plantBatch(request.getItems());
+//
+//        taskService.updateTaskProgress(FarmTaskTypeEnum.PLANT);
+//
+//        return ResultUtils.success(landService.toDTOList(lands));
+//    }
+//
+//    @PostMapping("/harvest")
+//    @ApiOperation(value = "批量收获作物")
+//    public BaseResponse<List<LandDTO>> harvest(@RequestBody HarvestRequest request) {
+//        List<FarmLand> lands = landService.harvestBatch(request.getLandIds());
+//
+//        for (int i = 0; i < lands.size(); i++) {
+//            taskService.updateTaskProgress(FarmTaskTypeEnum.HARVEST);
+//        }
+//
+//        return ResultUtils.success(landService.toDTOList(lands));
+//    }
 }

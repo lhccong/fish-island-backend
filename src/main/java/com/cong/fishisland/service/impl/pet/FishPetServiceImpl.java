@@ -58,6 +58,7 @@ public class FishPetServiceImpl extends ServiceImpl<FishPetMapper, FishPet> impl
     private final ItemInstancesService itemInstancesService;
     private final PetEquipForgeMapper petEquipForgeMapper;
     private final PetForgeProperties petForgeProperties;
+    private final ScriptBehaviorDetectService scriptBehaviorDetectService;
 
 
     // 每次喂食增加的饥饿度
@@ -79,6 +80,11 @@ public class FishPetServiceImpl extends ServiceImpl<FishPetMapper, FishPet> impl
     private static final Duration PET_RANK_CACHE_DURATION = Duration.ofHours(24);
     // 默认排行榜数量
     private static final int DEFAULT_RANK_LIMIT = 10;
+
+    // 行为检测：喂食时间戳历史 pet:feed:ts:{userId}
+    private static final String PET_FEED_TS_KEY_PREFIX = "pet:feed:ts:";
+    // 行为检测：抚摸时间戳历史 pet:pat:ts:{userId}
+    private static final String PET_PAT_TS_KEY_PREFIX = "pet:pat:ts:";
 
 
     @Override
@@ -614,6 +620,9 @@ public class FishPetServiceImpl extends ServiceImpl<FishPetMapper, FishPet> impl
         userIds.add(userId.toString());
         batchUpdateOnlineUserPetExp(userIds);
 
+        // 行为检测：固定间隔喂食检测
+        scriptBehaviorDetectService.checkFixedIntervalBehavior(userId, PET_FEED_TS_KEY_PREFIX, "宠物喂食");
+
         // 返回更新后的宠物信息
         PetVO petVO = new PetVO();
         BeanUtils.copyProperties(fishPet, petVO);
@@ -655,6 +664,8 @@ public class FishPetServiceImpl extends ServiceImpl<FishPetMapper, FishPet> impl
             throw new BusinessException(ErrorCode.OPERATION_ERROR, "抚摸失败");
         }
 
+        // 行为检测：固定间隔抚摸检测
+        scriptBehaviorDetectService.checkFixedIntervalBehavior(userId, PET_PAT_TS_KEY_PREFIX, "宠物抚摸");
 
         // 返回更新后的宠物信息
         PetVO petVO = new PetVO();
