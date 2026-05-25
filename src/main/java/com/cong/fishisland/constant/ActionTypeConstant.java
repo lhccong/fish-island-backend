@@ -43,4 +43,9 @@ public interface ActionTypeConstant {
      * 打赏
      */
     String REWARD = "reward";
+
+    /**
+     * 农场偷菜
+     */
+    String FARM_STEAL = "farm_steal";
 }
