@@ -39,6 +39,7 @@ public enum PointsRecordSourceEnum {
     FARM_HARVEST("farm_harvest", "农场收获"),
     FARM_STEAL("farm_steal", "农场偷菜"),
     FARM_STEAL_LOSS("farm_steal_loss", "农场被偷损失"),
+    AI_AVATAR_GENERATE("ai_avatar_generate", "AI分身提示词生成"),
     OTHER("other", "其他");
 
     private final String value;

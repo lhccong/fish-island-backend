@@ -4,8 +4,6 @@ import io.swagger.annotations.ApiModel;
 import io.swagger.annotations.ApiModelProperty;
 import lombok.Data;
 
-import java.time.LocalDateTime;
-
 /**
  * 农场互关好友列表 VO
  */
@@ -28,9 +26,6 @@ public class FarmFriendListVO {
     @ApiModelProperty(value = "好友等级")
     private Integer level;
 
-    @ApiModelProperty(value = "偷菜冷却结束时间（对该好友最近一次偷菜后10分钟内）")
-    private LocalDateTime stealCooldown;
-
-    @ApiModelProperty(value = "是否可以偷菜")
+    @ApiModelProperty(value = "是否可以偷菜（存在至少一块您尚未偷过的可偷土地）")
     private Boolean canSteal;
 }

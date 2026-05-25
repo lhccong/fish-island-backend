@@ -34,9 +34,6 @@ public class LandDTO {
     @ApiModelProperty(value = "是否锁定（0-未锁定，1-已锁定）")
     private Integer locked;
 
-    @ApiModelProperty(value = "是否可以偷菜")
+    @ApiModelProperty(value = "是否可以偷菜（false 表示已偷过、未成熟或无可偷积分）")
     private Boolean canSteal;
-
-    @ApiModelProperty(value = "种植记录ID（用于偷菜接口）")
-    private Long plantRecordId;
 }

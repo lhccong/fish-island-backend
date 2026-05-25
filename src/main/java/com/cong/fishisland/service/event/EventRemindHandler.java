@@ -231,4 +231,25 @@ public class EventRemindHandler {
 
     }
 
+    /**
+     * 异步处理农场被偷菜事件（通知农场主）
+     */
+    @Async("eventRemindExecutor")
+    public void handleFarmSteal(Long stealRecordId, Long landId, Long stealerId, Long ownerId,
+                                String cropName, int stealPoints) {
+        String cropLabel = cropName != null && !cropName.isEmpty() ? cropName : "作物";
+        EventRemind event = new EventRemind();
+        event.setAction(ActionTypeConstant.FARM_STEAL);
+        event.setSourceId(stealRecordId);
+        event.setSourceType(SourceTypeConstant.FARM);
+        event.setSourceContent("偷走了你的「" + cropLabel + "」，损失 " + stealPoints + " 积分");
+        event.setUrl(String.valueOf(landId));
+        event.setSenderId(stealerId);
+        event.setRecipientId(ownerId);
+        event.setRemindTime(new Date());
+        eventRemindService.save(event);
+        log.info("保存农场偷菜事件: stealRecordId={}, landId={}, stealerId={}, ownerId={}",
+                stealRecordId, landId, stealerId, ownerId);
+    }
+
 }

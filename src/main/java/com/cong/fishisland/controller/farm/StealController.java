@@ -26,7 +26,7 @@ public class StealController {
     @ApiOperation(value = "偷菜")
     public BaseResponse<FarmStealRecord> steal(@RequestBody StealRequest request) {
         Long userId = StpUtil.getLoginIdAsLong();
-        FarmStealRecord record = stealService.steal(userId, request.getPlantRecordId());
+        FarmStealRecord record = stealService.steal(userId, request.getLandId());
         if (record == null) {
             throw new BusinessException(ErrorCode.OPERATION_ERROR, "偷菜失败");
         }

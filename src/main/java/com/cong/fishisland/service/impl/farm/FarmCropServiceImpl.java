@@ -60,6 +60,7 @@ public class FarmCropServiceImpl extends ServiceImpl<FarmCropMapper, FarmCrop> i
         dto.setGrowthTime(crop.getGrowthTime());
         dto.setExperience(crop.getExperience());
         dto.setCoin(crop.getCoin());
+        dto.setPrice(crop.getPrice());
         dto.setRarity(crop.getRarity());
         int unlockLevel = crop.getUnlockLevel() != null ? crop.getUnlockLevel() : 1;
         dto.setUnlockLevel(unlockLevel);

@@ -28,6 +28,9 @@ public class FarmStealRecord {
     @ApiModelProperty(value = "农场主人系统用户ID")
     private Long ownerId;
 
+    @ApiModelProperty(value = "地块ID")
+    private Long landId;
+
     @ApiModelProperty(value = "种植记录ID")
     private Long plantRecordId;
 

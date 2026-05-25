@@ -20,4 +20,9 @@ public interface SourceTypeConstant {
      * 朋友圈
      */
     int MOMENTS = 4;
+
+    /**
+     * 农场
+     */
+    int FARM = 5;
 }

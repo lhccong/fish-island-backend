@@ -8,6 +8,6 @@ import lombok.Data;
 @ApiModel(value = "StealRequest", description = "偷菜请求")
 public class StealRequest {
 
-    @ApiModelProperty(value = "种植记录ID", required = true)
-    private Long plantRecordId;
+    @ApiModelProperty(value = "地块ID", required = true)
+    private Long landId;
 }

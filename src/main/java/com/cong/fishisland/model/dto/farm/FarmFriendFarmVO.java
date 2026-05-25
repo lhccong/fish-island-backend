@@ -23,12 +23,9 @@ public class FarmFriendFarmVO {
     @ApiModelProperty(value = "地块列表")
     private List<LandDTO> lands;
 
-    @ApiModelProperty(value = "是否可以偷菜")
+    @ApiModelProperty(value = "是否可以偷菜（存在至少一块可偷土地）")
     private Boolean canSteal;
 
     @ApiModelProperty(value = "最后访问时间")
     private LocalDateTime lastVisitTime;
-
-    @ApiModelProperty(value = "偷菜冷却剩余时间（分钟）")
-    private Integer stealCooldownMinutes;
 }

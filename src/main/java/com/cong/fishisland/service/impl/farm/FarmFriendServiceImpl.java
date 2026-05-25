@@ -6,19 +6,17 @@ import com.cong.fishisland.common.ErrorCode;
 import com.cong.fishisland.common.exception.BusinessException;
 import com.cong.fishisland.mapper.farm.FarmCropMapper;
 import com.cong.fishisland.mapper.farm.FarmLandMapper;
-import com.cong.fishisland.mapper.farm.FarmPlantRecordMapper;
-import com.cong.fishisland.mapper.farm.FarmStealRecordMapper;
 import com.cong.fishisland.mapper.farm.FarmUserMapper;
 import com.cong.fishisland.model.dto.farm.FarmFriendFarmVO;
 import com.cong.fishisland.model.dto.farm.FarmFriendListVO;
 import com.cong.fishisland.model.dto.farm.LandDTO;
-import com.cong.fishisland.model.entity.farm.*;
+import com.cong.fishisland.model.entity.farm.FarmCrop;
+import com.cong.fishisland.model.entity.farm.FarmLand;
+import com.cong.fishisland.model.entity.farm.FarmUser;
 import com.cong.fishisland.model.entity.user.User;
-import com.cong.fishisland.model.enums.farm.FarmConstants;
-import com.cong.fishisland.model.enums.farm.FarmLandStatusEnum;
-import com.cong.fishisland.model.enums.farm.FarmYesNoEnum;
 import com.cong.fishisland.service.FarmFriendService;
 import com.cong.fishisland.service.FarmLandService;
+import com.cong.fishisland.service.FarmStealService;
 import com.cong.fishisland.service.FarmUserService;
 import com.cong.fishisland.service.UserFollowService;
 import com.cong.fishisland.service.UserService;
@@ -26,9 +24,12 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import javax.annotation.Resource;
-import java.time.Duration;
 import java.time.LocalDateTime;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.Objects;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
@@ -48,12 +49,6 @@ public class FarmFriendServiceImpl implements FarmFriendService {
     private FarmLandMapper farmLandMapper;
 
     @Resource
-    private FarmPlantRecordMapper farmPlantRecordMapper;
-
-    @Resource
-    private FarmStealRecordMapper farmStealRecordMapper;
-
-    @Resource
     private FarmUserService farmUserService;
 
     @Resource
@@ -61,6 +56,9 @@ public class FarmFriendServiceImpl implements FarmFriendService {
 
     @Resource
     private UserFollowService userFollowService;
+
+    @Resource
+    private FarmStealService farmStealService;
 
     @Override
     public List<FarmFriendListVO> getFriendsWithStealStatus(Long systemUserId) {
@@ -84,26 +82,7 @@ public class FarmFriendServiceImpl implements FarmFriendService {
 
         List<FarmLand> allLands = farmLandMapper.selectList(new LambdaQueryWrapper<FarmLand>()
                 .in(FarmLand::getUserId, friendUserIds));
-        List<Long> landIds = allLands.stream().map(FarmLand::getId).collect(Collectors.toList());
-        List<FarmPlantRecord> allRecords = landIds.isEmpty()
-                ? Collections.emptyList()
-                : farmPlantRecordMapper.selectList(new LambdaQueryWrapper<FarmPlantRecord>()
-                        .in(FarmPlantRecord::getLandId, landIds));
-        Map<Long, FarmPlantRecord> recordMap = allRecords.stream()
-                .collect(Collectors.toMap(FarmPlantRecord::getLandId, r -> r, (a, b) -> a));
-
-        List<Long> cropIds = allLands.stream()
-                .map(FarmLand::getPlantedCropId)
-                .filter(Objects::nonNull)
-                .distinct()
-                .collect(Collectors.toList());
-        Map<Long, FarmCrop> cropMap = cropIds.isEmpty()
-                ? Collections.emptyMap()
-                : farmCropMapper.selectBatchIds(cropIds).stream()
-                        .collect(Collectors.toMap(FarmCrop::getId, c -> c));
-
-        Map<Long, LocalDateTime> stealCooldownMap = batchStealCooldownEnd(systemUserId, friendUserIds);
-        Map<Long, Boolean> canStealMap = batchCanSteal(systemUserId, friendUserIds, stealCooldownMap, allLands, recordMap, cropMap);
+        Map<Long, Boolean> canStealMap = batchCanSteal(systemUserId, friendUserIds, allLands);
 
         return friendUserIds.stream().map(friendUserId -> {
             FarmFriendListVO vo = new FarmFriendListVO();
@@ -120,7 +99,6 @@ public class FarmFriendServiceImpl implements FarmFriendService {
                 }
             }
 
-            vo.setStealCooldown(stealCooldownMap.get(friendUserId));
             vo.setCanSteal(canStealMap.getOrDefault(friendUserId, false));
             return vo;
         }).collect(Collectors.toList());
@@ -141,11 +119,12 @@ public class FarmFriendServiceImpl implements FarmFriendService {
         if (!isMutualFriend(systemUserId, targetSystemUserId)) {
             return false;
         }
-        LocalDateTime cooldownEnd = getStealCooldownEnd(systemUserId, targetSystemUserId);
-        if (cooldownEnd != null && cooldownEnd.isAfter(LocalDateTime.now())) {
+        List<FarmLand> lands = farmLandMapper.selectList(new LambdaQueryWrapper<FarmLand>()
+                .eq(FarmLand::getUserId, targetSystemUserId));
+        if (CollectionUtils.isEmpty(lands)) {
             return false;
         }
-        return hasStealableLand(targetSystemUserId);
+        return lands.stream().anyMatch(land -> farmStealService.canStealLand(systemUserId, land.getId()));
     }
 
     @Override
@@ -163,16 +142,9 @@ public class FarmFriendServiceImpl implements FarmFriendService {
         farmUserService.incrementVisitedCount(targetSystemUserId);
 
         List<FarmLand> lands = farmLandService.getLandsByUserId(targetSystemUserId);
-        List<LandDTO> landDTOs = convertToLandDTOs(lands);
+        List<LandDTO> landDTOs = convertToLandDTOs(lands, systemUserId);
 
-        boolean canSteal = canSteal(systemUserId, targetSystemUserId);
-
-        LocalDateTime cooldownEnd = getStealCooldownEnd(systemUserId, targetSystemUserId);
-        Integer cooldownMinutes = null;
-        LocalDateTime now = LocalDateTime.now();
-        if (cooldownEnd != null && cooldownEnd.isAfter(now)) {
-            cooldownMinutes = (int) Duration.between(now, cooldownEnd).toMinutes();
-        }
+        boolean canSteal = landDTOs.stream().anyMatch(dto -> Boolean.TRUE.equals(dto.getCanSteal()));
 
         User systemUser = userService.getById(targetSystemUserId);
 
@@ -184,8 +156,7 @@ public class FarmFriendServiceImpl implements FarmFriendService {
         }
         vo.setLands(landDTOs);
         vo.setCanSteal(canSteal);
-        vo.setLastVisitTime(now);
-        vo.setStealCooldownMinutes(cooldownMinutes);
+        vo.setLastVisitTime(LocalDateTime.now());
 
         return vo;
     }
@@ -199,141 +170,33 @@ public class FarmFriendServiceImpl implements FarmFriendService {
         if (farmUser == null) {
             throw new BusinessException(ErrorCode.NOT_FOUND_ERROR, "好友农场用户不存在");
         }
-        return farmLandService.toDTOList(farmLandService.getLandsByUserId(targetSystemUserId));
+        List<FarmLand> lands = farmLandService.getLandsByUserId(targetSystemUserId);
+        return convertToLandDTOs(lands, systemUserId);
     }
 
-    private Map<Long, LocalDateTime> batchStealCooldownEnd(Long stealerUserId, List<Long> friendUserIds) {
-        Map<Long, LocalDateTime> result = new HashMap<>();
+    private Map<Long, Boolean> batchCanSteal(Long stealerUserId, List<Long> friendUserIds, List<FarmLand> allLands) {
+        Map<Long, Boolean> result = new HashMap<>();
         if (CollectionUtils.isEmpty(friendUserIds)) {
             return result;
         }
-        List<FarmStealRecord> records = farmStealRecordMapper.selectList(
-                new LambdaQueryWrapper<FarmStealRecord>()
-                        .eq(FarmStealRecord::getStealerId, stealerUserId)
-                        .in(FarmStealRecord::getOwnerId, friendUserIds)
-                        .orderByDesc(FarmStealRecord::getStolenTime));
-        for (FarmStealRecord record : records) {
-            result.putIfAbsent(record.getOwnerId(),
-                    record.getStolenTime().plusMinutes(FarmConstants.STEAL_COOLDOWN_MINUTES));
-        }
-        return result;
-    }
-
-    private LocalDateTime getStealCooldownEnd(Long stealerUserId, Long ownerUserId) {
-        FarmStealRecord last = farmStealRecordMapper.selectOne(new LambdaQueryWrapper<FarmStealRecord>()
-                .eq(FarmStealRecord::getStealerId, stealerUserId)
-                .eq(FarmStealRecord::getOwnerId, ownerUserId)
-                .orderByDesc(FarmStealRecord::getStolenTime)
-                .last("LIMIT 1"));
-        if (last == null || last.getStolenTime() == null) {
-            return null;
-        }
-        return last.getStolenTime().plusMinutes(FarmConstants.STEAL_COOLDOWN_MINUTES);
-    }
-
-    private Map<Long, Boolean> batchCanSteal(Long stealerUserId, List<Long> friendUserIds,
-                                             Map<Long, LocalDateTime> stealCooldownMap,
-                                             List<FarmLand> allLands,
-                                             Map<Long, FarmPlantRecord> recordMap,
-                                             Map<Long, FarmCrop> cropMap) {
-        Map<Long, Boolean> result = new HashMap<>();
-        LocalDateTime now = LocalDateTime.now();
         Map<Long, List<FarmLand>> landsByFriend = allLands.stream()
                 .collect(Collectors.groupingBy(FarmLand::getUserId));
+        Map<Long, Boolean> canStealByLand = farmStealService.batchCanStealLand(stealerUserId, allLands);
 
         for (Long friendUserId : friendUserIds) {
-            LocalDateTime cooldownEnd = stealCooldownMap.get(friendUserId);
-            if (cooldownEnd != null && cooldownEnd.isAfter(now)) {
+            List<FarmLand> lands = landsByFriend.get(friendUserId);
+            if (CollectionUtils.isEmpty(lands)) {
                 result.put(friendUserId, false);
                 continue;
             }
-            result.put(friendUserId, hasStealableLand(friendUserId, landsByFriend.get(friendUserId), recordMap, cropMap));
+            boolean stealable = lands.stream()
+                    .anyMatch(land -> Boolean.TRUE.equals(canStealByLand.get(land.getId())));
+            result.put(friendUserId, stealable);
         }
         return result;
     }
 
-    private boolean hasStealableLand(Long ownerUserId) {
-        List<FarmLand> lands = farmLandMapper.selectList(new LambdaQueryWrapper<FarmLand>()
-                .eq(FarmLand::getUserId, ownerUserId)
-                .orderByAsc(FarmLand::getLandIndex));
-        return computeStealable(lands);
-    }
-
-    private boolean hasStealableLand(Long ownerUserId, List<FarmLand> lands,
-                                   Map<Long, FarmPlantRecord> recordMap, Map<Long, FarmCrop> cropMap) {
-        if (CollectionUtils.isEmpty(lands)) {
-            return false;
-        }
-        if (!recordMap.isEmpty() || !cropMap.isEmpty()) {
-            return computeStealableWithMaps(lands, recordMap, cropMap);
-        }
-        return computeStealable(lands);
-    }
-
-    private boolean computeStealable(List<FarmLand> lands) {
-        if (CollectionUtils.isEmpty(lands)) {
-            return false;
-        }
-        LocalDateTime now = LocalDateTime.now();
-        for (FarmLand land : lands) {
-            if (!FarmLandStatusEnum.isPlanted(land.getStatus()) || land.getPlantedCropId() == null) {
-                continue;
-            }
-            if (land.getHarvestTime() != null && land.getHarvestTime().isAfter(now)) {
-                continue;
-            }
-            FarmCrop crop = farmCropMapper.selectById(land.getPlantedCropId());
-            if (crop == null) {
-                continue;
-            }
-            FarmPlantRecord record = farmPlantRecordMapper.selectOne(new LambdaQueryWrapper<FarmPlantRecord>()
-                    .eq(FarmPlantRecord::getLandId, land.getId())
-                    .eq(FarmPlantRecord::getHarvested, FarmYesNoEnum.NO.getValue())
-                    .last("LIMIT 1"));
-            if (record == null) {
-                continue;
-            }
-            if (remainingStealable(crop, record) > 0) {
-                return true;
-            }
-        }
-        return false;
-    }
-
-    private boolean computeStealableWithMaps(List<FarmLand> lands,
-                                             Map<Long, FarmPlantRecord> recordMap,
-                                             Map<Long, FarmCrop> cropMap) {
-        LocalDateTime now = LocalDateTime.now();
-        for (FarmLand land : lands) {
-            if (!FarmLandStatusEnum.isPlanted(land.getStatus()) || land.getPlantedCropId() == null) {
-                continue;
-            }
-            if (land.getHarvestTime() != null && land.getHarvestTime().isAfter(now)) {
-                continue;
-            }
-            FarmCrop crop = cropMap.get(land.getPlantedCropId());
-            if (crop == null) {
-                continue;
-            }
-            FarmPlantRecord record = recordMap.get(land.getId());
-            if (record == null) {
-                continue;
-            }
-            if (remainingStealable(crop, record) > 0) {
-                return true;
-            }
-        }
-        return false;
-    }
-
-    private int remainingStealable(FarmCrop crop, FarmPlantRecord record) {
-        int baseReward = record.getPlantedPointsReward() != null ? record.getPlantedPointsReward() : crop.getCoin();
-        int currentStolenPoints = record.getStolenPoints() != null ? record.getStolenPoints() : 0;
-        int minReward = crop.getPrice() != null ? crop.getPrice() : 0;
-        return (baseReward - minReward) - currentStolenPoints;
-    }
-
-    private List<LandDTO> convertToLandDTOs(List<FarmLand> lands) {
+    private List<LandDTO> convertToLandDTOs(List<FarmLand> lands, Long stealerUserId) {
         if (CollectionUtils.isEmpty(lands)) {
             return new ArrayList<>();
         }
@@ -349,11 +212,7 @@ public class FarmFriendServiceImpl implements FarmFriendService {
                 : farmCropMapper.selectBatchIds(cropIds).stream()
                         .collect(Collectors.toMap(FarmCrop::getId, Function.identity()));
 
-        List<Long> landIds = lands.stream().map(FarmLand::getId).collect(Collectors.toList());
-        List<FarmPlantRecord> records = farmPlantRecordMapper.selectList(new LambdaQueryWrapper<FarmPlantRecord>()
-                .in(FarmPlantRecord::getLandId, landIds));
-        Map<Long, FarmPlantRecord> recordMap = records.stream()
-                .collect(Collectors.toMap(FarmPlantRecord::getLandId, r -> r, (a, b) -> a));
+        Map<Long, Boolean> canStealByLand = farmStealService.batchCanStealLand(stealerUserId, lands);
 
         return lands.stream().map(land -> {
             LandDTO dto = new LandDTO();
@@ -370,42 +229,11 @@ public class FarmFriendServiceImpl implements FarmFriendService {
                 if (crop != null) {
                     dto.setCropName(crop.getName());
                 }
-                FarmPlantRecord record = recordMap.get(land.getId());
-                if (record != null) {
-                    dto.setPlantRecordId(record.getId());
-                }
             }
 
-            dto.setCanSteal(canStealLand(land, cropMap, recordMap));
+            dto.setCanSteal(canStealByLand.getOrDefault(land.getId(), false));
+
             return dto;
         }).collect(Collectors.toList());
-    }
-
-    private boolean canStealLand(FarmLand land, Map<Long, FarmCrop> cropMap, Map<Long, FarmPlantRecord> recordMap) {
-        if (!FarmLandStatusEnum.isPlanted(land.getStatus()) || land.getPlantedCropId() == null) {
-            return false;
-        }
-        LocalDateTime now = LocalDateTime.now();
-        if (land.getHarvestTime() != null && land.getHarvestTime().isAfter(now)) {
-            return false;
-        }
-        FarmCrop crop = cropMap.get(land.getPlantedCropId());
-        if (crop == null) {
-            crop = farmCropMapper.selectById(land.getPlantedCropId());
-        }
-        if (crop == null) {
-            return false;
-        }
-        FarmPlantRecord record = recordMap.get(land.getId());
-        if (record == null) {
-            record = farmPlantRecordMapper.selectOne(new LambdaQueryWrapper<FarmPlantRecord>()
-                    .eq(FarmPlantRecord::getLandId, land.getId())
-                    .eq(FarmPlantRecord::getHarvested, FarmYesNoEnum.NO.getValue())
-                    .last("LIMIT 1"));
-        }
-        if (record == null) {
-            return false;
-        }
-        return remainingStealable(crop, record) > 0;
     }
 }

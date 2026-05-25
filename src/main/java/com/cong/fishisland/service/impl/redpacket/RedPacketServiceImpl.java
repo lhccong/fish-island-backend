@@ -561,5 +561,4 @@ public class RedPacketServiceImpl implements RedPacketService {
         roomMessage.setMessageId(result.getMessage().getId());
         roomMessageService.save(roomMessage);
     }
-} 
-} 
+}

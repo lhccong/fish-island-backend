@@ -26,6 +26,9 @@ public class CropDTO {
     @ApiModelProperty(value = "收获积分")
     private Integer coin;
 
+    @ApiModelProperty(value = "购买价格（积分）")
+    private Integer price;
+
     @ApiModelProperty(value = "稀有度")
     private Integer rarity;
 

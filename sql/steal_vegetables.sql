@@ -140,13 +140,15 @@ CREATE TABLE `farm_steal_record`
     `id`            bigint NOT NULL AUTO_INCREMENT COMMENT '偷取记录ID',
     `stealerId`     bigint NOT NULL COMMENT '偷取者ID',
     `ownerId`       bigint NOT NULL COMMENT '被偷者ID',
+    `landId`        bigint       DEFAULT NULL COMMENT '地块ID',
     `plantRecordId` bigint NOT NULL COMMENT '种植记录ID',
     `cropId`        bigint NOT NULL COMMENT '作物ID',
     `stolenTime`    datetime DEFAULT CURRENT_TIMESTAMP COMMENT '偷取时间',
     `coinGained`    int      DEFAULT '0' COMMENT '获得积分',
     PRIMARY KEY (`id`),
     KEY `idx_stealer_id` (`stealerId`),
-    KEY `idx_owner_id` (`ownerId`)
+    KEY `idx_owner_id` (`ownerId`),
+    KEY `idx_stealer_land` (`stealerId`, `landId`)
 ) ENGINE = InnoDB
   AUTO_INCREMENT = 3
   DEFAULT CHARSET = utf8mb4
