@@ -9,7 +9,13 @@ import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
 
 import javax.annotation.Resource;
+import java.util.ArrayList;
+import java.util.Collections;
 import java.util.Date;
+import java.util.LinkedHashSet;
+import java.util.List;
+import java.util.Set;
+import java.util.stream.Collectors;
 
 /**
  * 事件提醒处理服务
@@ -237,19 +243,91 @@ public class EventRemindHandler {
     @Async("eventRemindExecutor")
     public void handleFarmSteal(Long stealRecordId, Long landId, Long stealerId, Long ownerId,
                                 String cropName, int stealPoints) {
-        String cropLabel = cropName != null && !cropName.isEmpty() ? cropName : "作物";
+        FarmStealNotifyItem item = new FarmStealNotifyItem(stealRecordId, landId, cropName, stealPoints);
+        handleFarmStealBatch(stealerId, ownerId, Collections.singletonList(item));
+    }
+
+    /**
+     * 异步处理农场被偷菜事件（同一农场主多条记录合并为一条通知）
+     */
+    @Async("eventRemindExecutor")
+    public void handleFarmStealBatch(Long stealerId, Long ownerId, List<FarmStealNotifyItem> items) {
+        if (items == null || items.isEmpty()) {
+            return;
+        }
+
+        int totalPoints = items.stream().mapToInt(FarmStealNotifyItem::getStealPoints).sum();
+        int landCount = items.size();
+
+        Set<String> cropLabels = new LinkedHashSet<>();
+        for (FarmStealNotifyItem item : items) {
+            String cropName = item.getCropName();
+            cropLabels.add(cropName != null && !cropName.isEmpty() ? cropName : "作物");
+        }
+
+        String sourceContent = buildFarmStealSourceContent(cropLabels, landCount, totalPoints);
+        String landIdsUrl = items.stream()
+                .map(item -> String.valueOf(item.getLandId()))
+                .collect(Collectors.joining(","));
+
         EventRemind event = new EventRemind();
         event.setAction(ActionTypeConstant.FARM_STEAL);
-        event.setSourceId(stealRecordId);
+        event.setSourceId(items.get(0).getStealRecordId());
         event.setSourceType(SourceTypeConstant.FARM);
-        event.setSourceContent("偷走了你的「" + cropLabel + "」，损失 " + stealPoints + " 积分");
-        event.setUrl(String.valueOf(landId));
+        event.setSourceContent(sourceContent);
+        event.setUrl(landIdsUrl);
         event.setSenderId(stealerId);
         event.setRecipientId(ownerId);
         event.setRemindTime(new Date());
         eventRemindService.save(event);
-        log.info("保存农场偷菜事件: stealRecordId={}, landId={}, stealerId={}, ownerId={}",
-                stealRecordId, landId, stealerId, ownerId);
+        log.info("保存农场偷菜事件: stealRecordId={}, landIds={}, stealerId={}, ownerId={}, landCount={}",
+                items.get(0).getStealRecordId(), landIdsUrl, stealerId, ownerId, landCount);
+    }
+
+    private static String buildFarmStealSourceContent(Set<String> cropLabels, int landCount, int totalPoints) {
+        List<String> labels = new ArrayList<>(cropLabels);
+        if (labels.size() == 1) {
+            String cropPart = "「" + labels.get(0) + "」";
+            if (landCount > 1) {
+                return "偷走了你的" + cropPart + "等" + landCount + "块地，损失 " + totalPoints + " 积分";
+            }
+            return "偷走了你的" + cropPart + "，损失 " + totalPoints + " 积分";
+        }
+        String cropPart = labels.stream().map(name -> "「" + name + "」").collect(Collectors.joining(""));
+        return "偷走了你的" + cropPart + "等" + landCount + "块地，损失 " + totalPoints + " 积分";
+    }
+
+    /**
+     * 农场偷菜通知条目
+     */
+    public static class FarmStealNotifyItem {
+        private final Long stealRecordId;
+        private final Long landId;
+        private final String cropName;
+        private final int stealPoints;
+
+        public FarmStealNotifyItem(Long stealRecordId, Long landId, String cropName, int stealPoints) {
+            this.stealRecordId = stealRecordId;
+            this.landId = landId;
+            this.cropName = cropName;
+            this.stealPoints = stealPoints;
+        }
+
+        public Long getStealRecordId() {
+            return stealRecordId;
+        }
+
+        public Long getLandId() {
+            return landId;
+        }
+
+        public String getCropName() {
+            return cropName;
+        }
+
+        public int getStealPoints() {
+            return stealPoints;
+        }
     }
 
 }

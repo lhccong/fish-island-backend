@@ -26,6 +26,15 @@ public interface FarmStealService {
     FarmStealRecord steal(Long stealerId, Long landId);
 
     /**
+     * 批量偷取指定地块上的成熟作物；同一农场主的通知会合并后统一保存。
+     *
+     * @param stealerId 偷菜者的系统用户 ID
+     * @param landIds   地块 ID 列表
+     * @return 偷菜记录列表
+     */
+    List<FarmStealRecord> stealBatch(Long stealerId, List<Long> landIds);
+
+    /**
      * 判断指定偷菜者是否可偷该地块（每人每地块当前作物仅可偷一次）。
      */
     boolean canStealLand(Long stealerId, Long landId);

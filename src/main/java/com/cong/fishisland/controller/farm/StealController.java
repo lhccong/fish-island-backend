@@ -7,12 +7,14 @@ import com.cong.fishisland.common.ResultUtils;
 import com.cong.fishisland.common.exception.BusinessException;
 import com.cong.fishisland.model.dto.farm.FarmStealRecordVO;
 import com.cong.fishisland.model.dto.farm.request.StealRequest;
+import com.baomidou.mybatisplus.core.toolkit.CollectionUtils;
 import com.cong.fishisland.model.entity.farm.FarmStealRecord;
 import com.cong.fishisland.service.FarmStealService;
 import io.swagger.annotations.ApiOperation;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.*;
 
+import java.util.Collections;
 import java.util.List;
 
 @RestController
@@ -23,14 +25,25 @@ public class StealController {
     private FarmStealService stealService;
 
     @PostMapping
-    @ApiOperation(value = "偷菜")
-    public BaseResponse<FarmStealRecord> steal(@RequestBody StealRequest request) {
+    @ApiOperation(value = "偷菜（支持批量）")
+    public BaseResponse<List<FarmStealRecord>> steal(@RequestBody StealRequest request) {
         Long userId = StpUtil.getLoginIdAsLong();
-        FarmStealRecord record = stealService.steal(userId, request.getLandId());
-        if (record == null) {
+        List<Long> landIds = resolveLandIds(request);
+        List<FarmStealRecord> records = stealService.stealBatch(userId, landIds);
+        if (CollectionUtils.isEmpty(records)) {
             throw new BusinessException(ErrorCode.OPERATION_ERROR, "偷菜失败");
         }
-        return ResultUtils.success(record);
+        return ResultUtils.success(records);
+    }
+
+    private List<Long> resolveLandIds(StealRequest request) {
+        if (CollectionUtils.isNotEmpty(request.getLandIds())) {
+            return request.getLandIds();
+        }
+        if (request.getLandId() != null) {
+            return Collections.singletonList(request.getLandId());
+        }
+        throw new BusinessException(ErrorCode.PARAMS_ERROR, "地块ID不能为空");
     }
 
     @GetMapping("/my-stolen")

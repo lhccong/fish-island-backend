@@ -81,8 +81,8 @@ public class FishPetServiceImpl extends ServiceImpl<FishPetMapper, FishPet> impl
     // 默认排行榜数量
     private static final int DEFAULT_RANK_LIMIT = 10;
 
-    // 行为检测：喂食时间戳历史 pet:feed:ts:{userId}
-    private static final String PET_FEED_TS_KEY_PREFIX = "pet:feed:ts:";
+    // 行为检测：喂食时间戳历史 pet:feed:ts:{userId}（暂时关闭）
+    // private static final String PET_FEED_TS_KEY_PREFIX = "pet:feed:ts:";
     // 行为检测：抚摸时间戳历史 pet:pat:ts:{userId}
     private static final String PET_PAT_TS_KEY_PREFIX = "pet:pat:ts:";
 
@@ -620,8 +620,8 @@ public class FishPetServiceImpl extends ServiceImpl<FishPetMapper, FishPet> impl
         userIds.add(userId.toString());
         batchUpdateOnlineUserPetExp(userIds);
 
-        // 行为检测：固定间隔喂食检测
-        scriptBehaviorDetectService.checkFixedIntervalBehavior(userId, PET_FEED_TS_KEY_PREFIX, "宠物喂食");
+        // 行为检测：固定间隔喂食检测（暂时关闭）
+        // scriptBehaviorDetectService.checkFixedIntervalBehavior(userId, PET_FEED_TS_KEY_PREFIX, "宠物喂食");
 
         // 返回更新后的宠物信息
         PetVO petVO = new PetVO();

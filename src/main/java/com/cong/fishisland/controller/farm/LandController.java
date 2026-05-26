@@ -27,14 +27,11 @@ public class LandController {
     @Autowired
     private FarmTaskService taskService;
 
-    @Autowired
-    private FarmUserService farmUserService;
 
     @GetMapping("/my")
     @ApiOperation(value = "获取我的地块列表")
     public BaseResponse<List<LandDTO>> getMyLands() {
         Long userId = StpUtil.getLoginIdAsLong();
-        farmUserService.getOrCreateFarmUser(userId);
         return ResultUtils.success(landService.toDTOList(landService.getLandsByUserId(userId)));
     }
 

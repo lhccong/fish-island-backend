@@ -148,7 +148,8 @@ CREATE TABLE `farm_steal_record`
     PRIMARY KEY (`id`),
     KEY `idx_stealer_id` (`stealerId`),
     KEY `idx_owner_id` (`ownerId`),
-    KEY `idx_stealer_land` (`stealerId`, `landId`)
+    KEY `idx_stealer_land` (`stealerId`, `landId`),
+    UNIQUE KEY `uk_stealer_plant_record` (`stealerId`, `plantRecordId`)
 ) ENGINE = InnoDB
   AUTO_INCREMENT = 3
   DEFAULT CHARSET = utf8mb4

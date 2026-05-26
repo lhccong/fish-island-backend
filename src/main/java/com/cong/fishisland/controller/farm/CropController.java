@@ -5,7 +5,6 @@ import com.cong.fishisland.common.BaseResponse;
 import com.cong.fishisland.common.ErrorCode;
 import com.cong.fishisland.common.ResultUtils;
 import com.cong.fishisland.common.exception.BusinessException;
-import cn.dev33.satoken.stp.StpUtil;
 import com.cong.fishisland.model.dto.farm.CropCategoryVO;
 import com.cong.fishisland.model.dto.farm.CropDTO;
 import com.cong.fishisland.model.enums.farm.FarmCropCategoryEnum;
@@ -57,7 +56,7 @@ public class CropController {
     }
 
     private int getCurrentFarmLevel() {
-        FarmUser farmUser = farmUserService.getOrCreateFarmUser();
+        FarmUser farmUser = farmUserService.getFarmUser();
         return farmUser.getLevel() != null ? farmUser.getLevel() : 1;
     }
 

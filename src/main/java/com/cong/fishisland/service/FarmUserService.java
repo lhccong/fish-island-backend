@@ -32,7 +32,7 @@ public interface FarmUserService extends IService<FarmUser> {
      *
      * @return 农场用户
      */
-    FarmUser getOrCreateFarmUser();
+    FarmUser getFarmUser();
 
     /**
      * 获取或创建指定系统用户的农场用户。
@@ -41,6 +41,8 @@ public interface FarmUserService extends IService<FarmUser> {
      * @return 农场用户
      */
     FarmUser getOrCreateFarmUser(Long userId);
+
+    FarmUser getFarmUser(Long systemUserId);
 
     /**
      * 获取或创建农场用户，并转换为 VO（含系统用户昵称、头像）。
@@ -76,7 +78,7 @@ public interface FarmUserService extends IService<FarmUser> {
     boolean addExperience(Long userId, Integer exp);
 
     /**
-     * 根据累计经验计算等级（每 100 经验升 1 级，最低 1 级）。
+     * 根据累计经验计算等级（递增门槛，见 {@link com.cong.fishisland.model.enums.farm.FarmConstants}）。
      *
      * @param experience 累计经验
      * @return 等级

@@ -6,6 +6,7 @@ import com.cong.fishisland.mapper.farm.FarmUserMapper;
 import com.cong.fishisland.model.dto.farm.FarmUserVO;
 import com.cong.fishisland.model.entity.farm.FarmUser;
 import com.cong.fishisland.model.entity.user.User;
+import com.cong.fishisland.model.enums.farm.FarmConstants;
 import com.cong.fishisland.model.enums.farm.FarmUserStatusEnum;
 import com.cong.fishisland.service.FarmUserService;
 import com.cong.fishisland.service.UserService;
@@ -60,8 +61,8 @@ public class FarmUserServiceImpl extends ServiceImpl<FarmUserMapper, FarmUser> i
 
     @Override
     @Transactional(rollbackFor = Exception.class)
-    public FarmUser getOrCreateFarmUser() {
-        return getOrCreateFarmUser(StpUtil.getLoginIdAsLong());
+    public FarmUser getFarmUser() {
+        return getFarmUser(StpUtil.getLoginIdAsLong());
     }
 
     @Override
@@ -71,6 +72,18 @@ public class FarmUserServiceImpl extends ServiceImpl<FarmUserMapper, FarmUser> i
         if (farmUser == null) {
             return createFarmUser(systemUserId);
         }
+        syncLevelIfNeeded(farmUser);
+        return farmUser;
+    }
+
+    @Transactional(rollbackFor = Exception.class)
+    @Override
+    public FarmUser getFarmUser(Long systemUserId) {
+        FarmUser farmUser = getFarmUserByUserId(systemUserId);
+        if (farmUser == null) {
+            return createFarmUser(systemUserId);
+        }
+        syncLevelIfNeeded(farmUser);
         return farmUser;
     }
 
@@ -115,10 +128,7 @@ public class FarmUserServiceImpl extends ServiceImpl<FarmUserMapper, FarmUser> i
         if (result > 0) {
             FarmUser farmUser = getById(userId);
             if (farmUser != null) {
-                int newLevel = calculateLevel(farmUser.getExperience());
-                if (newLevel > farmUser.getLevel()) {
-                    baseMapper.updateLevel(userId, newLevel);
-                }
+                syncLevelIfNeeded(farmUser);
             }
             return true;
         }
@@ -127,10 +137,15 @@ public class FarmUserServiceImpl extends ServiceImpl<FarmUserMapper, FarmUser> i
 
     @Override
     public int calculateLevel(Integer experience) {
-        if (experience == null || experience < 0) {
-            return 1;
+        return FarmConstants.calculateLevel(experience);
+    }
+
+    private void syncLevelIfNeeded(FarmUser farmUser) {
+        int newLevel = calculateLevel(farmUser.getExperience());
+        if (newLevel > farmUser.getLevel()) {
+            baseMapper.updateLevel(farmUser.getUserId(), newLevel);
+            farmUser.setLevel(newLevel);
         }
-        return (experience / 100) + 1;
     }
 
     @Override

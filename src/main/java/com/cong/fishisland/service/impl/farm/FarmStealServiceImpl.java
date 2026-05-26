@@ -16,8 +16,10 @@ import com.cong.fishisland.model.enums.farm.FarmConstants;
 import com.cong.fishisland.model.enums.farm.FarmLandStatusEnum;
 import com.cong.fishisland.model.enums.farm.FarmTaskTypeEnum;
 import com.cong.fishisland.model.enums.farm.FarmYesNoEnum;
+import com.cong.fishisland.model.enums.user.PointsRecordSourceEnum;
 import com.cong.fishisland.service.*;
 import com.cong.fishisland.service.event.EventRemindHandler;
+import com.cong.fishisland.service.event.EventRemindHandler.FarmStealNotifyItem;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -67,9 +69,59 @@ public class FarmStealServiceImpl implements FarmStealService {
     @Autowired
     private EventRemindHandler eventRemindHandler;
 
+    @Autowired
+    private UserPointsService userPointsService;
+
     @Override
     @Transactional(rollbackFor = Exception.class)
     public FarmStealRecord steal(Long stealerId, Long landId) {
+        List<FarmStealRecord> records = stealBatch(stealerId, Collections.singletonList(landId));
+        return records.get(0);
+    }
+
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public List<FarmStealRecord> stealBatch(Long stealerId, List<Long> landIds) {
+        if (CollectionUtils.isEmpty(landIds)) {
+            throw new BusinessException(ErrorCode.PARAMS_ERROR, "偷菜列表不能为空");
+        }
+        if (landIds.size() > FarmConstants.LAND_TOTAL_COUNT) {
+            throw new BusinessException(ErrorCode.PARAMS_ERROR, "单次最多偷" + FarmConstants.LAND_TOTAL_COUNT + "块地");
+        }
+
+        Set<Long> landIdSet = new HashSet<>();
+        for (Long landId : landIds) {
+            if (landId == null) {
+                throw new BusinessException(ErrorCode.PARAMS_ERROR, "地块ID不能为空");
+            }
+            if (!landIdSet.add(landId)) {
+                throw new BusinessException(ErrorCode.PARAMS_ERROR, "存在重复的地块，无法重复偷取");
+            }
+        }
+
+        List<StealOutcome> outcomes = new ArrayList<>(landIds.size());
+        for (Long landId : landIds) {
+            outcomes.add(stealOneLand(stealerId, landId));
+        }
+
+        Map<Long, List<FarmStealNotifyItem>> notifyItemsByOwner = new HashMap<>();
+        for (StealOutcome outcome : outcomes) {
+            notifyItemsByOwner
+                    .computeIfAbsent(outcome.ownerId, ignored -> new ArrayList<>())
+                    .add(new FarmStealNotifyItem(
+                            outcome.record.getId(),
+                            outcome.landId,
+                            outcome.cropName,
+                            outcome.stealPoints));
+        }
+        for (Map.Entry<Long, List<FarmStealNotifyItem>> entry : notifyItemsByOwner.entrySet()) {
+            eventRemindHandler.handleFarmStealBatch(stealerId, entry.getKey(), entry.getValue());
+        }
+
+        return outcomes.stream().map(outcome -> outcome.record).collect(Collectors.toList());
+    }
+
+    private StealOutcome stealOneLand(Long stealerId, Long landId) {
         FarmLand land = landMapper.selectById(landId);
         if (land == null) {
             throw new BusinessException(ErrorCode.NOT_FOUND_ERROR, "地块不存在");
@@ -111,9 +163,16 @@ public class FarmStealServiceImpl implements FarmStealService {
             throw new BusinessException(ErrorCode.OPERATION_ERROR, "只能偷互相关注用户的作物");
         }
 
-        int baseReward = plantRecord.getPlantedPointsReward() != null ? plantRecord.getPlantedPointsReward() : crop.getCoin();
+        int baseReward = resolveBaseReward(plantRecord, crop);
         int currentStolenPoints = plantRecord.getStolenPoints() != null ? plantRecord.getStolenPoints() : 0;
         int stealPoints = calcStealPoints(crop, baseReward, currentStolenPoints);
+        int minReward = crop.getPrice() != null ? crop.getPrice() : 0;
+
+        int updated = plantRecordMapper.incrementStolenPointsIfAllowed(
+                plantRecord.getId(), stealPoints, baseReward, minReward);
+        if (updated <= 0) {
+            throw new BusinessException(ErrorCode.OPERATION_ERROR, "该地块已无可偷积分");
+        }
 
         FarmStealRecord stealRecord = new FarmStealRecord();
         stealRecord.setStealerId(stealerId);
@@ -125,11 +184,11 @@ public class FarmStealServiceImpl implements FarmStealService {
         stealRecord.setCoinGained(stealPoints);
         stealRecordMapper.insert(stealRecord);
 
-        plantRecord.setStolenCount(plantRecord.getStolenCount() + 1);
-        plantRecord.setStolenPoints(currentStolenPoints + stealPoints);
-        plantRecordMapper.updateById(plantRecord);
-
-        // TODO: 偷菜成功后为偷取者发放积分（更新用户积分并记录 FARM_STEAL 流水）
+        String cropName = crop.getName() != null ? crop.getName() : "作物";
+        userPointsService.updateUsedPoints(stealerId, -stealPoints,
+                PointsRecordSourceEnum.FARM_STEAL.getValue(),
+                stealRecord.getId().toString(),
+                "农场偷菜-" + cropName);
 
         rankingService.updateStealCountRanking(stealerId);
 
@@ -138,15 +197,23 @@ public class FarmStealServiceImpl implements FarmStealService {
 
         farmTaskService.updateTaskProgress(FarmTaskTypeEnum.STEAL);
 
-        eventRemindHandler.handleFarmSteal(
-                stealRecord.getId(),
-                landId,
-                stealerId,
-                ownerId,
-                crop.getName(),
-                stealPoints);
+        return new StealOutcome(stealRecord, landId, ownerId, cropName, stealPoints);
+    }
 
-        return stealRecord;
+    private static final class StealOutcome {
+        private final FarmStealRecord record;
+        private final Long landId;
+        private final Long ownerId;
+        private final String cropName;
+        private final int stealPoints;
+
+        private StealOutcome(FarmStealRecord record, Long landId, Long ownerId, String cropName, int stealPoints) {
+            this.record = record;
+            this.landId = landId;
+            this.ownerId = ownerId;
+            this.cropName = cropName;
+            this.stealPoints = stealPoints;
+        }
     }
 
     /**
@@ -164,10 +231,17 @@ public class FarmStealServiceImpl implements FarmStealService {
     }
 
     static int remainingStealablePoints(FarmCrop crop, FarmPlantRecord record) {
-        int baseReward = record.getPlantedPointsReward() != null ? record.getPlantedPointsReward() : crop.getCoin();
+        int baseReward = resolveBaseReward(record, crop);
         int currentStolenPoints = record.getStolenPoints() != null ? record.getStolenPoints() : 0;
         int minReward = crop.getPrice() != null ? crop.getPrice() : 0;
         return (baseReward - minReward) - currentStolenPoints;
+    }
+
+    private static int resolveBaseReward(FarmPlantRecord record, FarmCrop crop) {
+        if (record.getPlantedPointsReward() != null) {
+            return record.getPlantedPointsReward();
+        }
+        return crop.getCoin() != null ? crop.getCoin() : 0;
     }
 
     private boolean hasStolenLandCrop(Long stealerId, Long landId, Long plantRecordId) {
