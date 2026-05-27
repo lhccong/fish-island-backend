@@ -401,6 +401,11 @@ public class FarmStealServiceImpl implements FarmStealService {
 
     @Override
     public List<FarmStealRecordVO> getStealRecordsByOwner(Long ownerId) {
-        return stealRecordMapper.selectStealRecordsWithStealerInfo(ownerId);
+        return stealRecordMapper.selectStealRecordsWithStealerInfo(ownerId, FarmConstants.STEAL_RECORD_LIST_LIMIT);
+    }
+
+    @Override
+    public void markAllStealRecordsAsRead(Long ownerId) {
+        stealRecordMapper.markAllAsReadByOwnerId(ownerId);
     }
 }

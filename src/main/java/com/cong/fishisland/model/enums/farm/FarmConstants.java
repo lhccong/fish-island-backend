@@ -11,6 +11,9 @@ public final class FarmConstants {
     /** 单次偷菜最多获得积分 */
     public static final int MAX_STEAL_POINTS_PER_ACTION = 1;
 
+    /** 偷菜记录列表固定返回条数 */
+    public static final int STEAL_RECORD_LIST_LIMIT = 50;
+
     /** 每位用户地块总数 */
     public static final int LAND_TOTAL_COUNT = 24;
 

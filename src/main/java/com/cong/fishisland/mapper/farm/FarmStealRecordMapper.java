@@ -11,5 +11,8 @@ import java.util.List;
 @Mapper
 public interface FarmStealRecordMapper extends BaseMapper<FarmStealRecord> {
 
-    List<FarmStealRecordVO> selectStealRecordsWithStealerInfo(@Param("ownerId") Long ownerId);
+    List<FarmStealRecordVO> selectStealRecordsWithStealerInfo(@Param("ownerId") Long ownerId,
+                                                              @Param("limit") int limit);
+
+    int markAllAsReadByOwnerId(@Param("ownerId") Long ownerId);
 }

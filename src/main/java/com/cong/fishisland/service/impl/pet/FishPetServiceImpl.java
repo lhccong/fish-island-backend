@@ -665,7 +665,7 @@ public class FishPetServiceImpl extends ServiceImpl<FishPetMapper, FishPet> impl
         }
 
         // 行为检测：固定间隔抚摸检测
-        scriptBehaviorDetectService.checkFixedIntervalBehavior(userId, PET_PAT_TS_KEY_PREFIX, "宠物抚摸");
+//        scriptBehaviorDetectService.checkFixedIntervalBehavior(userId, PET_PAT_TS_KEY_PREFIX, "宠物抚摸");
 
         // 返回更新后的宠物信息
         PetVO petVO = new PetVO();

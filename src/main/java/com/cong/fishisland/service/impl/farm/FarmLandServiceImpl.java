@@ -369,7 +369,8 @@ public class FarmLandServiceImpl extends ServiceImpl<FarmLandMapper, FarmLand> i
         LandDTO dto = new LandDTO();
         dto.setId(land.getId());
         dto.setLandIndex(land.getLandIndex());
-        dto.setStatus(land.getStatus());
+        dto.setStatus(FarmLandStatusEnum.resolveDisplayStatus(
+                land.getStatus(), land.getHarvestTime(), LocalDateTime.now()));
         dto.setPlantedCropId(land.getPlantedCropId());
         dto.setPlantedTime(land.getPlantedTime());
         dto.setHarvestTime(land.getHarvestTime());

@@ -43,4 +43,7 @@ public class FarmStealRecordVO {
 
     @ApiModelProperty(value = "作物名称")
     private String cropName;
+
+    @ApiModelProperty(value = "是否已读(0-未读、1-已读)")
+    private Integer isRead;
 }

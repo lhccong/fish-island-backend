@@ -82,4 +82,11 @@ public interface FarmStealService {
      * @return 偷菜记录 VO 列表
      */
     List<FarmStealRecordVO> getStealRecordsByOwner(Long ownerId);
+
+    /**
+     * 将指定用户作为被偷者的偷菜记录一键标记为已读。
+     *
+     * @param ownerId 农场主的系统用户 ID
+     */
+    void markAllStealRecordsAsRead(Long ownerId);
 }

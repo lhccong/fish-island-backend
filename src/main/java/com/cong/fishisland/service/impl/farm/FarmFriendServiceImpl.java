@@ -14,6 +14,7 @@ import com.cong.fishisland.model.entity.farm.FarmCrop;
 import com.cong.fishisland.model.entity.farm.FarmLand;
 import com.cong.fishisland.model.entity.farm.FarmUser;
 import com.cong.fishisland.model.entity.user.User;
+import com.cong.fishisland.model.enums.farm.FarmLandStatusEnum;
 import com.cong.fishisland.service.FarmFriendService;
 import com.cong.fishisland.service.FarmLandService;
 import com.cong.fishisland.service.FarmStealService;
@@ -213,12 +214,14 @@ public class FarmFriendServiceImpl implements FarmFriendService {
                         .collect(Collectors.toMap(FarmCrop::getId, Function.identity()));
 
         Map<Long, Boolean> canStealByLand = farmStealService.batchCanStealLand(stealerUserId, lands);
+        LocalDateTime now = LocalDateTime.now();
 
         return lands.stream().map(land -> {
             LandDTO dto = new LandDTO();
             dto.setId(land.getId());
             dto.setLandIndex(land.getLandIndex());
-            dto.setStatus(land.getStatus());
+            dto.setStatus(FarmLandStatusEnum.resolveDisplayStatus(
+                    land.getStatus(), land.getHarvestTime(), now));
             dto.setPlantedCropId(land.getPlantedCropId());
             dto.setPlantedTime(land.getPlantedTime());
             dto.setHarvestTime(land.getHarvestTime());

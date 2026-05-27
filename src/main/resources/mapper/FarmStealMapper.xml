@@ -9,6 +9,7 @@
                fsr.cropId         AS cropId,
                fsr.stolenTime     AS stolenTime,
                fsr.coinGained     AS coinGained,
+               fsr.isRead         AS isRead,
                u.userName          AS stealerNickname,
                u.userAvatar        AS stealerAvatar,
                fc.name             AS cropName
@@ -17,6 +18,14 @@
                  LEFT JOIN farm_crop fc ON fsr.cropId = fc.id
         WHERE fsr.ownerId = #{ownerId}
         ORDER BY fsr.stolenTime DESC
+        LIMIT #{limit}
     </select>
+
+    <update id="markAllAsReadByOwnerId">
+        UPDATE farm_steal_record
+        SET isRead = 1
+        WHERE ownerId = #{ownerId}
+          AND isRead = 0
+    </update>
 
 </mapper>

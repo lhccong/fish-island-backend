@@ -42,4 +42,7 @@ public class FarmStealRecord {
 
     @ApiModelProperty(value = "获得的积分")
     private Integer coinGained = 0;
+
+    @ApiModelProperty(value = "是否已读(0-未读、1-已读)")
+    private Integer isRead = 0;
 }

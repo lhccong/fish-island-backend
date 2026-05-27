@@ -53,4 +53,12 @@ public class StealController {
         List<FarmStealRecordVO> records = stealService.getStealRecordsByOwner(userId);
         return ResultUtils.success(records);
     }
+
+    @PostMapping("/my-stolen/read-all")
+    @ApiOperation(value = "偷菜记录一键已读")
+    public BaseResponse<Boolean> markAllStolenRecordsAsRead() {
+        Long userId = StpUtil.getLoginIdAsLong();
+        stealService.markAllStealRecordsAsRead(userId);
+        return ResultUtils.success(true);
+    }
 }
