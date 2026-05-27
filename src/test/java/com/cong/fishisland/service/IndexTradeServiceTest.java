@@ -66,6 +66,29 @@ class IndexTradeServiceTest extends TestBaseByLogin {
     }
 
     /**
+     * 测试买入指数 - 不支持的指数代码
+     */
+    @Test
+    void testBuyIndex_UnsupportedIndexCode() {
+        assertThrows(BusinessException.class, () -> {
+            indexTradeService.buyIndexWithResult(TEST_USER_ID, "sh999999", TEST_BUY_AMOUNT);
+        });
+    }
+
+    /**
+     * 测试获取用户全部指数持仓
+     */
+    @Test
+    void testGetUserPositions() {
+        List<IndexPositionVO> positions = indexTradeService.getUserPositions(999L);
+
+        assertNotNull(positions);
+        assertEquals(5, positions.size());
+        assertEquals("sh000001", positions.get(0).getIndexCode());
+        assertEquals("上证指数", positions.get(0).getIndexName());
+    }
+
+    /**
      * 测试买入指数 - 正常流程
      * 注意：需要在交易时间（09:30-15:00）运行
      */

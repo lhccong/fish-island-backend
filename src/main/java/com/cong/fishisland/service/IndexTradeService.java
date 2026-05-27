@@ -64,6 +64,14 @@ public interface IndexTradeService extends IService<IndexTradeRecord> {
      */
     IndexPositionVO getUserPosition(Long userId, String indexCode);
 
+    /**
+     * 获取用户在所有支持指数上的持仓列表
+     *
+     * @param userId 用户ID
+     * @return 持仓列表
+     */
+    List<IndexPositionVO> getUserPositions(Long userId);
+
     // ==================== 交易记录查询 ====================
 
     /**

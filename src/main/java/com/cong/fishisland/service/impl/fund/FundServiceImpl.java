@@ -15,6 +15,7 @@ import com.cong.fishisland.model.dto.fund.UpdateFundRequest;
 import com.cong.fishisland.model.entity.fund.Fund;
 import com.cong.fishisland.model.vo.fund.FundItemVO;
 import com.cong.fishisland.model.vo.fund.FundListVO;
+import com.cong.fishisland.model.enums.fund.FundConstants;
 import com.cong.fishisland.model.vo.fund.MarketIndexVO;
 import com.cong.fishisland.service.fund.FundDataService;
 import com.cong.fishisland.service.FundService;
@@ -30,6 +31,7 @@ import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 
 /**
  * @author shing
@@ -49,17 +51,6 @@ public class FundServiceImpl extends ServiceImpl<FundMapper, Fund> implements Fu
     private static final String DEFAULT_FUND_NAME_PREFIX = "基金";
     private static final String DEFAULT_UNKNOWN_NAME = "未知";
     private static final String TIME_FORMAT = "HH:mm:ss";
-
-    /**
-     * 国内核心指数配置
-     */
-    private static final String[][] MAJOR_INDICES = {
-            {"sh000001", "上证指数"},
-            {"sz399001", "深证成指"},
-            {"sz399006", "创业板指"},
-            {"sh000300", "沪深300"},
-            {"sh000016", "上证50"}
-    };
 
     @Resource
     private FundDataService fundDataService;
@@ -643,9 +634,9 @@ public class FundServiceImpl extends ServiceImpl<FundMapper, Fund> implements Fu
     public List<MarketIndexVO> getMajorIndices() {
         List<MarketIndexVO> result = new ArrayList<>();
 
-        for (String[] index : MAJOR_INDICES) {
-            String code = index[0];
-            String defaultName = index[1];
+        for (Map.Entry<String, String> index : FundConstants.SUPPORTED_INDICES.entrySet()) {
+            String code = index.getKey();
+            String defaultName = index.getValue();
 
             try {
                 MarketIndexVO vo = fetchAndBuildIndexVO(code, defaultName);
