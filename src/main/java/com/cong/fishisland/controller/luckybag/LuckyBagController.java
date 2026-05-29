@@ -29,7 +29,7 @@ public class LuckyBagController {
 
     @PostMapping("/create")
     @ApiOperation(value = "创建福袋")
-    public BaseResponse<String> createLuckyBag(@RequestBody @Validated CreateLuckyBagRequest request) {
+    public BaseResponse<LuckyBag> createLuckyBag(@RequestBody @Validated CreateLuckyBagRequest request) {
         return ResultUtils.success(luckyBagService.createLuckyBag(request));
     }
 

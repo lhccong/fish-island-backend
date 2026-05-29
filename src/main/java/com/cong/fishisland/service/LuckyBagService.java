@@ -14,7 +14,7 @@ public interface LuckyBagService {
     /**
      * 创建福袋并广播到聊天室
      */
-    String createLuckyBag(CreateLuckyBagRequest request);
+    LuckyBag createLuckyBag(CreateLuckyBagRequest request);
 
     /**
      * 参与福袋

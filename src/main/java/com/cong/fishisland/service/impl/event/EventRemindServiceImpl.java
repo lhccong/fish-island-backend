@@ -7,6 +7,8 @@ import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import com.cong.fishisland.common.ErrorCode;
 import com.cong.fishisland.common.exception.ThrowUtils;
+import com.cong.fishisland.constant.ActionTypeConstant;
+import com.cong.fishisland.constant.SourceTypeConstant;
 import com.cong.fishisland.mapper.event.EventRemindMapper;
 import com.cong.fishisland.model.dto.event.EventRemindQueryRequest;
 import com.cong.fishisland.model.dto.event.EventRemindStateRequest;
@@ -23,6 +25,7 @@ import javax.annotation.Resource;
 import java.util.Date;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 import java.util.stream.Collectors;
 
@@ -172,6 +175,29 @@ public class EventRemindServiceImpl extends ServiceImpl<EventRemindMapper, Event
         remind.setState(0);
         remind.setRemindTime(new Date());
         this.save(remind);
+    }
+
+    @Override
+    public void sendLuckyBagWinNotify(Long recipientId, Long creatorId, String luckyBagId,
+                                      String luckyBagName, int amount) {
+        if (recipientId == null) {
+            return;
+        }
+        String bagName = StringUtils.isNotBlank(luckyBagName) ? luckyBagName.trim() : "福袋";
+        long sourceId = Math.abs(Objects.hash(luckyBagId, recipientId));
+        Long senderId = creatorId != null ? creatorId : -1L;
+
+        EventRemind event = new EventRemind();
+        event.setAction(ActionTypeConstant.SYSTEM);
+        event.setSourceId(sourceId);
+        event.setSourceType(SourceTypeConstant.SYSTEM);
+        event.setSourceContent(String.format("恭喜你在福袋「%s」中获得 %d 积分", bagName, amount));
+        event.setUrl(luckyBagId != null ? luckyBagId : "");
+        event.setSenderId(senderId);
+        event.setRecipientId(recipientId);
+        event.setRemindTime(new Date());
+        event.setState(0);
+        this.save(event);
     }
 }
 

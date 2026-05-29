@@ -32,6 +32,7 @@ import java.time.ZoneId;
 import java.util.Date;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.function.Supplier;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
@@ -136,15 +137,17 @@ public class IndexTradeServiceImpl extends ServiceImpl<IndexTradeMapper, IndexTr
     }
 
     @Override
-    public Page<IndexTransactionVO> getUserTransactionPage(Long userId, String indexCode, Long current, Long pageSize) {
-        indexCode = validateAndNormalizeIndexCode(indexCode);
-        List<IndexTradeRecord> records = queryUserTransactions(userId, indexCode);
-        List<IndexTransactionVO> voList = convertToVOList(records);
+    public Page<IndexTransactionVO> getUserTransactionPage(Long userId, String indexCode, Integer tradeType,
+                                                           Integer status, Long current, Long pageSize) {
+        if (indexCode != null) {
+            indexCode = validateAndNormalizeIndexCode(indexCode);
+        }
+        LambdaQueryWrapper<IndexTradeRecord> query = buildTransactionQuery(userId, indexCode, tradeType, status);
+        Page<IndexTradeRecord> recordPage = this.page(new Page<>(current, pageSize), query);
 
-        Page<IndexTransactionVO> page = new Page<>(current, pageSize);
-        page.setRecords(voList);
-        page.setTotal(voList.size());
-        return page;
+        Page<IndexTransactionVO> voPage = new Page<>(recordPage.getCurrent(), recordPage.getSize(), recordPage.getTotal());
+        voPage.setRecords(convertToVOList(recordPage.getRecords()));
+        return voPage;
     }
 
     @Override
@@ -154,7 +157,11 @@ public class IndexTradeServiceImpl extends ServiceImpl<IndexTradeMapper, IndexTr
 
     @Override
     public List<IndexTradeRecord> getUserTransactions(Long userId, String indexCode) {
-        indexCode = validateAndNormalizeIndexCode(indexCode);
+        if (indexCode != null && !indexCode.trim().isEmpty()) {
+            indexCode = validateAndNormalizeIndexCode(indexCode);
+        } else {
+            indexCode = null;
+        }
         return queryUserTransactions(userId, indexCode);
     }
 
@@ -398,14 +405,32 @@ public class IndexTradeServiceImpl extends ServiceImpl<IndexTradeMapper, IndexTr
     }
 
     /**
-     * 查询用户交易记录
+     * 查询用户交易记录（单指数，无分页）
      */
     private List<IndexTradeRecord> queryUserTransactions(Long userId, String indexCode) {
+        return this.list(buildTransactionQuery(userId, indexCode, null, null));
+    }
+
+    /**
+     * 构建交易记录查询条件
+     *
+     * @param indexCode null 表示不按指数过滤，返回该用户全部交易记录
+     */
+    private LambdaQueryWrapper<IndexTradeRecord> buildTransactionQuery(Long userId, String indexCode,
+                                                                     Integer tradeType, Integer status) {
         LambdaQueryWrapper<IndexTradeRecord> query = new LambdaQueryWrapper<>();
-        query.eq(IndexTradeRecord::getUserId, userId)
-                .eq(IndexTradeRecord::getIndexCode, indexCode)
-                .orderByDesc(IndexTradeRecord::getCreateTime);
-        return this.list(query);
+        query.eq(IndexTradeRecord::getUserId, userId);
+        if (indexCode != null) {
+            query.eq(IndexTradeRecord::getIndexCode, indexCode);
+        }
+        if (tradeType != null) {
+            query.eq(IndexTradeRecord::getTradeType, tradeType);
+        }
+        if (status != null) {
+            query.eq(IndexTradeRecord::getStatus, status);
+        }
+        query.orderByDesc(IndexTradeRecord::getCreateTime);
+        return query;
     }
 
     // ==================== VO 构建方法 ====================
@@ -524,8 +549,13 @@ public class IndexTradeServiceImpl extends ServiceImpl<IndexTradeMapper, IndexTr
         IndexTransactionVO vo = new IndexTransactionVO();
         vo.setId(record.getId());
         vo.setIndexCode(record.getIndexCode());
+        vo.setIndexName(FundConstants.getIndexName(record.getIndexCode()));
         vo.setTradeType(record.getTradeType());
-        vo.setTradeTypeName(record.getTradeType() == TRADE_TYPE_BUY ? "买入" : "卖出");
+        if (Objects.equals(record.getTradeType(), TRADE_TYPE_BUY)) {
+            vo.setTradeTypeName("买入");
+        } else if (Objects.equals(record.getTradeType(), TRADE_TYPE_SELL)) {
+            vo.setTradeTypeName("卖出");
+        }
         vo.setAmount(record.getAmount());
         vo.setNav(record.getNav());
         vo.setShares(record.getShares());

@@ -157,7 +157,7 @@ class IndexTradeServiceTest extends TestBaseByLogin {
 
             // 查询交易记录
             Page<IndexTransactionVO> page = indexTradeService.getUserTransactionPage(
-                    TEST_USER_ID, TEST_INDEX_CODE, 1L, 10L);
+                    TEST_USER_ID, TEST_INDEX_CODE, null, null, 1L, 10L);
 
             assertNotNull(page);
             assertTrue(page.getTotal() >= 2);

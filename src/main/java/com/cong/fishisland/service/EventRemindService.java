@@ -62,4 +62,10 @@ public interface EventRemindService extends IService<EventRemind> {
      * @param action        动作标识，用于 existsEvent 查重
      */
     void sendSystemNotify(Long recipientId, String sourceContent, String action);
+
+    /**
+     * 福袋中奖通知（同步写入，开奖流程内调用）
+     */
+    void sendLuckyBagWinNotify(Long recipientId, Long creatorId, String luckyBagId,
+                               String luckyBagName, int amount);
 }

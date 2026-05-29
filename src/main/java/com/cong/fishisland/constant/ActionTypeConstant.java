@@ -48,4 +48,9 @@ public interface ActionTypeConstant {
      * 农场偷菜
      */
     String FARM_STEAL = "farm_steal";
+
+    /**
+     * 福袋中奖
+     */
+    String LUCKY_BAG_WIN = "lucky_bag_win";
 }

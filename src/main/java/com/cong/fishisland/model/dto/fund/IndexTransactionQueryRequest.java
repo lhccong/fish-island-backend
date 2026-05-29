@@ -16,7 +16,7 @@ import java.io.Serializable;
 public class IndexTransactionQueryRequest extends PageRequest implements Serializable {
 
     /**
-     * 指数代码
+     * 指数代码（可选）；不传则返回全部指数的交易记录
      */
     private String indexCode;
 

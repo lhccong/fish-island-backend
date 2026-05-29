@@ -6,9 +6,13 @@ import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import com.cong.fishisland.common.ErrorCode;
 import com.cong.fishisland.common.exception.BusinessException;
 import com.cong.fishisland.common.exception.ThrowUtils;
+import com.cong.fishisland.constant.ActionTypeConstant;
 import com.cong.fishisland.constant.PointConstant;
+import com.cong.fishisland.constant.SourceTypeConstant;
 import com.cong.fishisland.constant.VipTypeConstant;
+import com.cong.fishisland.mapper.event.EventRemindMapper;
 import com.cong.fishisland.mapper.user.UserVipMapper;
+import com.cong.fishisland.model.entity.event.EventRemind;
 import com.cong.fishisland.model.entity.user.UserPoints;
 import com.cong.fishisland.model.entity.user.UserVip;
 import com.cong.fishisland.model.vo.user.SignInVO;
@@ -57,9 +61,14 @@ public class UserPointsServiceImpl extends ServiceImpl<UserPointsMapper, UserPoi
     private static final int MAX_DAILY_SPEAK_POINTS = 10;
     private static final long POINTS_LOCK_WAIT_SECONDS = 5;
     private static final long POINTS_LOCK_LEASE_SECONDS = 10;
+    /** 大额积分变动通知接收人（管理员） */
+    private static final long POINTS_ALERT_ADMIN_USER_ID = 1L;
 
     @Resource
     private RedissonClient redissonClient;
+
+    @Resource
+    private EventRemindMapper eventRemindMapper;
 
 
     @Override
@@ -238,6 +247,7 @@ public class UserPointsServiceImpl extends ServiceImpl<UserPointsMapper, UserPoi
                 userPoints.getPoints(), userPoints.getPoints(),
                 beforeUsedPoints, userPoints.getUsedPoints(),
                 sourceType, sourceId, description);
+        notifyAdminIfLargePointsConsume(userId, pointsToDeduct, description);
     }
 
     @Override
@@ -262,7 +272,31 @@ public class UserPointsServiceImpl extends ServiceImpl<UserPointsMapper, UserPoi
                     userPoints.getPoints(), userPoints.getPoints(),
                     beforeUsedPoints, afterUsedPoints,
                     sourceType, sourceId, description);
+            notifyAdminIfLargePointsConsume(userId, points, description);
         }
+    }
+
+    /**
+     * 单次消耗/使用积分超过阈值时，通知管理员（直接写库，避免 Service 循环依赖）
+     */
+    private void notifyAdminIfLargePointsConsume(Long userId, int amount, String description) {
+        if (amount <= PointConstant.LARGE_POINTS_CONSUME_THRESHOLD) {
+            return;
+        }
+        String desc = (description != null && !description.isEmpty()) ? description : "积分变动";
+        String message = String.format("用户 %d 单次消耗/使用积分 %d：%s", userId, amount, desc);
+
+        EventRemind event = new EventRemind();
+        event.setAction(ActionTypeConstant.SYSTEM);
+        event.setSourceType(SourceTypeConstant.SYSTEM);
+        event.setSourceContent(message);
+        event.setRecipientId(POINTS_ALERT_ADMIN_USER_ID);
+        event.setRemindTime(new Date());
+        event.setUrl("");
+        event.setSourceId(-1L);
+        event.setSenderId(-1L);
+        event.setState(0);
+        eventRemindMapper.insert(event);
     }
 
     @Override

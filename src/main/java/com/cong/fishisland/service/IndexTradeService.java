@@ -76,14 +76,17 @@ public interface IndexTradeService extends IService<IndexTradeRecord> {
 
     /**
      * 分页查询用户交易记录
-     * 
+     *
      * @param userId 用户ID
-     * @param indexCode 指数代码
+     * @param indexCode 指数代码，null 表示不按指数过滤
+     * @param tradeType 交易类型：1-买入，2-卖出，null 表示不限
+     * @param status 状态：0-待确认，1-已完成，null 表示不限
      * @param current 当前页
      * @param pageSize 每页大小
      * @return 交易记录分页
      */
-    Page<IndexTransactionVO> getUserTransactionPage(Long userId, String indexCode, Long current, Long pageSize);
+    Page<IndexTransactionVO> getUserTransactionPage(Long userId, String indexCode, Integer tradeType,
+                                                    Integer status, Long current, Long pageSize);
 
     /**
      * 查询用户待结算交易列表（已废弃，T+0 模式下无待结算）

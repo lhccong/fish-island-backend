@@ -1,5 +1,6 @@
 package com.cong.fishisland.model.entity.luckybag;
 
+import io.swagger.annotations.ApiModelProperty;
 import lombok.Data;
 
 import java.io.Serializable;
@@ -24,11 +25,17 @@ public class LuckyBag implements Serializable {
     private Integer durationSeconds;
     private Date createTime;
     private Date expireTime;
+    /** 开奖时间（与 expireTime 一致，便于前端展示） */
+    @ApiModelProperty(value = "开奖时间")
+    private Date drawTime;
     /** 状态：0-进行中，1-已开奖，2-已过期（无人参与） */
     private Integer status;
     private Integer participantCount;
     private String creatorName;
     private String creatorAvatar;
+    /** 当前用户是否已参与（仅接口返回，不写入 Redis） */
+    @ApiModelProperty(value = "当前用户是否已参与")
+    private Boolean joined;
 
     private static final long serialVersionUID = 1L;
 }

@@ -52,4 +52,9 @@ public interface PointConstant {
      * 每日被打赏积分上限（防止多账号刷给同一人）
      */
     Integer MAX_DAILY_RECEIVED_REWARD_POINTS = 50;
+
+    /**
+     * 单次消耗/使用积分超过该阈值时通知管理员
+     */
+    int LARGE_POINTS_CONSUME_THRESHOLD = 5000;
 }

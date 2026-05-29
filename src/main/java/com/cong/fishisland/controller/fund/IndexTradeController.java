@@ -3,7 +3,9 @@ package com.cong.fishisland.controller.fund;
 import cn.dev33.satoken.annotation.SaCheckLogin;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.cong.fishisland.common.BaseResponse;
+import com.cong.fishisland.common.ErrorCode;
 import com.cong.fishisland.common.ResultUtils;
+import com.cong.fishisland.common.exception.BusinessException;
 import com.cong.fishisland.model.dto.fund.IndexBuyRequest;
 import com.cong.fishisland.model.dto.fund.IndexSellRequest;
 import com.cong.fishisland.model.dto.fund.IndexTransactionQueryRequest;
@@ -106,24 +108,41 @@ public class IndexTradeController {
      * 获取交易记录列表
      */
     @PostMapping("/transactions")
-    @ApiOperation(value = "获取交易记录列表")
+    @ApiOperation(value = "获取交易记录列表", notes = "无需传 indexCode，默认返回当前用户全部指数的交易记录；可按 tradeType、status 筛选")
     @SaCheckLogin
     public BaseResponse<Page<IndexTransactionVO>> getTransactions(@RequestBody IndexTransactionQueryRequest queryRequest) {
         Long userId = userService.getLoginUser().getId();
 
-        queryRequest.setIndexCode(FundConstants.normalizeIndexCode(queryRequest.getIndexCode()));
+        String indexCode = resolveOptionalIndexCode(queryRequest.getIndexCode());
 
         int current = Math.max(queryRequest.getCurrent(), 1);
         int pageSize = Math.min(Math.max(queryRequest.getPageSize(), 1), 100);
 
         Page<IndexTransactionVO> page = indexTradeService.getUserTransactionPage(
                 userId,
-                queryRequest.getIndexCode(),
+                indexCode,
+                queryRequest.getTradeType(),
+                queryRequest.getStatus(),
                 (long) current,
                 (long) pageSize
         );
 
         return ResultUtils.success(page);
+    }
+
+    /**
+     * 可选指数过滤：未传 indexCode 时不按指数筛选
+     */
+    private String resolveOptionalIndexCode(String rawIndexCode) {
+        if (rawIndexCode == null || rawIndexCode.trim().isEmpty()) {
+            return null;
+        }
+        String normalized = FundConstants.normalizeIndexCode(rawIndexCode.trim());
+        if (!FundConstants.isSupportedIndex(normalized)) {
+            throw new BusinessException(ErrorCode.PARAMS_ERROR,
+                    "暂不支持该指数，当前支持：上证指数(sh000001)、深证成指(sz399001)、创业板指(sz399006)、沪深300(sh000300)、上证50(sh000016)");
+        }
+        return normalized;
     }
 
 }

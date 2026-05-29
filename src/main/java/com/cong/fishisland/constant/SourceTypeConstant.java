@@ -25,4 +25,9 @@ public interface SourceTypeConstant {
      * 农场
      */
     int FARM = 5;
+
+    /**
+     * 福袋
+     */
+    int LUCKY_BAG = 6;
 }
