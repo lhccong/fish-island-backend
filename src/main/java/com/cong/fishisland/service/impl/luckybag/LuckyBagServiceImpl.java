@@ -54,9 +54,6 @@ public class LuckyBagServiceImpl implements LuckyBagService {
     private final DonationRecordsService donationRecordsService;
     private final EventRemindService eventRemindService;
 
-    /** 赞助榜累计赞助达到该金额，每日首次发福袋免积分 */
-    private static final BigDecimal DONATION_FREE_LUCKY_BAG_AMOUNT = new BigDecimal("100");
-
     private static final String LUCKY_BAG_KEY_PREFIX = "luckybag:";
     private static final String LUCKY_BAG_PARTICIPANTS_KEY_PREFIX = "luckybag:participants:";
     private static final String LUCKY_BAG_WINNERS_KEY_PREFIX = "luckybag:winners:";
@@ -64,6 +61,8 @@ public class LuckyBagServiceImpl implements LuckyBagService {
     private static final String LUCKY_BAG_ACTIVE_SET_KEY = "luckybag:active";
     private static final String LUCKY_BAG_DRAW_LOCK_KEY_PREFIX = "luckybag:draw:lock:";
     private static final String LUCKY_BAG_DAILY_COUNT_KEY_PREFIX = "luckybag:daily_count:";
+    /** 红包与福袋共享免积分次数 */
+    private static final String SEND_FREE_COUNT_KEY_PREFIX = "send:free_count:";
 
     private static final int DEFAULT_DURATION_SECONDS = 180;
     private static final int MIN_DURATION_SECONDS = 60;
@@ -71,8 +70,13 @@ public class LuckyBagServiceImpl implements LuckyBagService {
     private static final int NORMAL_USER_DAILY_LIMIT = 2;
     private static final int VIP_USER_DAILY_LIMIT = 5;
     private static final int ADMIN_DAILY_LIMIT = 10;
-    /** 单个中奖用户最多获得的积分 */
-    private static final int MAX_AMOUNT_PER_WINNER = 50;
+    private static final int VIP_FREE_ALL_COUNT = 3;
+    private static final BigDecimal VIP_DONATION_FREE_TWO = new BigDecimal("29");
+    private static final BigDecimal VIP_DONATION_FREE_ALL = new BigDecimal("100");
+    /**
+     * 单个中奖用户最多获得的积分
+     */
+    private static final int MAX_AMOUNT_PER_WINNER = 20;
     private static final long REDIS_TTL_BUFFER_SECONDS = 3600;
 
     @Override
@@ -116,6 +120,10 @@ public class LuckyBagServiceImpl implements LuckyBagService {
         String dailyCountKey = LUCKY_BAG_DAILY_COUNT_KEY_PREFIX + loginUser.getId() + ":" + getTodayDate();
         Integer dailyCount = (Integer) redisTemplate.opsForValue().get(dailyCountKey);
         redisTemplate.opsForValue().set(dailyCountKey, (dailyCount == null ? 0 : dailyCount) + 1, Duration.ofDays(1));
+        boolean isAdmin = Objects.equals(loginUser.getUserRole(), UserRoleEnum.ADMIN.getValue());
+        if (freeThisTime && userVipService.isUserVip(loginUser.getId()) && !isAdmin) {
+            incrementSharedFreeUsedCount(loginUser.getId());
+        }
 
         String creatorName = loginUser.getUserName() != null ? loginUser.getUserName() : "用户";
         String broadcastContent = creatorName + "创建了一个福袋快来参加吧[luckybag]" + luckyBagId + "[/luckybag]";
@@ -326,7 +334,7 @@ public class LuckyBagServiceImpl implements LuckyBagService {
     }
 
     /**
-     * @return 本次是否免积分（赞助榜≥100 每日首次）
+     * @return 本次是否免积分（与红包共享免费次数规则）
      */
     private boolean validateCreateRequest(CreateLuckyBagRequest request, User loginUser) {
         if (request.getTotalAmount() == null || request.getWinnerCount() == null || request.getType() == null) {
@@ -357,34 +365,62 @@ public class LuckyBagServiceImpl implements LuckyBagService {
             throw new BusinessException(ErrorCode.OPERATION_ERROR, "您的等级不足，无法发送福袋");
         }
 
-        int dailyLimit = isAdmin ? ADMIN_DAILY_LIMIT : (userVip ? VIP_USER_DAILY_LIMIT : NORMAL_USER_DAILY_LIMIT);
         String dailyCountKey = LUCKY_BAG_DAILY_COUNT_KEY_PREFIX + loginUser.getId() + ":" + getTodayDate();
         Integer dailyCount = (Integer) redisTemplate.opsForValue().get(dailyCountKey);
         int todayCount = dailyCount == null ? 0 : dailyCount;
-        if (todayCount >= dailyLimit) {
-            throw new BusinessException(ErrorCode.OPERATION_ERROR, "今日发送福袋次数已达上限");
+
+        int dailyLimit;
+        if (isAdmin) {
+            dailyLimit = ADMIN_DAILY_LIMIT;
+        } else if (userVip) {
+            dailyLimit = VIP_USER_DAILY_LIMIT;
+        } else {
+            dailyLimit = NORMAL_USER_DAILY_LIMIT;
         }
 
-        int donationFreeCount = getDonationFreeLuckyBagCount(loginUser.getId());
-        boolean freeThisTime = donationFreeCount > 0 && todayCount < donationFreeCount;
+        int vipFreeCount = resolveVipFreeCount(userVip, loginUser.getId());
+        int sharedFreeUsedCount = getSharedFreeUsedCount(loginUser.getId());
+        boolean freeThisTime = isAdmin || (userVip && sharedFreeUsedCount < vipFreeCount);
 
         if (!freeThisTime && userPoints.getPoints() - userPoints.getUsedPoints() < request.getTotalAmount()) {
             throw new BusinessException(ErrorCode.OPERATION_ERROR, "积分不足");
         }
+
+        if (todayCount >= dailyLimit) {
+            throw new BusinessException(ErrorCode.OPERATION_ERROR, "今日发送福袋次数已达上限");
+        }
+
         return freeThisTime;
     }
 
-    /**
-     * 赞助榜累计≥100 时，每日可免积分发福袋 1 次
-     */
-    private int getDonationFreeLuckyBagCount(Long userId) {
+    private int resolveVipFreeCount(boolean userVip, Long userId) {
+        if (!userVip) {
+            return 0;
+        }
+        int vipFreeCount = 1;
         DonationRecords donationRecords = donationRecordsService.getOne(
                 new QueryWrapper<DonationRecords>().eq("userId", userId));
-        if (donationRecords != null && donationRecords.getAmount() != null
-                && donationRecords.getAmount().compareTo(DONATION_FREE_LUCKY_BAG_AMOUNT) >= 0) {
-            return 1;
+        if (donationRecords != null && donationRecords.getAmount() != null) {
+            BigDecimal donationAmount = donationRecords.getAmount();
+            if (donationAmount.compareTo(VIP_DONATION_FREE_ALL) >= 0) {
+                vipFreeCount = VIP_FREE_ALL_COUNT;
+            } else if (donationAmount.compareTo(VIP_DONATION_FREE_TWO) >= 0) {
+                vipFreeCount = 2;
+            }
         }
-        return 0;
+        return vipFreeCount;
+    }
+
+    private int getSharedFreeUsedCount(Long userId) {
+        String key = SEND_FREE_COUNT_KEY_PREFIX + userId + ":" + getTodayDate();
+        Integer count = (Integer) redisTemplate.opsForValue().get(key);
+        return count == null ? 0 : count;
+    }
+
+    private void incrementSharedFreeUsedCount(Long userId) {
+        String key = SEND_FREE_COUNT_KEY_PREFIX + userId + ":" + getTodayDate();
+        Integer count = (Integer) redisTemplate.opsForValue().get(key);
+        redisTemplate.opsForValue().set(key, (count == null ? 0 : count) + 1, Duration.ofDays(1));
     }
 
     private int resolveDurationSeconds(Integer durationSeconds) {

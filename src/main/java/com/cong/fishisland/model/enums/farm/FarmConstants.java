@@ -11,6 +11,16 @@ public final class FarmConstants {
     /** 单次偷菜最多获得积分 */
     public static final int MAX_STEAL_POINTS_PER_ACTION = 1;
 
+    /** 农场主收获时，在种子价格基础上额外保留的积分 */
+    public static final int MIN_HARVEST_EXTRA_OVER_SEED = 1;
+
+    /**
+     * 农场主收获最低积分（种子价格 + {@link #MIN_HARVEST_EXTRA_OVER_SEED}），也是偷菜后必须保留的积分。
+     */
+    public static int minHarvestPoints(Integer seedPrice) {
+        return (seedPrice != null ? seedPrice : 0) + MIN_HARVEST_EXTRA_OVER_SEED;
+    }
+
     /** 偷菜记录列表固定返回条数 */
     public static final int STEAL_RECORD_LIST_LIMIT = 50;
 

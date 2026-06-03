@@ -65,6 +65,8 @@ public class RedPacketServiceImpl implements RedPacketService {
     private static final String RED_PACKET_RECORD_KEY_PREFIX = "redpacket:record:";
     private static final String RED_PACKET_USER_KEY_PREFIX = "redpacket:user:";
     private static final String RED_PACKET_DAILY_COUNT_KEY_PREFIX = "redpacket:daily_count:";
+    /** 红包与福袋共享免积分次数 */
+    private static final String SEND_FREE_COUNT_KEY_PREFIX = "send:free_count:";
     // 行为检测：每日快速抢包计数 redpacket:grab:fast_count:{userId}:{yyyyMMdd}
     private static final String RED_PACKET_GRAB_FAST_COUNT_KEY_PREFIX = "redpacket:grab:fast_count:";
     // 行为检测：抢包时间戳历史 redpacket:grab:ts:{userId}
@@ -201,31 +203,13 @@ public class RedPacketServiceImpl implements RedPacketService {
             dailyLimit = NORMAL_USER_DAILY_LIMIT;
         }
 
-        // 计算 VIP 用户今日免积分次数
-        // 默认：VIP 第1个免费；打赏榜>=100：前2个免费；打赏榜>=199：全部免费（同管理员）
-        int vipFreeCount = 0;
-        if (userVip) {
-            // 基础：第1个免费
-            vipFreeCount = 1;
-            DonationRecords donationRecords =
-                    donationRecordsService.getOne(
-                            new QueryWrapper<DonationRecords>()
-                                    .eq("userId", loginUser.getId()));
-            if (donationRecords != null && donationRecords.getAmount() != null) {
-                BigDecimal donationAmount = donationRecords.getAmount();
-                if (donationAmount.compareTo(VIP_DONATION_FREE_ALL) >= 0) {
-                    // 全部免费
-                    vipFreeCount = ADMIN_DAILY_LIMIT;
-                } else if (donationAmount.compareTo(VIP_DONATION_FREE_TWO) >= 0) {
-                    // 前2个免费
-                    vipFreeCount = 2;
-                }
-            }
-        }
+        // 计算 VIP 用户今日免积分次数（与福袋共享）
+        int vipFreeCount = resolveVipFreeCount(userVip, loginUser.getId());
 
         // 判断本次是否需要消耗积分
         boolean isAdmin = Objects.equals(loginUser.getUserRole(), UserRoleEnum.ADMIN.getValue());
-        boolean freeThisTime = isAdmin || (userVip && dailyCount < vipFreeCount);
+        int sharedFreeUsedCount = getSharedFreeUsedCount(loginUser.getId());
+        boolean freeThisTime = isAdmin || (userVip && sharedFreeUsedCount < vipFreeCount);
 
         // 判断用户是否有足够的积分（免费次数内不检查）
         if (!freeThisTime && (userPoints.getPoints() - userPoints.getUsedPoints() < request.getTotalAmount())) {
@@ -293,6 +277,9 @@ public class RedPacketServiceImpl implements RedPacketService {
 
         // 更新用户每日发红包次数
         redisTemplate.opsForValue().set(dailyCountKey, dailyCount + 1, Duration.ofDays(1));
+        if (freeThisTime && userVip && !isAdmin) {
+            incrementSharedFreeUsedCount(loginUser.getId());
+        }
 
         return redPacketId;
     }
@@ -519,6 +506,36 @@ public class RedPacketServiceImpl implements RedPacketService {
      */
     private String getTodayDate() {
         return java.time.LocalDate.now().format(java.time.format.DateTimeFormatter.ofPattern("yyyyMMdd"));
+    }
+
+    private int resolveVipFreeCount(boolean userVip, Long userId) {
+        if (!userVip) {
+            return 0;
+        }
+        int vipFreeCount = 1;
+        DonationRecords donationRecords = donationRecordsService.getOne(
+                new QueryWrapper<DonationRecords>().eq("userId", userId));
+        if (donationRecords != null && donationRecords.getAmount() != null) {
+            BigDecimal donationAmount = donationRecords.getAmount();
+            if (donationAmount.compareTo(VIP_DONATION_FREE_ALL) >= 0) {
+                vipFreeCount = ADMIN_DAILY_LIMIT;
+            } else if (donationAmount.compareTo(VIP_DONATION_FREE_TWO) >= 0) {
+                vipFreeCount = 2;
+            }
+        }
+        return vipFreeCount;
+    }
+
+    private int getSharedFreeUsedCount(Long userId) {
+        String key = SEND_FREE_COUNT_KEY_PREFIX + userId + ":" + getTodayDate();
+        Integer count = (Integer) redisTemplate.opsForValue().get(key);
+        return count == null ? 0 : count;
+    }
+
+    private void incrementSharedFreeUsedCount(Long userId) {
+        String key = SEND_FREE_COUNT_KEY_PREFIX + userId + ":" + getTodayDate();
+        Integer count = (Integer) redisTemplate.opsForValue().get(key);
+        redisTemplate.opsForValue().set(key, (count == null ? 0 : count) + 1, Duration.ofDays(1));
     }
 
     /**

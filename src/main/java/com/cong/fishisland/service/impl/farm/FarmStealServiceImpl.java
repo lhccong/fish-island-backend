@@ -166,7 +166,7 @@ public class FarmStealServiceImpl implements FarmStealService {
         int baseReward = resolveBaseReward(plantRecord, crop);
         int currentStolenPoints = plantRecord.getStolenPoints() != null ? plantRecord.getStolenPoints() : 0;
         int stealPoints = calcStealPoints(crop, baseReward, currentStolenPoints);
-        int minReward = crop.getPrice() != null ? crop.getPrice() : 0;
+        int minReward = FarmConstants.minHarvestPoints(crop.getPrice());
 
         int updated = plantRecordMapper.incrementStolenPointsIfAllowed(
                 plantRecord.getId(), stealPoints, baseReward, minReward);
@@ -220,7 +220,7 @@ public class FarmStealServiceImpl implements FarmStealService {
      * 每次偷菜固定 1 积分，且不超过该作物剩余可偷额度。
      */
     static int calcStealPoints(FarmCrop crop, int baseReward, int currentStolenPoints) {
-        int minReward = crop.getPrice() != null ? crop.getPrice() : 0;
+        int minReward = FarmConstants.minHarvestPoints(crop.getPrice());
         int remainingStealable = (baseReward - minReward) - currentStolenPoints;
 
         if (remainingStealable <= 0) {
@@ -233,7 +233,7 @@ public class FarmStealServiceImpl implements FarmStealService {
     static int remainingStealablePoints(FarmCrop crop, FarmPlantRecord record) {
         int baseReward = resolveBaseReward(record, crop);
         int currentStolenPoints = record.getStolenPoints() != null ? record.getStolenPoints() : 0;
-        int minReward = crop.getPrice() != null ? crop.getPrice() : 0;
+        int minReward = FarmConstants.minHarvestPoints(crop.getPrice());
         return (baseReward - minReward) - currentStolenPoints;
     }
 

@@ -341,14 +341,14 @@ public class FarmLandServiceImpl extends ServiceImpl<FarmLandMapper, FarmLand> i
     }
 
     /**
-     * 计算收获可得积分：种植预期奖励减去已被偷积分，且不低于种子成本（与偷菜上限逻辑一致）。
+     * 计算收获可得积分：种植预期奖励减去已被偷积分，且不低于种子价格 + 1（与偷菜上限逻辑一致）。
      */
     private static int calcHarvestPointsReward(FarmCrop crop, FarmPlantRecord record) {
         int baseReward = record.getPlantedPointsReward() != null
                 ? record.getPlantedPointsReward()
                 : (crop.getCoin() != null ? crop.getCoin() : 0);
         int stolenPoints = record.getStolenPoints() != null ? record.getStolenPoints() : 0;
-        int minReward = crop.getPrice() != null ? crop.getPrice() : 0;
+        int minReward = FarmConstants.minHarvestPoints(crop.getPrice());
         return Math.max(minReward, baseReward - stolenPoints);
     }
 

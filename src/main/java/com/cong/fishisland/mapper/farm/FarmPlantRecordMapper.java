@@ -12,7 +12,7 @@ import java.time.LocalDateTime;
 public interface FarmPlantRecordMapper extends BaseMapper<FarmPlantRecord> {
 
     /**
-     * 原子增加被偷积分，确保不超过可偷上限（baseReward - minReward）。
+     * 原子增加被偷积分，确保不超过可偷上限（baseReward - minReward，minReward 为种子价格 + 1）。
      */
     @Update("UPDATE farm_plant_record SET stolenPoints = stolenPoints + #{stealPoints}, "
             + "stolenCount = IFNULL(stolenCount, 0) + 1 "
