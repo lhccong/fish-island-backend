@@ -16,6 +16,7 @@ import com.cong.fishisland.model.entity.user.User;
 import com.cong.fishisland.model.entity.user.UserPoints;
 import com.cong.fishisland.model.enums.MessageTypeEnum;
 import com.cong.fishisland.model.enums.UserRoleEnum;
+import com.cong.fishisland.model.enums.redpacket.RedPacketTypeEnum;
 import com.cong.fishisland.model.vo.redpacket.RedPacketRecordVO;
 import com.cong.fishisland.model.ws.request.Message;
 import com.cong.fishisland.model.ws.request.MessageWrapper;
@@ -25,6 +26,7 @@ import com.cong.fishisland.service.*;
 import com.cong.fishisland.websocket.service.WebSocketService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.apache.commons.lang3.StringUtils;
 import org.jetbrains.annotations.NotNull;
 import org.springframework.beans.BeanUtils;
 import org.springframework.data.redis.core.RedisTemplate;
@@ -91,6 +93,10 @@ public class RedPacketServiceImpl implements RedPacketService {
     private final ConcurrentHashMap<String, Semaphore> redPacketSemaphores = new ConcurrentHashMap<>();
     // 排队最长等待时间（秒）
     private static final int QUEUE_WAIT_TIMEOUT_SECONDS = 10;
+    private static final int QUIZ_NAME_MAX_LENGTH = 200;
+    private static final int QUIZ_ANSWER_MAX_LENGTH = 50;
+    /** 答题红包单人单次最多抢到积分 */
+    private static final int QUIZ_MAX_GRAB_AMOUNT = 10;
 
     @Scheduled(cron = "0 0 10,15 * * ?") // 每天上午10点和下午3点各执行一次
     public void aiSendRedPacket() {
@@ -171,6 +177,7 @@ public class RedPacketServiceImpl implements RedPacketService {
     public String createRedPacket(CreateRedPacketRequest request) {
         // 获取当前登录用户ID
         User loginUser = userService.getLoginUser();
+        validateCreateRequest(request);
         //红包金额是大于等于红包个数
         if (request.getTotalAmount() / request.getCount() < 1) {
             throw new BusinessException(ErrorCode.OPERATION_ERROR, "操作红包异常,红包个数不能小于红包金额");
@@ -251,8 +258,14 @@ public class RedPacketServiceImpl implements RedPacketService {
         // 进行中
         redPacket.setStatus(0);
 
-        // 如果是平均红包，计算每个红包的金额
-        if (request.getType() == 2) {
+        // 答题红包：保存答案（名称即题目）
+        if (RedPacketTypeEnum.QUIZ.getValue() == request.getType()) {
+            redPacket.setAnswer(normalizeAnswer(request.getAnswer()));
+        }
+
+        // 平均红包、答题红包：均分，预计算每份金额
+        if (RedPacketTypeEnum.AVERAGE.getValue() == request.getType()
+                || RedPacketTypeEnum.QUIZ.getValue() == request.getType()) {
             redPacket.setAmountPerPacket(request.getTotalAmount() / request.getCount());
         }
 
@@ -285,7 +298,7 @@ public class RedPacketServiceImpl implements RedPacketService {
     }
 
     @Override
-    public Integer grabRedPacket(String redPacketId, Long userId) {
+    public Integer grabRedPacket(String redPacketId, Long userId, String answer) {
         // 脚本用户不允许抢红包，直接返回已抢完
         if (scriptBehaviorDetectService.isScriptUser(userId)) {
             throw new BusinessException(ErrorCode.OPERATION_ERROR, "红包已经抢完");
@@ -310,6 +323,8 @@ public class RedPacketServiceImpl implements RedPacketService {
         if (Boolean.TRUE.equals(isMember)) {
             throw new BusinessException(ErrorCode.OPERATION_ERROR, "您已抢过该红包");
         }
+
+        validateGrabAnswer(redPacket, answer);
 
         // 本地信号量排队：同一红包同一时刻只允许一个线程执行核心逻辑，其余线程按先后顺序等待
         Semaphore semaphore = redPacketSemaphores.computeIfAbsent(redPacketId, k -> new Semaphore(1, true));
@@ -339,14 +354,19 @@ public class RedPacketServiceImpl implements RedPacketService {
                 throw new BusinessException(ErrorCode.OPERATION_ERROR, "您已抢过该红包");
             }
 
+            // 答题红包在排队期间再次校验答案
+            validateGrabAnswer(redPacket, answer);
+
             // 计算抢到的金额
             Integer amount;
-            if (redPacket.getType() == 1) {
-                // 随机红包
+            if (RedPacketTypeEnum.RANDOM.getValue() == redPacket.getType()) {
                 amount = calculateRandomAmount(redPacket);
             } else {
-                // 平均红包
+                // 平均红包、答题红包均按固定份额分配
                 amount = redPacket.getAmountPerPacket();
+                if (RedPacketTypeEnum.QUIZ.getValue() == redPacket.getType()) {
+                    amount = capQuizGrabAmount(amount, redPacket.getRemainingAmount());
+                }
             }
 
             // 更新红包信息
@@ -456,7 +476,55 @@ public class RedPacketServiceImpl implements RedPacketService {
             redPacket.setCreatorAvatar(creator.getUserAvatar());
         }
 
+        // 答题红包答案仅存 Redis，不暴露给前端
+        redPacket.setAnswer(null);
         return redPacket;
+    }
+
+    private void validateCreateRequest(CreateRedPacketRequest request) {
+        RedPacketTypeEnum typeEnum = RedPacketTypeEnum.getEnumByValue(request.getType());
+        if (typeEnum == null) {
+            throw new BusinessException(ErrorCode.PARAMS_ERROR, "红包类型无效");
+        }
+        if (typeEnum == RedPacketTypeEnum.QUIZ) {
+            if (StringUtils.isBlank(request.getName()) || StringUtils.isBlank(request.getAnswer())) {
+                throw new BusinessException(ErrorCode.PARAMS_ERROR, "答题红包需填写名称和答案");
+            }
+            String name = request.getName().trim();
+            if (name.length() > QUIZ_NAME_MAX_LENGTH) {
+                throw new BusinessException(ErrorCode.PARAMS_ERROR,
+                        "红包名称长度不能超过" + QUIZ_NAME_MAX_LENGTH + "字");
+            }
+            if (normalizeAnswer(request.getAnswer()).length() > QUIZ_ANSWER_MAX_LENGTH) {
+                throw new BusinessException(ErrorCode.PARAMS_ERROR,
+                        "答案长度不能超过" + QUIZ_ANSWER_MAX_LENGTH + "字");
+            }
+            request.setName(name);
+        }
+    }
+
+    private void validateGrabAnswer(RedPacket redPacket, String userAnswer) {
+        if (redPacket.getType() == null
+                || redPacket.getType() != RedPacketTypeEnum.QUIZ.getValue()) {
+            return;
+        }
+        if (StringUtils.isBlank(userAnswer)) {
+            throw new BusinessException(ErrorCode.PARAMS_ERROR, "请先输入答案");
+        }
+        if (!normalizeAnswer(userAnswer).equals(normalizeAnswer(redPacket.getAnswer()))) {
+            throw new BusinessException(ErrorCode.OPERATION_ERROR, "答案错误");
+        }
+    }
+
+    private String normalizeAnswer(String answer) {
+        return answer == null ? "" : answer.trim().toLowerCase(Locale.ROOT);
+    }
+
+    /**
+     * 答题红包：单人单次最多 10 积分，且不超过当前剩余金额
+     */
+    private int capQuizGrabAmount(int amount, int remainingAmount) {
+        return Math.min(amount, Math.min(QUIZ_MAX_GRAB_AMOUNT, remainingAmount));
     }
 
     /**

@@ -48,56 +48,6 @@ public class ItemInstancesController {
 
     // region 增删改查
 
-    /**
-     * 添加物品实例
-     */
-    @PostMapping("/add")
-    @SaCheckLogin
-    @ApiOperation("添加物品")
-    public BaseResponse<Long> addItemInstance(@RequestBody @Validated ItemInstanceAddRequest itemInstanceAddRequest) {
-        ThrowUtils.throwIf(itemInstanceAddRequest == null, ErrorCode.PARAMS_ERROR);
-        // 调用 Service 创建物品实例
-        Long itemInstanceId = itemInstancesService.addItemInstance(itemInstanceAddRequest);
-        return ResultUtils.success(itemInstanceId);
-    }
-
-    /**
-     * 用户更新自己持有的物品
-     */
-    @PostMapping("/update")
-    @SaCheckLogin
-    @ApiOperation("更新物品信息（用户）")
-    public BaseResponse<Boolean> updateItemInstance(@RequestBody @Validated ItemInstanceUpdateRequest itemInstanceUpdateRequest) {
-        if (itemInstanceUpdateRequest == null || itemInstanceUpdateRequest.getTemplateId() == null || itemInstanceUpdateRequest.getTemplateId() <= 0) {
-            throw new BusinessException(ErrorCode.PARAMS_ERROR);
-        }
-        boolean success = itemInstancesService.updateItemInstance(itemInstanceUpdateRequest);
-        return ResultUtils.success(success);
-    }
-
-    /**
-     * 用户删除自己持有的物品
-     */
-    @PostMapping("/delete")
-    @SaCheckLogin
-    @ApiOperation("删除物品")
-    public BaseResponse<Boolean> deleteItemInstance(@RequestBody DeleteRequest deleteRequest) {
-        if (deleteRequest == null || Long.parseLong(deleteRequest.getId()) <= 0) {
-            throw new BusinessException(ErrorCode.PARAMS_ERROR);
-        }
-        User user = userService.getLoginUser();
-        long id = Long.parseLong(deleteRequest.getId());
-        // 判断是否存在
-        ItemInstances oldItemInstance = itemInstancesService.getById(id);
-        ThrowUtils.throwIf(oldItemInstance == null, ErrorCode.NOT_FOUND_ERROR);
-        // 仅本人或管理员可删除
-        if (!oldItemInstance.getOwnerUserId().equals(user.getId()) && !userService.isAdmin()) {
-            throw new BusinessException(ErrorCode.NO_AUTH_ERROR);
-        }
-        boolean result = itemInstancesService.removeById(id);
-        ThrowUtils.throwIf(!result, ErrorCode.OPERATION_ERROR);
-        return ResultUtils.success(result);
-    }
 
     /**
      * 分解物品实例，获得积分

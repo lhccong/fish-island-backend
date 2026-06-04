@@ -26,9 +26,10 @@ public interface RedPacketService {
      *
      * @param redPacketId 红包ID
      * @param userId 用户ID
+     * @param answer 答题红包时提交的用户答案，普通红包可传 null
      * @return 抢到的金额，如果抢不到返回null
      */
-    Integer grabRedPacket(String redPacketId, Long userId);
+    Integer grabRedPacket(String redPacketId, Long userId, String answer);
 
     
     /**

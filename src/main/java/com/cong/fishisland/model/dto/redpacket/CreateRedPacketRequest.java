@@ -26,13 +26,20 @@ public class CreateRedPacketRequest {
     private Integer count;
     
     /**
-     * 红包类型：1-随机红包，2-平均红包
+     * 红包类型：1-随机红包，2-平均红包，3-答题红包
      */
-    @ApiModelProperty(value = "红包类型：1-随机红包，2-平均红包", required = true, example = "1")
+    @ApiModelProperty(value = "红包类型：1-随机红包，2-平均红包，3-答题红包", required = true, example = "1")
     private Integer type;
 
     /**
-     * 红包名称
+     * 红包名称（答题红包时作为题目）
      */
+    @ApiModelProperty(value = "红包名称（答题红包时作为题目）", example = "摸鱼岛成立于哪一年？")
     private String name;
+
+    /**
+     * 正确答案（type=3 答题红包时必填，抢红包时需提交一致答案）
+     */
+    @ApiModelProperty(value = "正确答案（答题红包必填）", example = "2024")
+    private String answer;
 } 

@@ -233,12 +233,18 @@ public class PetEquipForgeServiceImpl extends ServiceImpl<PetEquipForgeMapper, P
     }
 
     /**
-     * 校验宠物归属并返回宠物实体
+     * 校验宠物归属并返回宠物实体（仅允许操作当前登录用户自己的宠物）
      */
     private FishPet getPetAndCheckOwner(Long petId, Long userId) {
+        if (petId == null) {
+            throw new BusinessException(ErrorCode.PARAMS_ERROR);
+        }
         FishPet pet = fishPetService.getById(petId);
         if (pet == null || pet.getIsDelete() == 1) {
             throw new BusinessException(ErrorCode.NOT_FOUND_ERROR, "宠物不存在");
+        }
+        if (!Objects.equals(pet.getUserId(), userId)) {
+            throw new BusinessException(ErrorCode.NO_AUTH_ERROR, "无权操作该宠物");
         }
         return pet;
     }

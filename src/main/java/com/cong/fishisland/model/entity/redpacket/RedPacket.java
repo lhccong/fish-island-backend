@@ -39,9 +39,14 @@ public class RedPacket implements Serializable {
     private Integer count;
     
     /**
-     * 红包类型：1-随机红包，2-平均红包
+     * 红包类型：1-随机红包，2-平均红包，3-答题红包
      */
     private Integer type;
+
+    /**
+     * 正确答案（答题红包，仅存 Redis；详情接口返回前会清空）
+     */
+    private String answer;
     
     /**
      * 每个红包的金额（平均红包时使用）

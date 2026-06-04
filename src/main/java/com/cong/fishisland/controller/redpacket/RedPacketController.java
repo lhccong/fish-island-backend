@@ -40,9 +40,11 @@ public class RedPacketController {
 
     @PostMapping("/grab")
     @ApiOperation(value = "抢红包")
-    public BaseResponse<Integer> grabRedPacket(@RequestParam @ApiParam(value = "红包ID", required = true) String redPacketId) {
+    public BaseResponse<Integer> grabRedPacket(
+            @RequestParam @ApiParam(value = "红包ID", required = true) String redPacketId,
+            @RequestParam(required = false) @ApiParam(value = "用户答案（答题红包必填）") String answer) {
         Long userId = Long.valueOf(StpUtil.getLoginId().toString());
-        Integer amount = redPacketService.grabRedPacket(redPacketId, userId);
+        Integer amount = redPacketService.grabRedPacket(redPacketId, userId, answer);
         return ResultUtils.success(amount);
     }
 
