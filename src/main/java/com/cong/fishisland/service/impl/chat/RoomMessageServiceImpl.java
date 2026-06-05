@@ -25,31 +25,44 @@ public class RoomMessageServiceImpl extends ServiceImpl<RoomMessageMapper, RoomM
     @Override
     public Page<RoomMessageVo> listMessageVoByPage(MessageQueryRequest messageQueryRequest) {
         Long roomId = messageQueryRequest.getRoomId();
-
-        // 获取当前页码
-        int current = messageQueryRequest.getCurrent();
-        // 获取每页大小
         int size = messageQueryRequest.getPageSize();
         if (roomId == null) {
-            // 创建新的分页对象，用于存储转换后的消息对象
             Page<RoomMessageVo> messageVoPage = new Page<>(0, size, 0);
-            // 将转换后的消息对象列表设置为新的分页对象的记录
             messageVoPage.setRecords(null);
             return messageVoPage;
         }
-        // 创建分页对象
+
+        Long cursorMessageId = messageQueryRequest.getMessageId();
+        if (cursorMessageId != null) {
+            return listMessageVoByCursor(roomId, cursorMessageId, size);
+        }
+
+        int current = messageQueryRequest.getCurrent();
         Page<RoomMessage> messagePage = this.page(new Page<>(current, size),
-                // 创建查询条件对象
-                new LambdaQueryWrapper<RoomMessage>().eq(RoomMessage::getRoomId, roomId).orderByDesc(RoomMessage::getCreateTime));
-        //反转
-        // 将消息列表转换为RoomMessageVo对象列表
-        List<RoomMessageVo> chatMessageRespList = messagePage.getRecords().stream().map(item -> new RoomMessageVo().getVoByEntity(item))
+                new LambdaQueryWrapper<RoomMessage>()
+                        .eq(RoomMessage::getRoomId, roomId)
+                        .orderByDesc(RoomMessage::getCreateTime));
+        return buildMessageVoPage(messagePage.getRecords(), current, size, messagePage.getTotal());
+    }
+
+    /**
+     * 游标分页：获取指定消息 ID 之前的历史消息
+     */
+    private Page<RoomMessageVo> listMessageVoByCursor(Long roomId, Long cursorMessageId, int size) {
+        Page<RoomMessage> messagePage = this.page(new Page<>(1, size, false),
+                new LambdaQueryWrapper<RoomMessage>()
+                        .eq(RoomMessage::getRoomId, roomId)
+                        .lt(RoomMessage::getId, cursorMessageId)
+                        .orderByDesc(RoomMessage::getId));
+        return buildMessageVoPage(messagePage.getRecords(), 1, size, 0);
+    }
+
+    private Page<RoomMessageVo> buildMessageVoPage(List<RoomMessage> messages, int current, int size, long total) {
+        List<RoomMessageVo> chatMessageRespList = messages.stream()
+                .map(item -> new RoomMessageVo().getVoByEntity(item))
                 .collect(Collectors.toList());
-        // 创建新的分页对象，用于存储转换后的消息对象
-        Page<RoomMessageVo> messageVoPage = new Page<>(current, size, messagePage.getTotal());
-        // 将转换后的消息对象列表设置为新的分页对象的记录
+        Page<RoomMessageVo> messageVoPage = new Page<>(current, size, total);
         messageVoPage.setRecords(chatMessageRespList);
-        // 返回新的分页对象
         return messageVoPage;
     }
 }
