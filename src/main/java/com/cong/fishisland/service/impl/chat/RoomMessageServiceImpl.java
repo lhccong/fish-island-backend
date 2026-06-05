@@ -52,7 +52,7 @@ public class RoomMessageServiceImpl extends ServiceImpl<RoomMessageMapper, RoomM
         Page<RoomMessage> messagePage = this.page(new Page<>(1, size, false),
                 new LambdaQueryWrapper<RoomMessage>()
                         .eq(RoomMessage::getRoomId, roomId)
-                        .lt(RoomMessage::getId, cursorMessageId)
+                        .lt(RoomMessage::getMessageId, cursorMessageId)
                         .orderByDesc(RoomMessage::getId));
         return buildMessageVoPage(messagePage.getRecords(), 1, size, 0);
     }
