@@ -224,15 +224,17 @@ public class MomentsServiceImpl extends ServiceImpl<MomentsMapper, Moments>
 
     @Override
     public Page<MomentsVO> listMoments(MomentsQueryRequest request) {
-        long userId = StpUtil.getLoginIdAsLong();
+        Long userId = StpUtil.isLogin() ? StpUtil.getLoginIdAsLong() : null;
         Page<Moments> page = new Page<>(request.getCurrent(), request.getPageSize());
 
         lambdaQuery()
                 .eq(request.getUserId() != null, Moments::getUserId, request.getUserId())
-                // 过滤仅自己可见（visibility=1）的其他人动态
-                .and(w -> w.eq(Moments::getUserId, userId)
+                // 已登录：过滤仅自己可见（visibility=1）的其他人动态
+                .and(userId != null, w -> w.eq(Moments::getUserId, userId)
                         .or().ne(Moments::getVisibility, 1))
-                // 置顶动态排在最前，同层内按发布时间倒序
+                // 未登录：只能查看公开动态
+                .and(userId == null, w -> w.isNull(Moments::getVisibility)
+                        .or().ne(Moments::getVisibility, 1))
                 .orderByDesc(Moments::getIsTop)
                 .orderByDesc(Moments::getCreateTime)
                 .page(page);
@@ -240,7 +242,7 @@ public class MomentsServiceImpl extends ServiceImpl<MomentsMapper, Moments>
         // 批量查询点赞状态
         List<Long> momentIds = page.getRecords().stream()
                 .map(Moments::getId).collect(Collectors.toList());
-        Set<Long> likedSet = getLikedSet(userId, momentIds);
+        Set<Long> likedSet = userId != null ? getLikedSet(userId, momentIds) : Collections.emptySet();
 
         // 批量查询所有点赞记录，按 momentId 分组
         Map<Long, List<MomentsLike>> likesMap = getLikesMap(momentIds);

@@ -1,6 +1,7 @@
 package com.cong.fishisland.model.vo.report;
 
 import com.cong.fishisland.model.vo.chat.RoomMessageVo;
+import com.cong.fishisland.model.vo.user.UserVO;
 import io.swagger.annotations.ApiModelProperty;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -27,6 +28,9 @@ public class ReportVO implements Serializable {
     @ApiModelProperty(value = "举报人用户ID")
     private Long reporterId;
 
+    @ApiModelProperty(value = "举报人用户信息")
+    private UserVO reporterUser;
+
     @ApiModelProperty(value = "举报类型")
     private Integer reportType;
 
@@ -38,6 +42,9 @@ public class ReportVO implements Serializable {
 
     @ApiModelProperty(value = "被举报用户ID")
     private Long targetUserId;
+
+    @ApiModelProperty(value = "被举报用户信息")
+    private UserVO targetUser;
 
     @ApiModelProperty(value = "被举报聊天消息（仅聊天记录举报时有值）")
     private RoomMessageVo chatMessage;

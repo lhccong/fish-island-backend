@@ -16,19 +16,23 @@ import com.cong.fishisland.model.dto.report.ReportHandleRequest;
 import com.cong.fishisland.model.dto.report.ReportQueryRequest;
 import com.cong.fishisland.model.entity.chat.RoomMessage;
 import com.cong.fishisland.model.entity.report.ContentReport;
+import com.cong.fishisland.model.entity.user.User;
 import com.cong.fishisland.model.enums.report.ReportReasonEnum;
 import com.cong.fishisland.model.enums.report.ReportStatusEnum;
 import com.cong.fishisland.model.enums.report.ReportTypeEnum;
 import com.cong.fishisland.model.vo.chat.RoomMessageVo;
 import com.cong.fishisland.model.vo.report.ReportReasonOptionVO;
 import com.cong.fishisland.model.vo.report.ReportVO;
+import com.cong.fishisland.model.vo.user.UserVO;
 import com.cong.fishisland.service.RoomMessageService;
+import com.cong.fishisland.service.UserService;
 import com.cong.fishisland.service.report.ContentReportService;
 import org.apache.commons.lang3.StringUtils;
 import org.springframework.beans.BeanUtils;
 import org.springframework.stereotype.Service;
 
 import javax.annotation.Resource;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.Date;
@@ -50,6 +54,9 @@ public class ContentReportServiceImpl extends ServiceImpl<ContentReportMapper, C
 
     @Resource
     private RoomMessageService roomMessageService;
+
+    @Resource
+    private UserService userService;
 
     @Override
     public Long addReport(ReportAddRequest request) {
@@ -128,10 +135,11 @@ public class ContentReportServiceImpl extends ServiceImpl<ContentReportMapper, C
         queryWrapper.orderByDesc(ContentReport::getCreateTime);
 
         Page<ContentReport> reportPage = this.page(new Page<>(request.getCurrent(), request.getPageSize()), queryWrapper);
-        Map<Long, RoomMessage> chatMessageMap = loadChatMessageMap(reportPage.getRecords());
+        Map<String, RoomMessage> chatMessageMap = loadChatMessageMap(reportPage.getRecords());
+        Map<Long, UserVO> userMap = loadUserMap(reportPage.getRecords(), chatMessageMap);
         Page<ReportVO> voPage = new Page<>(reportPage.getCurrent(), reportPage.getSize(), reportPage.getTotal());
         voPage.setRecords(reportPage.getRecords().stream()
-                .map(report -> toReportVO(report, chatMessageMap))
+                .map(report -> toReportVO(report, chatMessageMap, userMap))
                 .collect(Collectors.toList()));
         return voPage;
     }
@@ -159,7 +167,7 @@ public class ContentReportServiceImpl extends ServiceImpl<ContentReportMapper, C
         return this.updateById(report);
     }
 
-    private Map<Long, RoomMessage> loadChatMessageMap(List<ContentReport> reports) {
+    private Map<String, RoomMessage> loadChatMessageMap(List<ContentReport> reports) {
         List<Long> chatTargetIds = reports.stream()
                 .filter(report -> ReportTypeConstant.CHAT.equals(report.getReportType()))
                 .map(ContentReport::getTargetId)
@@ -169,21 +177,62 @@ public class ContentReportServiceImpl extends ServiceImpl<ContentReportMapper, C
         if (chatTargetIds.isEmpty()) {
             return Collections.emptyMap();
         }
-        return roomMessageService.listByIds(chatTargetIds).stream()
-                .collect(Collectors.toMap(RoomMessage::getId, message -> message, (a, b) -> a));
+        return roomMessageService.list(new LambdaQueryWrapper<RoomMessage>().in(RoomMessage::getMessageId, chatTargetIds)).stream()
+                .collect(Collectors.toMap(RoomMessage::getMessageId, message -> message, (a, b) -> a));
     }
 
-    private ReportVO toReportVO(ContentReport report, Map<Long, RoomMessage> chatMessageMap) {
+    private Map<Long, UserVO> loadUserMap(List<ContentReport> reports, Map<String, RoomMessage> chatMessageMap) {
+        List<Long> userIds = new ArrayList<>();
+        for (ContentReport report : reports) {
+            if (report.getReporterId() != null) {
+                userIds.add(report.getReporterId());
+            }
+            Long targetUserId = resolveTargetUserId(report, chatMessageMap);
+            if (targetUserId != null) {
+                userIds.add(targetUserId);
+            }
+        }
+        userIds = userIds.stream().distinct().collect(Collectors.toList());
+        if (userIds.isEmpty()) {
+            return Collections.emptyMap();
+        }
+        List<User> users = userService.listByIds(userIds);
+        return userService.getUserVO(users).stream()
+                .collect(Collectors.toMap(UserVO::getId, user -> user, (a, b) -> a));
+    }
+
+    private Long resolveTargetUserId(ContentReport report, Map<String, RoomMessage> chatMessageMap) {
+        if (report.getTargetUserId() != null) {
+            return report.getTargetUserId();
+        }
+        if (ReportTypeConstant.CHAT.equals(report.getReportType())) {
+            RoomMessage roomMessage = chatMessageMap.get(report.getTargetId().toString());
+            if (roomMessage != null) {
+                return roomMessage.getUserId();
+            }
+        }
+        return null;
+    }
+
+    private ReportVO toReportVO(ContentReport report, Map<String, RoomMessage> chatMessageMap, Map<Long, UserVO> userMap) {
         ReportVO vo = new ReportVO();
         BeanUtils.copyProperties(report, vo);
         vo.setReportTypeText(ReportTypeEnum.getEnumByValue(report.getReportType()).getText());
         vo.setReasonTypeText(ReportReasonEnum.getEnumByValue(report.getReasonType()).getText());
         vo.setStatusText(ReportStatusEnum.getEnumByValue(report.getStatus()).getText());
+        if (report.getReporterId() != null) {
+            vo.setReporterUser(userMap.get(report.getReporterId()));
+        }
         if (ReportTypeConstant.CHAT.equals(report.getReportType())) {
-            RoomMessage roomMessage = chatMessageMap.get(report.getTargetId());
+            RoomMessage roomMessage = chatMessageMap.get(report.getTargetId().toString());
             if (roomMessage != null) {
                 vo.setChatMessage(new RoomMessageVo().getVoByEntity(roomMessage));
             }
+        }
+        Long targetUserId = resolveTargetUserId(report, chatMessageMap);
+        if (targetUserId != null) {
+            vo.setTargetUserId(targetUserId);
+            vo.setTargetUser(userMap.get(targetUserId));
         }
         return vo;
     }
