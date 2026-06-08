@@ -5,6 +5,11 @@ import com.alibaba.fastjson.JSONObject;
 import com.cong.fishisland.common.ErrorCode;
 import com.cong.fishisland.common.exception.BusinessException;
 import com.cong.fishisland.config.KoishiConfig;
+import com.cong.fishisland.model.enums.MessageTypeEnum;
+import com.cong.fishisland.model.ws.request.Message;
+import com.cong.fishisland.model.ws.request.MessageWrapper;
+import com.cong.fishisland.model.ws.response.WSBaseResp;
+import com.cong.fishisland.websocket.service.WebSocketService;
 import lombok.extern.slf4j.Slf4j;
 import okhttp3.OkHttpClient;
 import okhttp3.Request;
@@ -20,9 +25,12 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.concurrent.locks.ReentrantLock;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 /**
- * Koishi WebSocket 客户端，启动时建立长连接并复用，仅提取机器人回复内容。
+ * Koishi WebSocket 客户端，启动时建立长连接并复用。
+ * 发送消息与接收回复分离：发送仅负责投递，回复由全局 onMessage 统一处理。
  */
 @Service
 @Slf4j
@@ -30,19 +38,31 @@ public class KoishiWebSocketService {
 
     private static final String TYPE_SANDBOX_MESSAGE = "sandbox/message";
     private static final String KOISHI_USER = "Koishi";
+    private static final Pattern IMG_TAG_PATTERN = Pattern.compile(
+            "<img\\s+[^>]*src\\s*=\\s*[\"']([^\"']+)[\"'][^>]*/?>",
+            Pattern.CASE_INSENSITIVE);
+    private static final Pattern AUDIO_TAG_PATTERN = Pattern.compile(
+            "<audio\\s+[^>]*src\\s*=\\s*[\"']([^\"']+)[\"'][^>]*/?>",
+            Pattern.CASE_INSENSITIVE);
 
     private final KoishiConfig koishiConfig;
+    private final RobotChatMessageService robotChatMessageService;
+    private final WebSocketService webSocketService;
     private final ReentrantLock requestLock = new ReentrantLock();
 
     private OkHttpClient client;
     private volatile WebSocket webSocket;
     private volatile boolean ready;
     private volatile boolean shuttingDown;
-    private volatile CompletableFuture<String> currentPending;
+    private volatile Message currentQuotedMessage;
     private volatile CompletableFuture<Void> connectionReady = new CompletableFuture<>();
 
-    public KoishiWebSocketService(KoishiConfig koishiConfig) {
+    public KoishiWebSocketService(KoishiConfig koishiConfig,
+                                  RobotChatMessageService robotChatMessageService,
+                                  WebSocketService webSocketService) {
         this.koishiConfig = koishiConfig;
+        this.robotChatMessageService = robotChatMessageService;
+        this.webSocketService = webSocketService;
     }
 
     @PostConstruct
@@ -62,92 +82,82 @@ public class KoishiWebSocketService {
         if (ws != null) {
             ws.close(1000, "shutdown");
         }
-        completePendingExceptionally("Koishi WebSocket 服务已关闭");
+        currentQuotedMessage = null;
         if (client != null) {
             client.dispatcher().executorService().shutdown();
         }
     }
 
     /**
-     * 使用默认用户发送消息，仅返回 Koishi 回复内容。
+     * 使用默认用户向 Koishi 发送消息。
      */
-    public String getKoishiReply(String content) {
-        return getKoishiReply(koishiConfig.getDefaultUser(), content);
+    public void sendMessage(String content, Message quotedMessage) {
+        sendMessage(koishiConfig.getDefaultUser(), content, quotedMessage);
     }
 
     /**
-     * 通过已建立的 WebSocket 连接发送消息，仅返回 Koishi 机器人的回复内容。
+     * 通过已建立的 WebSocket 连接向 Koishi 发送消息，回复由全局监听器统一处理。
      */
-    public String getKoishiReply(String username, String content) {
+    public void sendMessage(String username, String content, Message quotedMessage) {
         if (!StringUtils.hasText(content)) {
             throw new BusinessException(ErrorCode.PARAMS_ERROR, "消息内容不能为空");
         }
         String user = StringUtils.hasText(username) ? username.trim() : koishiConfig.getDefaultUser();
-        waitForConnectionReady();
+        try {
+            waitForConnectionReady();
+        } catch (Exception e) {
+            log.warn("Koishi WebSocket 未就绪，消息未发送: {}", e.getMessage());
+            return;
+        }
 
         requestLock.lock();
         try {
             WebSocket ws = webSocket;
             if (!ready || ws == null) {
-                throw new BusinessException(ErrorCode.OPERATION_ERROR, "Koishi WebSocket 未就绪");
+                log.warn("Koishi WebSocket 未就绪，消息未发送");
+                return;
             }
 
-            CompletableFuture<String> pending = new CompletableFuture<>();
-            currentPending = pending;
+            currentQuotedMessage = quotedMessage;
 
             long now = System.currentTimeMillis();
             send(ws, "create_user_" + now, "sandbox/set-user",
                     koishiConfig.getPlatform(), user, new JSONObject());
             send(ws, "msg_" + now, "sandbox/send-message",
                     koishiConfig.getPlatform(), user, koishiConfig.getChannel(), content, null);
-
-            try {
-                return pending.get(koishiConfig.getReplyTimeoutSeconds(), TimeUnit.SECONDS);
-            } catch (TimeoutException e) {
-                log.warn("等待 Koishi 回复超时（{} 秒），返回空字符串", koishiConfig.getReplyTimeoutSeconds());
-                return "";
-            } catch (InterruptedException e) {
-                Thread.currentThread().interrupt();
-                throw new BusinessException(ErrorCode.OPERATION_ERROR, "等待 Koishi 回复被中断");
-            } catch (Exception e) {
-                throw new BusinessException(ErrorCode.OPERATION_ERROR,
-                        "等待 Koishi 回复失败: " + e.getMessage());
-            } finally {
-                if (currentPending == pending) {
-                    currentPending = null;
-                }
-            }
         } finally {
             requestLock.unlock();
         }
     }
 
     /**
-     * 从 WebSocket 消息中提取 Koishi 回复，忽略用户消息和发送成功响应。
+     * 将 Koishi 回复中的 HTML 媒体标签转换为聊天室格式。
      */
-    String extractKoishiReply(String text, String currentUser) {
-        JSONObject data;
-        try {
-            data = JSON.parseObject(text);
-        } catch (Exception e) {
-            log.warn("Koishi WS 消息不是合法 JSON: {}", text);
-            return null;
+    String formatKoishiReply(String content) {
+        if (!StringUtils.hasText(content)) {
+            return content;
         }
-        if (data == null || !TYPE_SANDBOX_MESSAGE.equals(data.getString("type"))) {
-            return null;
+        content = replaceMediaTag(content, IMG_TAG_PATTERN, "img", true);
+        content = replaceMediaTag(content, AUDIO_TAG_PATTERN, "audio", false);
+        return content;
+    }
+
+    private String replaceMediaTag(String content, Pattern pattern, String tagName, boolean stripQueryParams) {
+        Matcher matcher = pattern.matcher(content);
+        StringBuffer result = new StringBuffer();
+        while (matcher.find()) {
+            String url = matcher.group(1);
+            if (stripQueryParams) {
+                int queryIndex = url.indexOf('?');
+                if (queryIndex >= 0) {
+                    url = url.substring(0, queryIndex);
+                }
+            }
+            String replacement = "[" + tagName + "]" + url + "[/" + tagName + "]";
+            matcher.appendReplacement(result, Matcher.quoteReplacement(replacement));
         }
-        JSONObject body = data.getJSONObject("body");
-        if (body == null) {
-            return null;
-        }
-        String msgUser = body.getString("user");
-        if (currentUser.equals(msgUser)) {
-            return null;
-        }
-        if (KOISHI_USER.equals(msgUser)) {
-            return body.getString("content");
-        }
-        return null;
+        matcher.appendTail(result);
+        return result.toString();
     }
 
     private void connect() {
@@ -210,10 +220,25 @@ public class KoishiWebSocketService {
         if (content == null) {
             return;
         }
-        CompletableFuture<String> pending = currentPending;
-        if (pending != null && !pending.isDone()) {
-            pending.complete(content);
+        String reply = formatKoishiReply(content);
+        if (!StringUtils.hasText(reply)) {
+            return;
         }
+
+        Message quotedMessage;
+        requestLock.lock();
+        try {
+            quotedMessage = currentQuotedMessage;
+            currentQuotedMessage = null;
+        } finally {
+            requestLock.unlock();
+        }
+
+        MessageWrapper messageWrapper = robotChatMessageService.buildAiReplyWrapper(reply, quotedMessage);
+        webSocketService.sendToAllOnline(WSBaseResp.builder()
+                .type(MessageTypeEnum.CHAT.getType())
+                .data(messageWrapper).build());
+        robotChatMessageService.saveAiReply(messageWrapper);
     }
 
     private String extractKoishiContent(String text) {
@@ -250,22 +275,15 @@ public class KoishiWebSocketService {
     private void onDisconnected(String reason) {
         ready = false;
         webSocket = null;
+        currentQuotedMessage = null;
         CompletableFuture<Void> previousReady = connectionReady;
         if (!previousReady.isDone()) {
             previousReady.completeExceptionally(
                     new BusinessException(ErrorCode.OPERATION_ERROR, "Koishi WebSocket 连接失败: " + reason));
         }
         connectionReady = new CompletableFuture<>();
-        completePendingExceptionally("Koishi WebSocket 连接断开: " + reason);
         if (!shuttingDown) {
             scheduleReconnect();
-        }
-    }
-
-    private void completePendingExceptionally(String message) {
-        CompletableFuture<String> pending = currentPending;
-        if (pending != null && !pending.isDone()) {
-            pending.completeExceptionally(new BusinessException(ErrorCode.OPERATION_ERROR, message));
         }
     }
 

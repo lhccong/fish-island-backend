@@ -286,13 +286,15 @@ public class WebSocketServiceImpl implements WebSocketService {
                         .data(result.messageDto).build(), loginUserId);
                 //查看是否是给机器人发的
                 List<Sender> mentionedUsers = result.message.getMentionedUsers();
-
+                String messageContent = result.message.getContent();
+                boolean isRobot = messageContent != null && messageContent.contains("@摸鱼助手");
+                if (!isRobot && mentionedUsers != null && !mentionedUsers.isEmpty()) {
+                    isRobot = mentionedUsers.stream().anyMatch(item -> item.getId().equals(UserConstant.ROBOT_ID));
+                }
+                if (isRobot) {
+                    applicationEventPublisher.publishEvent(new AIAnswerEvent(this, result.messageDto));
+                }
                 if (mentionedUsers != null && !mentionedUsers.isEmpty()) {
-                    //校验里面是否有机器人
-                    boolean isRobot = mentionedUsers.stream().anyMatch(item -> item.getId().equals(UserConstant.ROBOT_ID));
-                    if (isRobot) {
-                        applicationEventPublisher.publishEvent(new AIAnswerEvent(this, result.messageDto));
-                    }
                     publishAiAvatarAnswerEvents(result.message, result.messageDto, mentionedUsers);
                 }
 
