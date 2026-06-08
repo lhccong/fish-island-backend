@@ -124,6 +124,15 @@ minio:
 
 # 热榜数据源相关配置（按需配置）
 fishisland:
+  koishi:
+    ws-url: ws://127.0.0.1:5140/status
+    token: mock-token
+    platform: sandbox:mock
+    default-user: Eve
+    channel: "#"
+    reply-timeout-seconds: 3
+    connect-timeout-seconds: 15
+    reconnect-delay-seconds: 3
   pet:
     forge:
       # 数值计算是否计入项链(5)、翅膀(6)的锻造等级与词条；暂无实体装备时建议 false
