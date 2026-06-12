@@ -67,7 +67,6 @@ public class PetEquipForgeServiceImpl extends ServiceImpl<PetEquipForgeMapper, P
     @Override
     public List<PetEquipForgeVO> listByPetId(Long petId) {
         Long userId = StpUtil.getLoginIdAsLong();
-        getPetAndCheckOwner(petId, userId);
 
         List<PetEquipForge> list = lambdaQuery()
                 .eq(PetEquipForge::getPetId, petId)
@@ -78,8 +77,7 @@ public class PetEquipForgeServiceImpl extends ServiceImpl<PetEquipForgeMapper, P
 
     @Override
     public PetEquipForgeDetailVO getForgeDetail(Long petId, Integer equipSlot) {
-        Long userId = StpUtil.getLoginIdAsLong();
-        FishPet pet = getPetAndCheckOwner(petId, userId);
+        FishPet pet = fishPetService.getById(petId);
 
         EquipSlotEnum slot = EquipSlotEnum.of(equipSlot);
         PetEquipForge forge = getOrCreateForge(pet, slot);

@@ -9,6 +9,7 @@ import com.cong.fishisland.common.exception.BusinessException;
 import com.cong.fishisland.constant.FileConstant;
 import com.cong.fishisland.manager.CosManager;
 import com.cong.fishisland.manager.MinioManager;
+import com.cong.fishisland.manager.NudeNetManager;
 import com.cong.fishisland.model.dto.file.UploadFileRequest;
 import com.cong.fishisland.model.entity.user.User;
 import com.cong.fishisland.model.enums.FileUploadBizEnum;
@@ -48,6 +49,9 @@ public class FileController {
     @Resource
     private MinioManager minioManager;
 
+    @Resource
+    private NudeNetManager nudeNetManager;
+
     @GetMapping("/cos/credential")
     @ApiOperation(value = "获取cos临时凭证")
     public BaseResponse<CosCredentialVo> getCosCredential(String fileName) {
@@ -73,6 +77,7 @@ public class FileController {
         }
         validFile(multipartFile, fileUploadBizEnum);
         User loginUser = userService.getLoginUser();
+        nudeNetManager.checkImage(multipartFile, loginUser.getId());
         // 文件目录：根据业务、用户来划分
         String uuid = RandomStringUtils.randomAlphanumeric(8);
         String filename = uuid + "-" + multipartFile.getOriginalFilename();
@@ -110,6 +115,7 @@ public class FileController {
         }
         validFile(multipartFile, fileUploadBizEnum);
         User loginUser = userService.getLoginUser();
+        nudeNetManager.checkImage(multipartFile, loginUser.getId());
         // 生成存储路径
         String uuid = RandomStringUtils.randomAlphanumeric(8);
         String filename = uuid + "-" + multipartFile.getOriginalFilename();
@@ -146,6 +152,9 @@ public class FileController {
     @ApiOperation(value = "上传图片到111666.best")
     public BaseResponse<String> uploadTo111666(@RequestPart("file") MultipartFile multipartFile) {
         try {
+            User loginUser = userService.getLoginUserPermitNull();
+            Long userId = loginUser != null ? loginUser.getId() : null;
+            nudeNetManager.checkImage(multipartFile, userId);
             // 1. 校验文件
             // 2. 创建 OkHttpClient
             OkHttpClient client = new OkHttpClient();

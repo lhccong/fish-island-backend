@@ -134,8 +134,8 @@ public class TurntableServiceImpl extends ServiceImpl<TurntableMapper, Turntable
         // 获取用户ID
         Long userId = Long.valueOf(StpUtil.getLoginId().toString());
 
-        // 判断是否是当天第一次抽奖
-        boolean isFirstDrawToday = !turntableDrawRecordService.hasTodayDrawRecord(userId, turntableId);
+        // 判断是否是当天第一次抽奖（全转盘共享，不限单个转盘）
+        boolean isFirstDrawToday = !turntableDrawRecordService.hasTodayDrawRecord(userId);
 
         // 计算消耗积分（每天第一次抽奖的第一抽免费）
         int totalCostPoints;

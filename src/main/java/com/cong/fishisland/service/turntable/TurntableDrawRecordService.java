@@ -20,10 +20,9 @@ public interface TurntableDrawRecordService extends IService<TurntableDrawRecord
     List<TurntableDrawRecord> listByUserIdAndTurntableId(Long userId, Long turntableId);
 
     /**
-     * 判断用户当天是否已有抽奖记录
+     * 判断用户当天是否已有抽奖记录（不限转盘）
      * @param userId 用户ID
-     * @param turntableId 转盘ID
      * @return 当天是否已有抽奖记录
      */
-    boolean hasTodayDrawRecord(Long userId, Long turntableId);
+    boolean hasTodayDrawRecord(Long userId);
 }

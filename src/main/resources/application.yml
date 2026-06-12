@@ -137,6 +137,23 @@ fishisland:
     forge:
       # 数值计算是否计入项链(5)、翅膀(6)的锻造等级与词条；暂无实体装备时建议 false
       include-necklace-wings-stats: false
+  nudenet:
+    # 是否启用 NudeNet 图片内容检测
+    enabled: true
+    infer-url: http://localhost:8080/infer
+    score-threshold: 0.4
+    # 检测服务异常时是否放行上传
+    fail-open: true
+    timeout-seconds: 15
+    notify-user-id: 1
+    blocked-classes:
+      - FEMALE_BREAST_EXPOSED
+      - FEMALE_GENITALIA_EXPOSED
+      - MALE_GENITALIA_EXPOSED
+      - MALE_BREAST_EXPOSED
+      - BUTTOCKS_EXPOSED
+      - ANUS_EXPOSED
+      - BELLY_EXPOSED
   datasource:
     nga:
       # 可选：访客 Cookie 等，部分网络环境访问 NGA 需要；勿将含登录态的 Cookie 写入仓库或提交版本控制

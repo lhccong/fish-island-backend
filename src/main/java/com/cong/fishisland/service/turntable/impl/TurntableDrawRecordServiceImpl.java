@@ -36,15 +36,13 @@ public class TurntableDrawRecordServiceImpl extends ServiceImpl<TurntableDrawRec
     }
 
     @Override
-    public boolean hasTodayDrawRecord(Long userId, Long turntableId) {
-        // 获取今天的开始和结束时间
+    public boolean hasTodayDrawRecord(Long userId) {
         LocalDate today = LocalDate.now();
         LocalDateTime startOfDay = today.atStartOfDay();
         LocalDateTime endOfDay = today.plusDays(1).atStartOfDay();
 
         LambdaQueryWrapper<TurntableDrawRecord> queryWrapper = new LambdaQueryWrapper<>();
         queryWrapper.eq(TurntableDrawRecord::getUserId, userId)
-                .eq(TurntableDrawRecord::getTurntableId, turntableId)
                 .eq(TurntableDrawRecord::getIsDelete, 0)
                 .ge(TurntableDrawRecord::getCreateTime, startOfDay)
                 .lt(TurntableDrawRecord::getCreateTime, endOfDay)
