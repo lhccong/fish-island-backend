@@ -40,4 +40,9 @@ public interface PetTournamentService {
      * 每日重置排行榜（定时任务调用）
      */
     void resetDailyLeaderboard();
+
+    /**
+     * 按当日排行榜发放积分奖励（定时任务调用，与 Boss 结算一起执行）
+     */
+    void distributeDailyRankRewards();
 }

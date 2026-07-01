@@ -126,6 +126,7 @@ minio:
 fishisland:
   koishi:
     ws-url: ws://127.0.0.1:5140/status
+    # 摸鱼助手 Token 优先从数据源 Cookie 表（dataSourceKey=Koishi）读取，此处仅作兜底
     token: mock-token
     platform: sandbox:mock
     default-user: Eve
@@ -137,6 +138,9 @@ fishisland:
     forge:
       # 数值计算是否计入项链(5)、翅膀(6)的锻造等级与词条；暂无实体装备时建议 false
       include-necklace-wings-stats: false
+  tournament:
+    # 武道大会每日排行结算总积分池（按排名百分比分配，规则同 Boss）
+    reward-points: 400
   nudenet:
     # 是否启用 NudeNet 图片内容检测
     enabled: true

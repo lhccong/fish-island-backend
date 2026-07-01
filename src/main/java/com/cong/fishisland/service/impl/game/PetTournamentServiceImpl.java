@@ -3,10 +3,12 @@ package com.cong.fishisland.service.impl.game;
 import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
 import com.cong.fishisland.common.ErrorCode;
 import com.cong.fishisland.common.exception.BusinessException;
+import com.cong.fishisland.config.TournamentProperties;
 import com.cong.fishisland.constant.BattleConstant;
 import com.cong.fishisland.constant.TournamentRedisKey;
 import com.cong.fishisland.model.entity.pet.FishPet;
 import com.cong.fishisland.model.entity.user.User;
+import com.cong.fishisland.model.enums.user.PointsRecordSourceEnum;
 import com.cong.fishisland.model.vo.game.PetBattleResultVO;
 import com.cong.fishisland.model.vo.game.TournamentChallengeResultVO;
 import com.cong.fishisland.model.vo.game.TournamentRankVO;
@@ -14,6 +16,7 @@ import com.cong.fishisland.model.vo.pet.PetEquipStatsVO;
 import com.cong.fishisland.service.FishPetService;
 import com.cong.fishisland.service.PetBattleService;
 import com.cong.fishisland.service.PetTournamentService;
+import com.cong.fishisland.service.UserPointsService;
 import com.cong.fishisland.service.UserService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -21,8 +24,11 @@ import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.data.redis.core.ZSetOperations;
 import org.springframework.stereotype.Service;
 
+import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
 import java.util.*;
+import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
 /**
@@ -39,10 +45,17 @@ import java.util.stream.Collectors;
 @Slf4j
 public class PetTournamentServiceImpl implements PetTournamentService {
 
+    /** 排行积分分配百分比（与 Boss 结算规则一致） */
+    private static final double[] RANK_REWARD_PERCENTAGES = {0.20, 0.15, 0.10, 0.08, 0.08, 0.05, 0.05, 0.05, 0.05, 0.05};
+    private static final double OTHER_PARTICIPANTS_REWARD_PERCENTAGE = 0.02;
+    private static final DateTimeFormatter REWARD_DATE_FORMAT = DateTimeFormatter.ofPattern("yyyyMMdd");
+
     private final StringRedisTemplate stringRedisTemplate;
     private final UserService userService;
     private final FishPetService fishPetService;
     private final PetBattleService petBattleService;
+    private final UserPointsService userPointsService;
+    private final TournamentProperties tournamentProperties;
 
     /** 同一对手每日只能挑战一次的冷却时间（秒到当天结束） */
     // CD 时间动态计算，见 secondsUntilMidnight()
@@ -174,6 +187,70 @@ public class PetTournamentServiceImpl implements PetTournamentService {
         stringRedisTemplate.delete(TournamentRedisKey.LEADERBOARD);
         stringRedisTemplate.delete(TournamentRedisKey.SLOTS);
         log.info("武道大会排行榜重置完成");
+    }
+
+    @Override
+    public void distributeDailyRankRewards() {
+        int totalRewardPoints = tournamentProperties.getRewardPoints();
+        if (totalRewardPoints <= 0) {
+            log.info("武道大会排行奖励积分为0，跳过发放");
+            return;
+        }
+
+        try {
+            String dateStr = LocalDate.now().format(REWARD_DATE_FORMAT);
+            String rewardDistributedKey = TournamentRedisKey.rewardDistributedKey(dateStr);
+            Boolean alreadyDistributed = stringRedisTemplate.opsForValue().setIfAbsent(
+                    rewardDistributedKey, "1", 24, TimeUnit.HOURS);
+            if (Boolean.FALSE.equals(alreadyDistributed)) {
+                log.info("武道大会排行奖励今日已发放，跳过");
+                return;
+            }
+
+            Set<ZSetOperations.TypedTuple<String>> tuples =
+                    stringRedisTemplate.opsForZSet().rangeWithScores(TournamentRedisKey.LEADERBOARD, 0, -1);
+            if (tuples == null || tuples.isEmpty()) {
+                log.warn("武道大会排行榜为空，跳过奖励发放");
+                return;
+            }
+
+            log.info("开始发放武道大会排行奖励，总积分: {}，参与人数: {}", totalRewardPoints, tuples.size());
+
+            int rankIndex = 0;
+            for (ZSetOperations.TypedTuple<String> tuple : tuples) {
+                if (tuple.getValue() == null) {
+                    continue;
+                }
+                Long userId = Long.parseLong(tuple.getValue());
+                double percentage = rankIndex < RANK_REWARD_PERCENTAGES.length
+                        ? RANK_REWARD_PERCENTAGES[rankIndex]
+                        : OTHER_PARTICIPANTS_REWARD_PERCENTAGE;
+                int rewardPoints = (int) (totalRewardPoints * percentage);
+                if (rewardPoints <= 0) {
+                    rankIndex++;
+                    continue;
+                }
+
+                int displayRank = rankIndex + 1;
+                String description = rankIndex < RANK_REWARD_PERCENTAGES.length
+                        ? "武道大会获得第" + displayRank + "名奖励"
+                        : "武道大会获得参与奖励（第" + displayRank + "名）";
+                try {
+                    userPointsService.updateUsedPoints(userId, -rewardPoints,
+                            PointsRecordSourceEnum.TOURNAMENT_RANK.getValue(),
+                            dateStr, description);
+                    log.info("武道大会排行奖励发放成功，userId: {}, rank: {}, rewardPoints: {}",
+                            userId, displayRank, rewardPoints);
+                } catch (Exception e) {
+                    log.error("武道大会排行奖励发放失败，userId: {}, rank: {}", userId, displayRank, e);
+                }
+                rankIndex++;
+            }
+
+            log.info("武道大会排行奖励发放完成，共{}人获得奖励", rankIndex);
+        } catch (Exception e) {
+            log.error("武道大会排行奖励发放异常", e);
+        }
     }
 
     // ----------------------------------------------------------------

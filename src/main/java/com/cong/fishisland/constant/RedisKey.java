@@ -97,6 +97,11 @@ public interface RedisKey {
     String BOSS_REWARD_DISTRIBUTED_KEY = "boss:reward:distributed:%d";
 
     /**
+     * 用户每日爬塔挑战次数 tower:challenge:user:{userId}:{date}
+     */
+    String TOWER_CLIMB_USER_DAILY_KEY = "tower:challenge:user:%d:%s";
+
+    /**
      * 帖子中奖用户缓存 post:reward:{postId}:{yyyyMMdd}
      */
     String POST_REWARD_USER_KEY = "post:reward:%d:%s";

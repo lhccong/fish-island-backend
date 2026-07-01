@@ -14,8 +14,6 @@ public class KoishiConfig {
 
     private String wsUrl = "ws://127.0.0.1:5140/status";
 
-    private String token = "mock-token";
-
     private String platform = "sandbox:mock";
 
     private String defaultUser = "Eve";

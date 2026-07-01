@@ -47,6 +47,9 @@ public class DataSourceCookieServiceImpl extends ServiceImpl<DataSourceCookieMap
     @Value("${fishisland.datasource.zhihu.cookie:}")
     private String zhiHuCookieFallback;
 
+    @Value("${fishisland.koishi.token:}")
+    private String koishiTokenFallback;
+
     @Override
     public String getEnabledCookie(String dataSourceKey) {
         if (StringUtils.isBlank(dataSourceKey)) {
@@ -93,6 +96,9 @@ public class DataSourceCookieServiceImpl extends ServiceImpl<DataSourceCookieMap
         }
         if (HotDataKeyEnum.ZHI_HU.getValue().equals(dataSourceKey)) {
             return zhiHuCookieFallback;
+        }
+        if (HotDataKeyEnum.KOISHI.getValue().equals(dataSourceKey)) {
+            return koishiTokenFallback;
         }
         return "";
     }

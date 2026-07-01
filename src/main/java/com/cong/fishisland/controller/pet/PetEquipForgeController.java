@@ -1,5 +1,6 @@
 package com.cong.fishisland.controller.pet;
 
+import com.cong.fishisland.annotation.NoRepeatSubmit;
 import com.cong.fishisland.common.BaseResponse;
 import com.cong.fishisland.common.ResultUtils;
 import com.cong.fishisland.model.dto.pet.ForgeDetailRequest;
@@ -77,6 +78,7 @@ public class PetEquipForgeController {
      * 消耗积分随等级递增，成功概率随等级递减
      */
     @PostMapping("/upgrade")
+    @NoRepeatSubmit
     @ApiOperation(value = "装备升级", notes = "消耗积分随等级递增，成功概率随等级递减，返回是否升级成功")
     public BaseResponse<Boolean> upgradeEquip(@RequestBody ForgeUpgradeRequest request) {
         return ResultUtils.success(petEquipForgeService.upgradeEquip(request));

@@ -4,6 +4,7 @@ import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.cong.fishisland.common.ErrorCode;
 import com.cong.fishisland.common.exception.BusinessException;
 import com.cong.fishisland.constant.BattleConstant;
+import com.cong.fishisland.constant.RedisKey;
 import com.cong.fishisland.mapper.game.TowerClimbProgressMapper;
 import com.cong.fishisland.mapper.game.TowerClimbRecordMapper;
 import com.cong.fishisland.model.entity.game.TowerClimbProgress;
@@ -25,13 +26,18 @@ import com.cong.fishisland.service.UserPointsService;
 import com.cong.fishisland.service.UserService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.LocalDate;
+import java.time.LocalDateTime;
+import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Random;
+import java.util.concurrent.TimeUnit;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
@@ -55,6 +61,7 @@ public class TowerClimbServiceImpl implements TowerClimbService {
     private final UserPointsService userPointsService;
     private final TowerClimbRecordMapper towerClimbRecordMapper;
     private final TowerClimbProgressMapper towerClimbProgressMapper;
+    private final StringRedisTemplate redisTemplate;
     private final Random random = new Random();
 
     // 怪物基础属性
@@ -70,6 +77,10 @@ public class TowerClimbServiceImpl implements TowerClimbService {
     private static final int BASE_REWARD = 10;
     // 最大战斗回合数
     private static final int MAX_ROUNDS = 30;
+    // 超过该层数后，回合耗尽时必须击杀怪物才算胜利
+    private static final int KILL_REQUIRED_AFTER_FLOOR = 43;
+    // 每日最多挑战次数
+    private static final int MAX_DAILY_CHALLENGES = 10;
 
     @Override
     public TowerProgressVO getProgress() {
@@ -107,6 +118,12 @@ public class TowerClimbServiceImpl implements TowerClimbService {
     @Transactional(rollbackFor = Exception.class)
     public TowerClimbResultVO challenge() {
         Long userId = userService.getLoginUser().getId();
+
+        if (getRemainingDailyChallenges(userId) <= 0) {
+            throw new BusinessException(ErrorCode.OPERATION_ERROR,
+                    "您今天已用完" + MAX_DAILY_CHALLENGES + "次挑战机会，请明天再来");
+        }
+
         TowerClimbProgress progress = getOrCreateProgress(userId);
         int floor = progress.getMaxFloor() + 1;
 
@@ -124,9 +141,14 @@ public class TowerClimbServiceImpl implements TowerClimbService {
 
         // 执行战斗
         List<BattleResultVO> rounds = doBattle(petStats, monsterStats);
-        // 判断胜负（宠物血量 > 0 则胜利）
-        int lastPetHp = rounds.get(rounds.size() - 1).getPetRemainingHealth();
-        boolean win = lastPetHp > 0;
+        BattleResultVO lastRound = rounds.get(rounds.size() - 1);
+        int lastPetHp = lastRound.getPetRemainingHealth();
+        int lastMonsterHp = lastRound.getBossRemainingHealth();
+        // 50 层及以下：宠物存活即胜利；51 层起回合耗尽且怪物未死则失败
+        boolean win = lastPetHp > 0
+                && !(floor > KILL_REQUIRED_AFTER_FLOOR
+                && lastMonsterHp > 0
+                && rounds.size() >= MAX_ROUNDS);
 
         int rewardPoints = 0;
         if (win) {
@@ -150,6 +172,7 @@ public class TowerClimbServiceImpl implements TowerClimbService {
         record.setPetHpLeft(lastPetHp);
         record.setRewardPoints(rewardPoints);
         towerClimbRecordMapper.insert(record);
+        incrementDailyChallengeCount(userId);
 
         TowerClimbResultVO result = new TowerClimbResultVO();
         result.setFloor(floor);
@@ -288,6 +311,37 @@ public class TowerClimbServiceImpl implements TowerClimbService {
     }
 
     // ---- 工具方法 ----
+
+    private int getRemainingDailyChallenges(Long userId) {
+        try {
+            String dateStr = LocalDate.now().toString();
+            String key = RedisKey.getKey(RedisKey.TOWER_CLIMB_USER_DAILY_KEY, userId, dateStr);
+            String value = redisTemplate.opsForValue().get(key);
+            int usedChallenges = (value != null && !value.isEmpty()) ? Integer.parseInt(value) : 0;
+            return MAX_DAILY_CHALLENGES - usedChallenges;
+        } catch (Exception e) {
+            log.error("获取用户爬塔挑战次数失败，userId: {}", userId, e);
+            return 0;
+        }
+    }
+
+    private void incrementDailyChallengeCount(Long userId) {
+        try {
+            String dateStr = LocalDate.now().toString();
+            String key = RedisKey.getKey(RedisKey.TOWER_CLIMB_USER_DAILY_KEY, userId, dateStr);
+            String value = redisTemplate.opsForValue().get(key);
+            int currentCount = (value != null && !value.isEmpty()) ? Integer.parseInt(value) : 0;
+            currentCount++;
+
+            LocalDateTime now = LocalDateTime.now();
+            LocalDateTime nextDayMidnight = now.plusDays(1).withHour(0).withMinute(0).withSecond(0).withNano(0);
+            long expireSeconds = ChronoUnit.SECONDS.between(now, nextDayMidnight);
+
+            redisTemplate.opsForValue().set(key, String.valueOf(currentCount), expireSeconds, TimeUnit.SECONDS);
+        } catch (Exception e) {
+            log.error("增加用户爬塔挑战次数失败，userId: {}", userId, e);
+        }
+    }
 
     private TowerClimbProgress getOrCreateProgress(Long userId) {
         TowerClimbProgress progress = towerClimbProgressMapper.selectOne(

@@ -3,6 +3,7 @@ package com.cong.fishisland.job.cycle;
 import com.cong.fishisland.constant.RedisKey;
 import com.cong.fishisland.model.vo.game.BossVO;
 import com.cong.fishisland.service.BossService;
+import com.cong.fishisland.service.PetTournamentService;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -25,19 +26,28 @@ import java.util.concurrent.TimeUnit;
 public class BossCacheJob {
 
     private final BossService bossService;
+    private final PetTournamentService petTournamentService;
     private final StringRedisTemplate redisTemplate;
     private final ObjectMapper objectMapper;
 
     /**
-     * 每天23点半执行，发放Boss击败奖励
+     * 每天23点半执行，发放 Boss 击败奖励与武道大会排行奖励
      * cron表达式：0 30 23 * * ? 表示每天23点30分0秒执行
      */
     @Scheduled(cron = "0 30 23 * * ?")
     public void distributeBossRewards() {
-        log.info("开始执行Boss击败奖励发放任务");
+        log.info("开始执行每日 Boss / 武道大会结算任务");
 
         try {
-            // 1. 获取Boss列表数据
+            // 1. 武道大会排行奖励
+            petTournamentService.distributeDailyRankRewards();
+            log.info("武道大会排行奖励发放任务执行完成");
+        } catch (Exception e) {
+            log.error("武道大会排行奖励发放任务执行异常", e);
+        }
+
+        try {
+            // 2. Boss 击败奖励
             List<BossVO> bossList = bossService.getBossList();
 
             if (bossList == null || bossList.isEmpty()) {
@@ -45,7 +55,6 @@ public class BossCacheJob {
                 return;
             }
 
-            // 2. 为每个Boss发放奖励
             for (BossVO boss : bossList) {
                 bossService.distributeBossKillRewards(boss.getId(), boss.getRewardPoints());
                 log.info("Boss击败奖励发放完成，bossId: {}, bossName: {}", boss.getId(), boss.getName());
@@ -55,6 +64,8 @@ public class BossCacheJob {
         } catch (Exception e) {
             log.error("Boss击败奖励发放任务执行异常", e);
         }
+
+        log.info("每日 Boss / 武道大会结算任务执行完成");
     }
 
     /**

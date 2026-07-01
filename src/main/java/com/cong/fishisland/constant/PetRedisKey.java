@@ -23,6 +23,11 @@ public interface PetRedisKey {
     String PET_LEVEL_60_TIME = "level60time";
 
     /**
+     * 装备强化操作锁（petId + equipSlot）
+     */
+    String FORGE_UPGRADE_LOCK = "forge:upgrade:lock";
+
+    /**
      * 获取完整的Redis键
      *
      * @param keys 键的各个部分

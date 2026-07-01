@@ -7,6 +7,7 @@ import com.cong.fishisland.common.ErrorCode;
 import com.cong.fishisland.common.exception.BusinessException;
 import com.cong.fishisland.config.PetForgeProperties;
 import com.cong.fishisland.constant.PetForgeConstant;
+import com.cong.fishisland.constant.PetRedisKey;
 import com.cong.fishisland.mapper.pet.PetEquipForgeMapper;
 import com.cong.fishisland.model.dto.pet.ForgeLockRequest;
 import com.cong.fishisland.model.dto.pet.ForgeRefreshRequest;
@@ -26,11 +27,14 @@ import com.cong.fishisland.service.PetEquipForgeService;
 import com.cong.fishisland.service.UserPointsService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.redisson.api.RLock;
+import org.redisson.api.RedissonClient;
 import org.springframework.beans.BeanUtils;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.*;
+import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
 /**
@@ -47,6 +51,10 @@ public class PetEquipForgeServiceImpl extends ServiceImpl<PetEquipForgeMapper, P
     private final FishPetService fishPetService;
     private final UserPointsService userPointsService;
     private final PetForgeProperties petForgeProperties;
+    private final RedissonClient redissonClient;
+
+    private static final long FORGE_UPGRADE_LOCK_WAIT_SECONDS = 3;
+    private static final long FORGE_UPGRADE_LOCK_LEASE_SECONDS = 10;
 
     /** 基础刷新消耗积分 */
     private static final int BASE_REFRESH_COST = 100;
@@ -189,34 +197,50 @@ public class PetEquipForgeServiceImpl extends ServiceImpl<PetEquipForgeMapper, P
         EquipSlotEnum slot = EquipSlotEnum.of(request.getEquipSlot());
         assertForgeSlotOperable(slot);
 
-        PetEquipForge forge = getOrCreateForge(pet, slot);
-        int currentLevel = forge.getEquipLevel() == null ? 1 : forge.getEquipLevel();
+        String lockKey = PetRedisKey.getKey(PetRedisKey.FORGE_UPGRADE_LOCK,
+                String.valueOf(request.getPetId()), String.valueOf(slot.getValue()));
+        RLock lock = redissonClient.getLock(lockKey);
+        try {
+            boolean acquired = lock.tryLock(FORGE_UPGRADE_LOCK_WAIT_SECONDS,
+                    FORGE_UPGRADE_LOCK_LEASE_SECONDS, TimeUnit.SECONDS);
+            if (!acquired) {
+                throw new BusinessException(ErrorCode.REPEAT_SUBMIT_ERROR);
+            }
 
-        if (currentLevel >= MAX_EQUIP_LEVEL) {
-            throw new BusinessException(ErrorCode.OPERATION_ERROR, "装备已达最高等级");
+            PetEquipForge forge = getOrCreateForge(pet, slot);
+            int currentLevel = forge.getEquipLevel() == null ? 0 : forge.getEquipLevel();
+
+            if (currentLevel >= MAX_EQUIP_LEVEL) {
+                throw new BusinessException(ErrorCode.OPERATION_ERROR, "装备已达最高等级");
+            }
+
+            int cost = BASE_UPGRADE_COST + currentLevel * UPGRADE_COST_FACTOR;
+            userPointsService.deductPoints(userId, cost,
+                    PointsRecordSourceEnum.OTHER.getValue(),
+                    String.valueOf(request.getPetId()),
+                    "宠物装备升级-" + slot.getLabel() + "-Lv" + currentLevel);
+
+            int successRate = Math.max(1, 80 - currentLevel * 5);
+            boolean success = new Random().nextInt(100) < successRate;
+
+            if (success) {
+                forge.setEquipLevel(currentLevel + 1);
+                updateById(forge);
+                log.info("宠物[{}]装备[{}]升级成功 {} -> {}", request.getPetId(), slot.getLabel(),
+                        currentLevel, currentLevel + 1);
+            } else {
+                log.info("宠物[{}]装备[{}]升级失败，当前等级 {}", request.getPetId(), slot.getLabel(), currentLevel);
+            }
+
+            return success;
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            throw new BusinessException(ErrorCode.SYSTEM_ERROR, "系统繁忙，请稍后再试");
+        } finally {
+            if (lock.isHeldByCurrentThread()) {
+                lock.unlock();
+            }
         }
-
-        // 升级消耗积分 = 基础50 + 当前等级 * 20
-        int cost = BASE_UPGRADE_COST + currentLevel * UPGRADE_COST_FACTOR;
-        userPointsService.deductPoints(userId, cost,
-                PointsRecordSourceEnum.OTHER.getValue(),
-                String.valueOf(request.getPetId()),
-                "宠物装备升级-" + slot.getLabel() + "-Lv" + currentLevel);
-
-        // 升级成功概率随等级递减：基础80%，每级降低5%，最低1%
-        int successRate = Math.max(1, 80 - currentLevel * 5);
-        boolean success = new Random().nextInt(100) < successRate;
-
-        if (success) {
-            forge.setEquipLevel(currentLevel + 1);
-            updateById(forge);
-            log.info("宠物[{}]装备[{}]升级成功 {} -> {}", request.getPetId(), slot.getLabel(),
-                    currentLevel, currentLevel + 1);
-        } else {
-            log.info("宠物[{}]装备[{}]升级失败，当前等级 {}", request.getPetId(), slot.getLabel(), currentLevel);
-        }
-
-        return success;
     }
 
     // ==================== 私有方法 ====================

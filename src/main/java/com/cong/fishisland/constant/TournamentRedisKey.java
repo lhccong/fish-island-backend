@@ -28,7 +28,17 @@ public interface TournamentRedisKey {
      */
     String CHALLENGE_CD_PREFIX = BASE_KEY + "cd:";
 
+    /**
+     * 每日排行奖励已发放标记（String，TTL 24 小时）
+     * key: fish:tournament:reward:distributed:{yyyyMMdd}
+     */
+    String REWARD_DISTRIBUTED_PREFIX = BASE_KEY + "reward:distributed:";
+
     static String challengeCdKey(long userId, long opponentUserId) {
         return CHALLENGE_CD_PREFIX + userId + ":" + opponentUserId;
+    }
+
+    static String rewardDistributedKey(String dateStr) {
+        return REWARD_DISTRIBUTED_PREFIX + dateStr;
     }
 }

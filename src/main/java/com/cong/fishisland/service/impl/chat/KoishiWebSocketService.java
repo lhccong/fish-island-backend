@@ -5,7 +5,9 @@ import com.alibaba.fastjson.JSONObject;
 import com.cong.fishisland.common.ErrorCode;
 import com.cong.fishisland.common.exception.BusinessException;
 import com.cong.fishisland.config.KoishiConfig;
+import com.cong.fishisland.model.enums.HotDataKeyEnum;
 import com.cong.fishisland.model.enums.MessageTypeEnum;
+import com.cong.fishisland.service.datasource.DataSourceCookieService;
 import com.cong.fishisland.model.ws.request.Message;
 import com.cong.fishisland.model.ws.request.MessageWrapper;
 import com.cong.fishisland.model.ws.response.WSBaseResp;
@@ -46,6 +48,7 @@ public class KoishiWebSocketService {
             Pattern.CASE_INSENSITIVE);
 
     private final KoishiConfig koishiConfig;
+    private final DataSourceCookieService dataSourceCookieService;
     private final RobotChatMessageService robotChatMessageService;
     private final WebSocketService webSocketService;
     private final ReentrantLock requestLock = new ReentrantLock();
@@ -58,9 +61,11 @@ public class KoishiWebSocketService {
     private volatile CompletableFuture<Void> connectionReady = new CompletableFuture<>();
 
     public KoishiWebSocketService(KoishiConfig koishiConfig,
+                                  DataSourceCookieService dataSourceCookieService,
                                   RobotChatMessageService robotChatMessageService,
                                   WebSocketService webSocketService) {
         this.koishiConfig = koishiConfig;
+        this.dataSourceCookieService = dataSourceCookieService;
         this.robotChatMessageService = robotChatMessageService;
         this.webSocketService = webSocketService;
     }
@@ -160,6 +165,10 @@ public class KoishiWebSocketService {
         return result.toString();
     }
 
+    private String resolveToken() {
+        return dataSourceCookieService.getEnabledCookie(HotDataKeyEnum.KOISHI.getValue());
+    }
+
     private void connect() {
         if (shuttingDown) {
             return;
@@ -175,7 +184,7 @@ public class KoishiWebSocketService {
             public void onOpen(WebSocket webSocket, Response response) {
                 KoishiWebSocketService.this.webSocket = webSocket;
                 log.info("Koishi WebSocket 已连接");
-                send(webSocket, "login_" + System.currentTimeMillis(), "login/token", 0, koishiConfig.getToken());
+                send(webSocket, "login_" + System.currentTimeMillis(), "login/token", 0, resolveToken());
 
                 client.dispatcher().executorService().execute(() -> {
                     try {

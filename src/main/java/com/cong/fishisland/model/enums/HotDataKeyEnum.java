@@ -32,6 +32,7 @@ public enum HotDataKeyEnum {
     QQ_MUSIC("QQ音乐", "QQMusic"),
     NGA("NGA杂谈", "NGA"),
     NGA_QING_FENG("NGA晴风村", "NGAQingFeng"),
+    KOISHI("摸鱼助手", "Koishi"),
 //    LINUX_DO("LinuxDo", "LinuxDo"),
 //    V2EX("V2EX", "V2EX")
     ;
