@@ -16,9 +16,9 @@ import com.cong.fishisland.model.vo.event.EventRemindVO;
 public interface EventRemindService extends IService<EventRemind> {
 
     /**
-     * 批量设置事件提醒为已读
+     * 一键已读（将当前用户全部未读事件提醒标记为已读）
      */
-    Boolean batchSetRead(EventRemindStateRequest request);
+    Boolean batchSetRead();
 
     /**
      * 批量删除事件提醒（仅接收者可删除）

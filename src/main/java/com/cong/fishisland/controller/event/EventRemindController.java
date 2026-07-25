@@ -32,15 +32,14 @@ public class EventRemindController {
 
 
     /**
-     * 批量设置事件提醒为已读
+     * 一键已读（将当前用户全部未读事件提醒标记为已读，入参忽略）
      *
-     * @param request 批量操作DTO
      * @return 操作结果
      */
     @PostMapping("/batch/set/read")
-    @ApiOperation(value = "批量设置事件提醒为已读")
-    public BaseResponse<Boolean> batchSetRead(@RequestBody EventRemindStateRequest request) {
-        return ResultUtils.success(eventRemindService.batchSetRead(request));
+    @ApiOperation(value = "一键已读")
+    public BaseResponse<Boolean> batchSetRead(@RequestBody(required = false) EventRemindStateRequest request) {
+        return ResultUtils.success(eventRemindService.batchSetRead());
     }
 
     /**

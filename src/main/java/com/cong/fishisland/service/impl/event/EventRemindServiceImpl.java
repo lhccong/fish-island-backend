@@ -47,22 +47,12 @@ public class EventRemindServiceImpl extends ServiceImpl<EventRemindMapper, Event
     private static final Integer READ = 1;
 
     @Override
-    public Boolean batchSetRead(EventRemindStateRequest request) {
-        // 参数校验
-        validEventRemindStateRequest(request);
-        List<Long> ids = request.getIds();
+    public Boolean batchSetRead() {
         User loginUser = userService.getLoginUser();
-        Long userId = loginUser.getId();
-        QueryWrapper<EventRemind> queryWrapper = new QueryWrapper<>();
-        queryWrapper.in("id", request.getIds());
-        queryWrapper.eq("recipientId", userId);
-        long count = this.count(queryWrapper);
-        // 校验权限
-        ThrowUtils.throwIf(count != (long) ids.size(), ErrorCode.NO_AUTH_ERROR);
-        // 更新数据
         UpdateWrapper<EventRemind> updateWrapper = new UpdateWrapper<>();
-        updateWrapper.in("id", request.getIds());
-        updateWrapper.set("state", READ);
+        updateWrapper.eq("recipientId", loginUser.getId())
+                .ne("state", READ)
+                .set("state", READ);
         return update(updateWrapper);
     }
 
