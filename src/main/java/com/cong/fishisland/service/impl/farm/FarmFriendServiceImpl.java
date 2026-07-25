@@ -14,6 +14,7 @@ import com.cong.fishisland.model.entity.farm.FarmCrop;
 import com.cong.fishisland.model.entity.farm.FarmLand;
 import com.cong.fishisland.model.entity.farm.FarmUser;
 import com.cong.fishisland.model.entity.user.User;
+import com.cong.fishisland.model.enums.farm.FarmConstants;
 import com.cong.fishisland.model.enums.farm.FarmLandStatusEnum;
 import com.cong.fishisland.service.FarmFriendService;
 import com.cong.fishisland.service.FarmLandService;
@@ -226,6 +227,10 @@ public class FarmFriendServiceImpl implements FarmFriendService {
             dto.setPlantedTime(land.getPlantedTime());
             dto.setHarvestTime(land.getHarvestTime());
             dto.setLocked(land.getLocked());
+            if (land.getLandIndex() != null && FarmConstants.isLevelUnlockableLandIndex(land.getLandIndex())) {
+                dto.setUnlockLevel(FarmConstants.unlockLevelForLandIndex(land.getLandIndex()));
+                dto.setUnlockCost(FarmConstants.unlockCostForLandIndex(land.getLandIndex()));
+            }
 
             if (land.getPlantedCropId() != null) {
                 FarmCrop crop = cropMap.get(land.getPlantedCropId());

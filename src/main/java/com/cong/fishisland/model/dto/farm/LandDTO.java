@@ -34,6 +34,12 @@ public class LandDTO {
     @ApiModelProperty(value = "是否锁定（0-未锁定，1-已锁定）")
     private Integer locked;
 
+    @ApiModelProperty(value = "解锁所需农场等级；超出当前可解锁范围时为 null")
+    private Integer unlockLevel;
+
+    @ApiModelProperty(value = "解锁所需可用积分；默认已解锁或超出当前可解锁范围时为 null")
+    private Integer unlockCost;
+
     @ApiModelProperty(value = "是否可以偷菜（false 表示已偷过、未成熟或无可偷积分）")
     private Boolean canSteal;
 }

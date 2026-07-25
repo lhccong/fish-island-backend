@@ -31,6 +31,83 @@ public final class FarmConstants {
     public static final int LAND_DEFAULT_UNLOCKED_COUNT = 8;
 
     /**
+     * 当前可通过农场等级解锁的最大地块序号。
+     * 第 1–8 块默认解锁；第 9–12 块按等级解锁；第 13 块及以后暂未开放。
+     */
+    public static final int LAND_MAX_LEVEL_UNLOCK_INDEX = 12;
+
+    /**
+     * 各地块解锁所需农场等级（下标 = landIndex）。
+     * <ul>
+     *   <li>1–8：1 级（默认解锁）</li>
+     *   <li>9：10 级</li>
+     *   <li>10：25 级</li>
+     *   <li>11：40 级</li>
+     *   <li>12：55 级（当前满级）</li>
+     * </ul>
+     */
+    private static final int[] LAND_UNLOCK_LEVEL_BY_INDEX = {
+            0,
+            1, 1, 1, 1, 1, 1, 1, 1,  // 1–8
+            10,                        // 9
+            25,                        // 10
+            40,                        // 11
+            55                         // 12
+    };
+
+    /**
+     * 各地块解锁所需可用积分（下标 = landIndex）。
+     * <ul>
+     *   <li>1–8：0（默认解锁，不消耗）</li>
+     *   <li>9：100</li>
+     *   <li>10：400</li>
+     *   <li>11：1000</li>
+     *   <li>12：2000</li>
+     * </ul>
+     */
+    private static final int[] LAND_UNLOCK_COST_BY_INDEX = {
+            0,
+            0, 0, 0, 0, 0, 0, 0, 0,  // 1–8
+            100,                      // 9
+            400,                      // 10
+            1000,                     // 11
+            2000                      // 12
+    };
+
+    /**
+     * 查询指定地块序号解锁所需的农场等级。
+     *
+     * @param landIndex 地块序号（1 起）
+     * @return 所需等级；超出当前可解锁范围时返回 {@link Integer#MAX_VALUE}
+     */
+    public static int unlockLevelForLandIndex(int landIndex) {
+        if (landIndex < 1 || landIndex > LAND_MAX_LEVEL_UNLOCK_INDEX) {
+            return Integer.MAX_VALUE;
+        }
+        return LAND_UNLOCK_LEVEL_BY_INDEX[landIndex];
+    }
+
+    /**
+     * 查询指定地块序号解锁所需的可用积分。
+     *
+     * @param landIndex 地块序号（1 起）
+     * @return 所需积分；默认解锁或超出范围时返回 0 / {@link Integer#MAX_VALUE}
+     */
+    public static int unlockCostForLandIndex(int landIndex) {
+        if (landIndex < 1 || landIndex > LAND_MAX_LEVEL_UNLOCK_INDEX) {
+            return Integer.MAX_VALUE;
+        }
+        return LAND_UNLOCK_COST_BY_INDEX[landIndex];
+    }
+
+    /**
+     * 判断指定地块是否已达到可按等级解锁的范围（含默认解锁的 1–8）。
+     */
+    public static boolean isLevelUnlockableLandIndex(int landIndex) {
+        return landIndex >= 1 && landIndex <= LAND_MAX_LEVEL_UNLOCK_INDEX;
+    }
+
+    /**
      * 从 1 级升到 2 级所需经验（单级基础值）。
      * 之后每升一级在此基础上递增 {@link #LEVEL_EXP_INCREMENT}。
      */

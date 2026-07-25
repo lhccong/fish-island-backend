@@ -100,6 +100,80 @@ public class FarmLandServiceImpl extends ServiceImpl<FarmLandMapper, FarmLand> i
 
     @Override
     @Transactional(rollbackFor = Exception.class)
+    public FarmLand unlockLand(Long landId) {
+        if (landId == null) {
+            throw new BusinessException(ErrorCode.PARAMS_ERROR, "地块ID不能为空");
+        }
+
+        Long userId = StpUtil.getLoginIdAsLong();
+        FarmUser farmUser = farmUserService.getFarmUser(userId);
+        if (farmUser == null) {
+            throw new BusinessException(ErrorCode.NOT_FOUND_ERROR, "农场用户不存在");
+        }
+
+        FarmLand land = getById(landId);
+        if (land == null) {
+            throw new BusinessException(ErrorCode.NOT_FOUND_ERROR, "地块不存在");
+        }
+        if (!land.getUserId().equals(userId)) {
+            throw new BusinessException(ErrorCode.NO_AUTH_ERROR, "无权操作该地块");
+        }
+        if (FarmYesNoEnum.isNo(land.getLocked())) {
+            throw new BusinessException(ErrorCode.OPERATION_ERROR, "地块已解锁");
+        }
+
+        Integer landIndex = land.getLandIndex();
+        if (landIndex == null || !FarmConstants.isLevelUnlockableLandIndex(landIndex)) {
+            throw new BusinessException(ErrorCode.OPERATION_ERROR, "该地块暂不支持解锁");
+        }
+
+        int requiredLevel = FarmConstants.unlockLevelForLandIndex(landIndex);
+        int farmLevel = farmUser.getLevel() != null ? farmUser.getLevel() : 1;
+        if (farmLevel < requiredLevel) {
+            throw new BusinessException(ErrorCode.OPERATION_ERROR,
+                    "农场等级不足，解锁第" + landIndex + "块地需要达到" + requiredLevel + "级");
+        }
+
+        // 顺序解锁：前一块必须已解锁
+        if (landIndex > 1) {
+            FarmLand prevLand = getOne(new LambdaQueryWrapper<FarmLand>()
+                    .eq(FarmLand::getUserId, userId)
+                    .eq(FarmLand::getLandIndex, landIndex - 1)
+                    .last("LIMIT 1"));
+            if (prevLand == null || FarmYesNoEnum.isYes(prevLand.getLocked())) {
+                throw new BusinessException(ErrorCode.OPERATION_ERROR,
+                        "请先解锁第" + (landIndex - 1) + "块地");
+            }
+        }
+
+        int unlockCost = FarmConstants.unlockCostForLandIndex(landIndex);
+        if (unlockCost > 0) {
+            userPointsService.checkAvailablePoints(userId, unlockCost);
+            userPointsService.deductPoints(userId, unlockCost,
+                    PointsRecordSourceEnum.FARM_LAND_UNLOCK.getValue(),
+                    landId.toString(),
+                    "农场解锁第" + landIndex + "块地");
+        }
+
+        LocalDateTime now = LocalDateTime.now();
+        boolean updated = lambdaUpdate()
+                .eq(FarmLand::getId, landId)
+                .eq(FarmLand::getUserId, userId)
+                .eq(FarmLand::getLocked, FarmYesNoEnum.YES.getValue())
+                .set(FarmLand::getLocked, FarmYesNoEnum.NO.getValue())
+                .set(FarmLand::getUpdateTime, now)
+                .update();
+        if (!updated) {
+            throw new BusinessException(ErrorCode.OPERATION_ERROR, "地块状态已变化，无法解锁");
+        }
+
+        land.setLocked(FarmYesNoEnum.NO.getValue());
+        land.setUpdateTime(now);
+        return land;
+    }
+
+    @Override
+    @Transactional(rollbackFor = Exception.class)
     public List<FarmLand> plantBatch(List<PlantItem> items) {
         if (CollectionUtils.isEmpty(items)) {
             throw new BusinessException(ErrorCode.PARAMS_ERROR, "种植列表不能为空");
@@ -375,6 +449,10 @@ public class FarmLandServiceImpl extends ServiceImpl<FarmLandMapper, FarmLand> i
         dto.setPlantedTime(land.getPlantedTime());
         dto.setHarvestTime(land.getHarvestTime());
         dto.setLocked(land.getLocked());
+        if (land.getLandIndex() != null && FarmConstants.isLevelUnlockableLandIndex(land.getLandIndex())) {
+            dto.setUnlockLevel(FarmConstants.unlockLevelForLandIndex(land.getLandIndex()));
+            dto.setUnlockCost(FarmConstants.unlockCostForLandIndex(land.getLandIndex()));
+        }
 
         if (land.getPlantedCropId() != null) {
             FarmCrop crop = cropMapper.selectById(land.getPlantedCropId());

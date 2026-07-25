@@ -28,6 +28,16 @@ public interface FarmLandService {
     void initLands(Long userId);
 
     /**
+     * 按农场等级与可用积分解锁指定地块。
+     * <p>需满足：地块属于当前用户、当前锁定、序号在可解锁范围内、农场等级达标、
+     * 可用积分足够，且前一块地已解锁（顺序解锁）。成功后扣减对应积分。</p>
+     *
+     * @param landId 地块 ID
+     * @return 解锁后的地块
+     */
+    FarmLand unlockLand(Long landId);
+
+    /**
      * 批量在指定地块种植作物，扣减种子积分并创建种植记录。
      * 任一块地校验失败时整批回滚。
      *

@@ -40,6 +40,7 @@ public enum PointsRecordSourceEnum {
     FARM_HARVEST("farm_harvest", "农场收获"),
     FARM_STEAL("farm_steal", "农场偷菜"),
     FARM_STEAL_LOSS("farm_steal_loss", "农场被偷损失"),
+    FARM_LAND_UNLOCK("farm_land_unlock", "农场解锁地块"),
     AI_AVATAR_GENERATE("ai_avatar_generate", "AI分身提示词生成"),
     INDEX_BUY("index_buy", "指数买入"),
     INDEX_SELL("index_sell", "指数卖出"),
