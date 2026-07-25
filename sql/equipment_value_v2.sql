@@ -25,7 +25,7 @@ WHERE name = '龙之坠';
 UPDATE item_templates SET equip_slot = 'necklace', sub_type = 'necklace',
     rarity = 4, levelReq = 1, baseAttack = 45, baseDefense = 45, baseHp = 420,
     mainAttr = '"{\\"critRate\\":0.065,\\"lifesteal\\":0.04,\\"critResistance\\":0.04,\\"dodgeResistance\\":0.04}"',
-    removePoint = 1000
+    removePoint = 600
 WHERE name = '炎之坠';
 
 -- ==================== 翅膀（equip_slot=wing） ====================
@@ -49,7 +49,7 @@ WHERE name = '美丽之袍';
 UPDATE item_templates SET equip_slot = 'wing', sub_type = 'wing',
     rarity = 4, levelReq = 1, baseAttack = 55, baseDefense = 75, baseHp = 480,
     mainAttr = '"{\\"comboRate\\":0.065,\\"dodgeRate\\":0.04,\\"comboResistance\\":0.05,\\"dodgeResistance\\":0.04}"',
-    removePoint = 1000
+    removePoint = 600
 WHERE name = '烈焰披风';
 
 -- 攻击:70 | 防御:45 | 生命:380 | 连击:6.5% 暴击:4% 吸血:3.5% 抗连击:4%
@@ -57,8 +57,8 @@ WHERE name = '烈焰披风';
 UPDATE item_templates SET equip_slot = 'wing', sub_type = 'wing',
     rarity = 4, levelReq = 1, baseAttack = 70, baseDefense = 45, baseHp = 380,
     mainAttr = '"{\\"comboRate\\":0.065,\\"critRate\\":0.04,\\"lifesteal\\":0.035,\\"comboResistance\\":0.04}"',
-    removePoint = 1000
-WHERE name = '玫瑰之翼';
+    removePoint = 600
+WHERE name = '花之翼';
 
 -- ==================== 护手（equip_slot=hand） ====================
 

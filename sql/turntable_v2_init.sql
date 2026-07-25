@@ -42,7 +42,7 @@ FROM item_templates
 WHERE name IN ('龙之坠', '机能护手', '一级护手')
   AND isDelete = 0;
 
--- rarity=4 装备：炎之坠、烈焰披风、玫瑰之翼（共3件，各占 50/3≈17/17/16）
+-- rarity=4 装备：炎之坠、烈焰披风、花之翼（共3件，各占 50/3≈17/17/16）
 INSERT INTO turntable_prize (turntableId, prizeId, quality, prizeType, probability, stock)
 SELECT 2,
        id,
@@ -51,9 +51,9 @@ SELECT 2,
        CASE name
            WHEN '炎之坠' THEN 7
            WHEN '烈焰披风' THEN 7
-           WHEN '玫瑰之翼' THEN 6
+           WHEN '花之翼' THEN 6
        END,
        -1
 FROM item_templates
-WHERE name IN ('炎之坠', '烈焰披风', '玫瑰之翼')
+WHERE name IN ('炎之坠', '烈焰披风', '花之翼')
   AND isDelete = 0;
