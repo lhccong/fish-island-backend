@@ -70,7 +70,7 @@ public class KoishiWebSocketService {
         this.webSocketService = webSocketService;
     }
 
-    @PostConstruct
+//    @PostConstruct
     public void start() {
         client = new OkHttpClient.Builder()
                 .connectTimeout(10, TimeUnit.SECONDS)
