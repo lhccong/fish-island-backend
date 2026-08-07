@@ -71,8 +71,6 @@ public class RedPacketServiceImpl implements RedPacketService {
     private static final String SEND_FREE_COUNT_KEY_PREFIX = "send:free_count:";
     // 行为检测：每日快速抢包计数 redpacket:grab:fast_count:{userId}:{yyyyMMdd}
     private static final String RED_PACKET_GRAB_FAST_COUNT_KEY_PREFIX = "redpacket:grab:fast_count:";
-    // 行为检测：抢包时间戳历史 redpacket:grab:ts:{userId}
-    private static final String RED_PACKET_GRAB_TS_KEY_PREFIX = "redpacket:grab:ts:";
     // 判定为脚本的阈值：红包发出后多少毫秒内抢到视为脚本
     private static final long GRAB_SCRIPT_THRESHOLD_MS = 1000;
     // 每日触发快速抢包超过此次数才标记为脚本用户
@@ -299,17 +297,18 @@ public class RedPacketServiceImpl implements RedPacketService {
 
     @Override
     public Integer grabRedPacket(String redPacketId, Long userId, String answer) {
-        // 脚本用户不允许抢红包，直接返回已抢完
-        if (scriptBehaviorDetectService.isScriptUser(userId)) {
-            throw new BusinessException(ErrorCode.OPERATION_ERROR, "红包已经抢完");
-        }
-
         // 获取红包信息
         String redPacketKey = RED_PACKET_KEY_PREFIX + redPacketId;
         RedPacket redPacket = JSON.parseObject(JSON.toJSONString(redisTemplate.opsForValue().get(redPacketKey)), RedPacket.class);
 
         if (redPacket == null) {
             throw new BusinessException(ErrorCode.NOT_FOUND_ERROR, "红包不存在");
+        }
+
+        // 脚本用户不允许抢他人红包（自己的仍可抢）
+        if (scriptBehaviorDetectService.isScriptUser(userId)
+                && !userId.equals(redPacket.getCreatorId())) {
+            throw new BusinessException(ErrorCode.OPERATION_ERROR, "红包已经抢完");
         }
 
         // 检查红包状态
@@ -402,8 +401,6 @@ public class RedPacketServiceImpl implements RedPacketService {
 
             // 行为检测：若在红包发出后1秒内抢到，标记为脚本用户
             markScriptUserIfNeeded(userId, redPacket.getCreateTime());
-            // 行为检测：固定间隔抢包检测
-            scriptBehaviorDetectService.checkFixedIntervalBehavior(userId, RED_PACKET_GRAB_TS_KEY_PREFIX, "抢红包");
 
             return amount;
         } finally {

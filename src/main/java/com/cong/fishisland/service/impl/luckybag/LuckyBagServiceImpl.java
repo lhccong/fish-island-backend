@@ -53,6 +53,7 @@ public class LuckyBagServiceImpl implements LuckyBagService {
     private final RoomMessageService roomMessageService;
     private final DonationRecordsService donationRecordsService;
     private final EventRemindService eventRemindService;
+    private final ScriptBehaviorDetectService scriptBehaviorDetectService;
 
     private static final String LUCKY_BAG_KEY_PREFIX = "luckybag:";
     private static final String LUCKY_BAG_PARTICIPANTS_KEY_PREFIX = "luckybag:participants:";
@@ -138,6 +139,13 @@ public class LuckyBagServiceImpl implements LuckyBagService {
         if (luckyBag == null) {
             throw new BusinessException(ErrorCode.NOT_FOUND_ERROR, "福袋不存在");
         }
+
+        // 脚本用户不允许参与他人福袋（自己的仍可参与）
+        if (scriptBehaviorDetectService.isScriptUser(userId)
+                && !userId.equals(luckyBag.getCreatorId())) {
+            throw new BusinessException(ErrorCode.OPERATION_ERROR, "因脚本行为已被限制，暂时无法参与福袋");
+        }
+
         if (luckyBag.getStatus() != 0) {
             throw new BusinessException(ErrorCode.OPERATION_ERROR, "福袋已结束");
         }

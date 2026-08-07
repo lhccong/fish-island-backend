@@ -72,6 +72,9 @@ public class FarmStealServiceImpl implements FarmStealService {
     @Autowired
     private UserPointsService userPointsService;
 
+    @Autowired
+    private ScriptBehaviorDetectService scriptBehaviorDetectService;
+
     @Override
     @Transactional(rollbackFor = Exception.class)
     public FarmStealRecord steal(Long stealerId, Long landId) {
@@ -82,6 +85,10 @@ public class FarmStealServiceImpl implements FarmStealService {
     @Override
     @Transactional(rollbackFor = Exception.class)
     public List<FarmStealRecord> stealBatch(Long stealerId, List<Long> landIds) {
+        // 脚本用户不允许偷菜
+        if (scriptBehaviorDetectService.isScriptUser(stealerId)) {
+            throw new BusinessException(ErrorCode.OPERATION_ERROR, "因脚本行为已被限制，暂时无法偷菜");
+        }
         if (CollectionUtils.isEmpty(landIds)) {
             throw new BusinessException(ErrorCode.PARAMS_ERROR, "偷菜列表不能为空");
         }
@@ -285,6 +292,9 @@ public class FarmStealServiceImpl implements FarmStealService {
 
     @Override
     public boolean canStealLand(Long stealerId, Long landId) {
+        if (stealerId != null && scriptBehaviorDetectService.isScriptUser(stealerId)) {
+            return false;
+        }
         FarmLand land = landMapper.selectById(landId);
         if (land == null) {
             return false;
@@ -303,6 +313,13 @@ public class FarmStealServiceImpl implements FarmStealService {
     public Map<Long, Boolean> batchCanStealLand(Long stealerId, List<FarmLand> lands) {
         Map<Long, Boolean> result = new HashMap<>();
         if (stealerId == null || CollectionUtils.isEmpty(lands)) {
+            return result;
+        }
+        // 脚本用户一律不可偷
+        if (scriptBehaviorDetectService.isScriptUser(stealerId)) {
+            for (FarmLand land : lands) {
+                result.put(land.getId(), false);
+            }
             return result;
         }
 
