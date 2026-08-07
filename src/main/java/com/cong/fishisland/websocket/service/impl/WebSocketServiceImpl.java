@@ -5,13 +5,16 @@ import cn.hutool.core.collection.CollUtil;
 import cn.hutool.core.text.CharSequenceUtil;
 import cn.hutool.core.util.ObjectUtil;
 import cn.hutool.json.JSONUtil;
-
 import com.alibaba.fastjson.JSON;
 import com.alibaba.fastjson.JSONObject;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.cong.fishisland.common.ErrorCode;
 import com.cong.fishisland.config.ThreadPoolConfig;
 import com.cong.fishisland.constant.UserConstant;
+import com.cong.fishisland.game.ws.GameMessageHandler;
+import com.cong.fishisland.game.ws.GameWebSocketHandler;
+import com.cong.fishisland.game.landlords.ws.LandlordsGameMessageHandler;
+import com.cong.fishisland.model.dto.admin.AdminRevokeRecordDTO;
 import com.cong.fishisland.model.dto.ws.WSChannelExtraDTO;
 import com.cong.fishisland.model.entity.chat.RoomMessage;
 import com.cong.fishisland.model.entity.user.User;
@@ -26,19 +29,9 @@ import com.cong.fishisland.model.ws.request.WSBaseReq;
 import com.cong.fishisland.model.ws.response.DrawPlayer;
 import com.cong.fishisland.model.ws.response.UserChatResponse;
 import com.cong.fishisland.model.ws.response.WSBaseResp;
-import com.cong.fishisland.model.dto.admin.AdminRevokeRecordDTO;
-import com.cong.fishisland.service.AdminRevokeRecordService;
-import com.cong.fishisland.service.RoomMessageService;
-import com.cong.fishisland.service.UserAiAvatarService;
-import com.cong.fishisland.service.UserMuteService;
-import com.cong.fishisland.service.UserService;
-import com.cong.fishisland.service.UserVipService;
+import com.cong.fishisland.service.*;
 import com.cong.fishisland.websocket.cache.UserCache;
-import com.cong.fishisland.websocket.event.AIAnswerEvent;
-import com.cong.fishisland.websocket.event.AddSpeakPointEvent;
-import com.cong.fishisland.websocket.event.UserAiAvatarAnswerEvent;
-import com.cong.fishisland.websocket.event.UserOfflineEvent;
-import com.cong.fishisland.websocket.event.UserOnlineEvent;
+import com.cong.fishisland.websocket.event.*;
 import com.cong.fishisland.websocket.service.WebSocketService;
 import com.cong.fishisland.websocket.utils.NettyUtil;
 import io.netty.channel.Channel;
@@ -56,6 +49,7 @@ import toolgood.words.StringSearch;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.stream.Collectors;
 
 
 /**
@@ -84,6 +78,8 @@ public class WebSocketServiceImpl implements WebSocketService {
     private final UserMuteService userMuteService;
     private final UserVipService userVipService;
     private final AdminRevokeRecordService adminRevokeRecordService;
+    private final LandlordsGameMessageHandler gameMessageHandler;
+    private final GameWebSocketHandler gameWebSocketHandler;
 
 
     /**
@@ -217,6 +213,7 @@ public class WebSocketServiceImpl implements WebSocketService {
             // 异常返回
             WSBaseResp<Object> errorResp = WSBaseResp.builder().type(MessageTypeEnum.ERROR.getType()).data(ErrorCode.FORBIDDEN_ERROR.getMessage()).build();
             sendMsg(channel, errorResp);
+            return;
         }
         sendByType(chatMessageVo, token, uid, channel);
 
@@ -369,6 +366,24 @@ public class WebSocketServiceImpl implements WebSocketService {
                 break;
             case CREATE_DRAW_ROOM:
                 createDrawRoom(channel, loginUser);
+                break;
+            // ==================== 斗地主游戏消息处理 ====================
+            case GAME_ROOM_LIST:
+            case GAME_CREATE_ROOM:
+            case GAME_JOIN_ROOM:
+            case GAME_LEAVE_ROOM:
+            case GAME_READY:
+            case GAME_START:
+            case GAME_CHAT:
+            case GAME_ROB_LANDLORD:
+            case GAME_PLAY_CARDS:
+            case GAME_PASS:
+            case GAME_TURN_NOTIFY:
+            case GAME_ACTION_RESULT:
+            case GAME_SET_ROBOT:
+            case GAME_CANCEL_ROBOT:
+                gameWebSocketHandler.handleGameMessage(gameMessageHandler,
+                        messageTypeEnum.getType(), chatMessageVo.getContent(), loginUserId, channel);
                 break;
             default:
                 break;

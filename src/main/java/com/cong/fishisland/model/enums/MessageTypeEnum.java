@@ -28,7 +28,7 @@ public enum MessageTypeEnum {
     UNDERCOVER("undercover", "谁是卧底消息"),
     DRAW("draw", "你画我猜消息"),
     CLEAR_DRAW("clearDraw", "清空画板"),
-    GAME_STAR("gameStart", "开始游戏"),
+    GAME_START("gameStart", "开始游戏"),
     REFRESH_ROOM("refreshRoom", "刷新房间信息"),
     REFRESH_DRAW("refreshDraw", "刷新绘画房间信息"),
     USER_ONLINE("userOnline", "用户上线"),
@@ -37,6 +37,24 @@ public enum MessageTypeEnum {
     CREATE_DRAW_ROOM("createDrawRoom", "创建绘画房间"),
     ROOM_DRAW_CREATED("roomDrawCreated", "房间绘画创建成功"),
     ROOM_DRAW_USER_LIST("roomDrawUserList", "发送你画我猜在线用户列表"),
+
+    // ==================== 斗地主游戏消息 ====================
+    GAME_ROOM_LIST("gameRoomList", "游戏房间列表"),
+    GAME_CREATE_ROOM("gameCreateRoom", "创建游戏房间"),
+    GAME_JOIN_ROOM("gameJoinRoom", "加入游戏房间"),
+    GAME_LEAVE_ROOM("gameLeaveRoom", "离开游戏房间"),
+    GAME_READY("gameReady", "玩家准备"),
+    GAME_DEAL_CARDS("gameDealCards", "发牌"),
+    GAME_ROB_LANDLORD("gameRobLandlord", "叫地主"),
+    GAME_PLAY_CARDS("gamePlayCards", "出牌"),
+    GAME_PASS("gamePass", "不出"),
+    GAME_OVER("gameOver", "游戏结束"),
+    GAME_STATE_UPDATE("gameStateUpdate", "游戏状态更新"),
+    GAME_CHAT("gameChat", "游戏聊天"),
+    GAME_TURN_NOTIFY("gameTurnNotify", "回合通知"),
+    GAME_ACTION_RESULT("gameActionResult", "操作结果"),
+    GAME_SET_ROBOT("gameSetRobot", "设置AI托管"),
+    GAME_CANCEL_ROBOT("gameCancelRobot", "取消AI托管"),
     ;
 
     private final String type;
@@ -45,7 +63,7 @@ public enum MessageTypeEnum {
     private static final Map<String, MessageTypeEnum> CACHE;
 
     static {
-        CACHE = Arrays.stream(MessageTypeEnum.values()).collect(Collectors.toMap(MessageTypeEnum::getType, Function.identity()));
+        CACHE = Arrays.stream(values()).collect(Collectors.toMap(MessageTypeEnum::getType, Function.identity()));
     }
 
     public static MessageTypeEnum of(String type) {
