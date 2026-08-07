@@ -577,7 +577,7 @@ public class UndercoverGameServiceImpl implements UndercoverGameService {
                 asyncGameService.startSpeakingAndVoting(roomId);
 
                 webSocketService.sendToAllOnline(WSBaseResp.builder()
-                        .type(MessageTypeEnum.GAME_STAR.getType())
+                        .type(MessageTypeEnum.GAME_START.getType())
                         .data("").build());
 
                 return true;
