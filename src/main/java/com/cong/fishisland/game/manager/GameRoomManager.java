@@ -75,8 +75,6 @@ public class GameRoomManager {
             // 验证 user-room 映射
             Map<Long, String> userRooms = roomCache.getAllUserRooms();
             userRoomCount = userRooms.size();
-
-                    roomCount, userRoomCount, sessionCount);
         } catch (Exception e) {
             log.error("从 Redis 恢复游戏数据失败", e);
         }
@@ -123,6 +121,7 @@ public class GameRoomManager {
     /**
      * 加入房间
      * 支持断线重连
+     *
      * @param isCreatorJoin 是否是创建房间后首次加入（用于区分重连）
      */
     public GameRoom joinRoom(String roomId, Long userId, String userName, String userAvatar, String password, boolean isCreatorJoin) {
@@ -134,11 +133,11 @@ public class GameRoomManager {
 
         GameSession cachedSession = getUserSession(userId);
         boolean isExistingPlayer = room.getPlayer(userId) != null;
-        
+
         // 判断是否为真正的重连：玩家已在房间中但当前离线
         // 注意：创建房间后加入不视为重连，即使会话中记录了房间
-        boolean isReconnecting = isExistingPlayer 
-                && cachedSession != null 
+        boolean isReconnecting = isExistingPlayer
+                && cachedSession != null
                 && !cachedSession.isOnline();
 
         // 只有真正的重连才校验重连窗口（创建后加入不校验）
@@ -216,8 +215,6 @@ public class GameRoomManager {
         // 更新会话缓存
         saveSession(userId, roomId, userName, userAvatar);
 
-        log.debug("用户加入房间: userId={}", userId);
-
         return room;
     }
 
@@ -254,11 +251,8 @@ public class GameRoomManager {
                 }
             }
 
-            log.info("用户在游戏中离开（设置离线）: roomId={}, userId={}", roomId, userId);
-
             // 检查是否所有玩家都离线了，如果是则删除房间
             if (room.getOnlinePlayerCount() == 0) {
-                log.info("游戏中所有玩家都已离线，删除房间: roomId={}", roomId);
                 removeRoom(roomId);
             }
             return true;
@@ -269,7 +263,6 @@ public class GameRoomManager {
             roomCache.removeUserRoom(userId);
             sessionCache.deleteSession(userId);
             saveRoom(room);
-            log.info("用户离开房间: roomId={}, userId={}", roomId, userId);
 
             // 如果房间空了，删除
             if (room.getPlayerCount() == 0) {
@@ -301,7 +294,6 @@ public class GameRoomManager {
 
         if (room.removePlayer(userId)) {
             saveRoom(room);
-            log.info("移除离线玩家: roomId={}, userId={}", roomId, userId);
 
             // 如果房间空了，删除
             if (room.getPlayerCount() == 0) {
@@ -418,8 +410,6 @@ public class GameRoomManager {
             // 清除内存缓存
             roomMemoryCache.remove(roomId);
 
-            log.info("移除房间: roomId={}", roomId);
-
             // 广播房间删除消息给所有在线用户
             broadcastRoomRemoved(roomId, gameType);
         }
@@ -443,7 +433,7 @@ public class GameRoomManager {
         for (String roomId : toRemove) {
             removeRoom(roomId);
         }
-
+    }
 
     /**
      * 清理离线超时的玩家
@@ -550,7 +540,6 @@ public class GameRoomManager {
             data.put("playerCount", room.getPlayerCount());
             data.put("roomInfo", room.toRoomInfoResp());
             sessionManager.broadcastToAll(GameMessageTypeEnum.ROOM_ADDED.getType(), data);
-            log.info("广播房间新增消息: roomId={}", room.getRoomId());
         }
     }
 
@@ -563,7 +552,6 @@ public class GameRoomManager {
             data.put("roomId", roomId);
             data.put("gameType", gameType);
             sessionManager.broadcastToAll(GameMessageTypeEnum.ROOM_REMOVED.getType(), data);
-            log.info("广播房间删除消息: roomId={}", roomId);
         }
     }
 

@@ -238,8 +238,6 @@ public class LandlordsGameMessageHandler implements GameMessageHandler {
 
         // 如果是重连，发送私人手牌（buildGameState 已统一排序，直接使用）
         if (isReconnecting) {
-                    userId, room.getRoomId(), room.getState());
-
             // 取消AI托管
             GamePlayer reconnectPlayer = room.getPlayer(userId);
             if (reconnectPlayer != null && reconnectPlayer.isRobotControlled()) {
@@ -255,9 +253,7 @@ public class LandlordsGameMessageHandler implements GameMessageHandler {
             stateUpdateData.put("phase", GamePhaseEnum.fromRoomState(room.getState()));
             stateUpdateData.put("roomState", room.getState());
             stateUpdateData.put("event", GameActionEnum.PLAYER_RECONNECT.getCode());
-            stateUpdateData.put("reconnectUserId", userId);
-
-                    userId, room.getPlayerOrder(), room.getPlayerCount(), userId);
+stateUpdateData.put("reconnectUserId", userId);
 
             // 广播给除重连玩家外的所有玩家
             sessionManager.broadcastToRoomExcept(userId, room.getPlayerOrder(),
@@ -432,8 +428,6 @@ public class LandlordsGameMessageHandler implements GameMessageHandler {
         player.setReady(newReadyState);
         // 同步房间状态到 Redis
         roomManager.saveRoom(room);
-
-                userId, room.getRoomId(), newReadyState, room.isAllReady());
 
         // 广播完整的玩家列表（包含最新的 ready 状态）
         Map<String, Object> broadcastData = new HashMap<>();
