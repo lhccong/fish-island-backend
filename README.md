@@ -103,7 +103,7 @@ _✨ 开源🌟一站式摸鱼网 ✨_
 
 ## Star History
 
-[![Star History Chart](https://api.star-history.com/svg?repos=lhccong/fish-island-backend&type=Date)](https://www.star-history.com/#lhccong/fish-island-backend&Date)
+[![Star History Chart](https://star-history.dera.page/svg?repos=lhccong/fish-island-backend&type=Date)](https://star-history.dera.page/#lhccong/fish-island-backend&Date)
 
 
 ## 截图展示
