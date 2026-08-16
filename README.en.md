@@ -105,7 +105,7 @@ _✨ Open Source 🌟 One-Stop Procrastination Website ✨_
 
 ## Star History
 
-[![Star History Chart](https://api.star-history.com/svg?repos=lhccong/fish-island-backend&type=Date)](https://www.star-history.com/#lhccong/fish-island-backend&Date)
+[![Star History Chart](https://star-history.dera.page/svg?repos=lhccong/fish-island-backend&type=Date)](https://star-history.dera.page/#lhccong/fish-island-backend&Date)
 
 ## Screenshots
 
