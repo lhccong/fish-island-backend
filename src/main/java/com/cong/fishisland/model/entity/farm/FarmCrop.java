@@ -60,6 +60,18 @@ public class FarmCrop {
     @ApiModelProperty(value = "作物描述")
     private String description = "";
 
+    @ApiModelProperty(value = "初始重量（克），基准按品类设定")
+    private Integer baseWeight = 100;
+
+    @ApiModelProperty(value = "初始品级（图鉴收集起点，默认 1）")
+    private Integer baseGrade = 1;
+
+    @ApiModelProperty(value = "10 品级概率权重 JSON（缺省用全局默认曲线）")
+    private String gradeWeightJson;
+
+    @ApiModelProperty(value = "10 品级图鉴图标路径 JSON（缺省用作物图标）")
+    private String collectionIconsJson;
+
     @ApiModelProperty(value = "创建时间")
     private LocalDateTime createTime;
 }

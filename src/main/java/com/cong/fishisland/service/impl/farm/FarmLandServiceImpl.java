@@ -9,21 +9,28 @@ import com.cong.fishisland.common.exception.BusinessException;
 import com.cong.fishisland.mapper.farm.FarmCropMapper;
 import com.cong.fishisland.mapper.farm.FarmLandMapper;
 import com.cong.fishisland.mapper.farm.FarmPlantRecordMapper;
+import com.cong.fishisland.model.dto.farm.CollectionRollResult;
+import com.cong.fishisland.model.dto.farm.CollectionUnlockVO;
+import com.cong.fishisland.model.dto.farm.HarvestResultVO;
 import com.cong.fishisland.model.dto.farm.LandDTO;
 import com.cong.fishisland.model.dto.farm.PlantItem;
 import com.cong.fishisland.model.entity.farm.FarmCrop;
 import com.cong.fishisland.model.entity.farm.FarmLand;
 import com.cong.fishisland.model.entity.farm.FarmPlantRecord;
 import com.cong.fishisland.model.entity.farm.FarmUser;
+import com.cong.fishisland.model.enums.farm.FarmBuffTypeEnum;
 import com.cong.fishisland.model.enums.farm.FarmConstants;
 import com.cong.fishisland.model.enums.farm.FarmLandStatusEnum;
 import com.cong.fishisland.model.enums.farm.FarmYesNoEnum;
 import com.cong.fishisland.model.enums.user.PointsRecordSourceEnum;
+import com.cong.fishisland.service.FarmCollectionGradeService;
 import com.cong.fishisland.service.FarmCollectionService;
 import com.cong.fishisland.service.FarmCropService;
 import com.cong.fishisland.service.FarmLandService;
 import com.cong.fishisland.service.FarmUserService;
+import com.cong.fishisland.service.FarmUserBuffService;
 import com.cong.fishisland.service.UserPointsService;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -33,6 +40,7 @@ import java.util.*;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
+@Slf4j
 @Service
 public class FarmLandServiceImpl extends ServiceImpl<FarmLandMapper, FarmLand> implements FarmLandService {
 
@@ -53,6 +61,12 @@ public class FarmLandServiceImpl extends ServiceImpl<FarmLandMapper, FarmLand> i
 
     @Autowired
     private UserPointsService userPointsService;
+
+    @Autowired
+    private FarmUserBuffService farmUserBuffService;
+
+    @Autowired
+    private FarmCollectionGradeService collectionGradeService;
 
     @Override
     public List<FarmLand> getLandsByUserId(Long userId) {
@@ -195,6 +209,9 @@ public class FarmLandServiceImpl extends ServiceImpl<FarmLandMapper, FarmLand> i
         Long userId = StpUtil.getLoginIdAsLong();
         farmUserService.getFarmUser(userId);
 
+        // 生长加速：种植时即按当前加速等级缩短成熟时间（与升级时的批量重算口径一致）
+        int growthDiscountPercent = farmUserBuffService.getBuffPercent(userId, FarmBuffTypeEnum.GROWTH_ACCEL);
+
         FarmUser farmUser = farmUserService.getById(userId);
         if (farmUser == null) {
             throw new BusinessException(ErrorCode.NOT_FOUND_ERROR, "农场用户不存在");
@@ -254,7 +271,9 @@ public class FarmLandServiceImpl extends ServiceImpl<FarmLandMapper, FarmLand> i
                         "农场种植购买种子-" + crop.getName());
             }
 
-            LocalDateTime harvestTime = now.plusMinutes(crop.getGrowthTime());
+            long growthMillis = (crop.getGrowthTime() != null ? crop.getGrowthTime() : 0) * 60_000L;
+            long effectiveGrowthMillis = growthMillis * (100 - growthDiscountPercent) / 100;
+            LocalDateTime harvestTime = now.plus(effectiveGrowthMillis, java.time.temporal.ChronoUnit.MILLIS);
 
             boolean updated = lambdaUpdate()
                     .eq(FarmLand::getId, landId)
@@ -298,7 +317,7 @@ public class FarmLandServiceImpl extends ServiceImpl<FarmLandMapper, FarmLand> i
      */
     @Override
     @Transactional(rollbackFor = Exception.class)
-    public List<FarmLand> harvestBatch(List<Long> landIds) {
+    public HarvestResultVO harvestBatch(List<Long> landIds) {
         if (CollectionUtils.isEmpty(landIds)) {
             throw new BusinessException(ErrorCode.PARAMS_ERROR, "收获列表不能为空");
         }
@@ -318,6 +337,10 @@ public class FarmLandServiceImpl extends ServiceImpl<FarmLandMapper, FarmLand> i
 
         long userId = StpUtil.getLoginIdAsLong();
         LocalDateTime now = LocalDateTime.now();
+
+        // buff 效果一次读取（增产加成 / 神奇生长图鉴加成）
+        int yieldBoostPercent = farmUserBuffService.getBuffPercent(userId, FarmBuffTypeEnum.YIELD_BOOST);
+        int luckyBoostPercent = farmUserBuffService.getBuffPercent(userId, FarmBuffTypeEnum.LUCKY_GROWTH);
 
         Map<Long, FarmLand> landMap = listByIds(landIds).stream()
                 .collect(Collectors.toMap(FarmLand::getId, Function.identity()));
@@ -340,6 +363,8 @@ public class FarmLandServiceImpl extends ServiceImpl<FarmLandMapper, FarmLand> i
                 .collect(Collectors.toMap(FarmCrop::getId, Function.identity()));
 
         List<FarmLand> updatedLands = new ArrayList<>(landIds.size());
+        int totalPoints = 0;
+        List<CollectionUnlockVO> newCollections = new ArrayList<>();
 
         for (Long landId : landIds) {
             FarmLand land = landMap.get(landId);
@@ -387,12 +412,13 @@ public class FarmLandServiceImpl extends ServiceImpl<FarmLandMapper, FarmLand> i
 
             FarmCrop crop = cropMap.get(land.getPlantedCropId());
             if (crop != null) {
-                int actualReward = calcHarvestPointsReward(crop, record);
+                int actualReward = calcHarvestPointsReward(crop, record, yieldBoostPercent);
                 if (actualReward > 0) {
                     userPointsService.updateUsedPoints(userId, -actualReward,
                             PointsRecordSourceEnum.FARM_HARVEST.getValue(),
                             record.getId().toString(),
-                            buildHarvestPointsDescription(crop, record, actualReward));
+                            buildHarvestPointsDescription(crop, record, actualReward, yieldBoostPercent));
+                    totalPoints += actualReward;
                 }
 
                 int exp = crop.getExperience() != null ? crop.getExperience() : 0;
@@ -401,6 +427,32 @@ public class FarmLandServiceImpl extends ServiceImpl<FarmLandMapper, FarmLand> i
                 }
                 farmUserService.incrementTotalHarvest(userId);
                 collectionService.updateCollection(userId, crop.getId());
+                // 图鉴 roll：与积分结算完全独立，失败不影响收获
+                CollectionRollResult roll = collectionGradeService.rollOnHarvest(userId, crop, luckyBoostPercent);
+                if (roll != null) {
+                    // 图鉴更新额外奖励：应收积分 × 品级 × (1 + 重量超出基准重量的百分比)
+                    int collectionBonus = 0;
+                    if (roll.isUpdated()) {
+                        collectionBonus = calcCollectionBonus(crop, roll);
+                        if (collectionBonus > 0) {
+                            userPointsService.updateUsedPoints(userId, -collectionBonus,
+                                    PointsRecordSourceEnum.FARM_COLLECTION_REWARD.getValue(),
+                                    record.getId().toString(),
+                                    String.format("图鉴更新奖励-%s 品级%d %dg",
+                                            crop.getName(), roll.getGrade(), roll.getWeight()));
+                        }
+                    }
+                    if (roll.isNewEntry()) {
+                        newCollections.add(new CollectionUnlockVO(
+                                crop.getId(),
+                                crop.getName(),
+                                crop.getIcon(),
+                                roll.getGrade(),
+                                roll.getWeight(),
+                                LocalDateTime.now(),
+                                collectionBonus));
+                    }
+                }
             }
 
             land.setStatus(FarmLandStatusEnum.IDLE.getValue());
@@ -411,28 +463,57 @@ public class FarmLandServiceImpl extends ServiceImpl<FarmLandMapper, FarmLand> i
             updatedLands.add(land);
         }
 
-        return updatedLands;
+        return new HarvestResultVO(toDTOList(updatedLands), totalPoints, newCollections);
     }
 
     /**
      * 计算收获可得积分：种植预期奖励减去已被偷积分，且不低于种子价格 + 1（与偷菜上限逻辑一致）。
+     * 丰收光环：先按百分比加成，再校验保底（保底不受加成放大）。
      */
-    private static int calcHarvestPointsReward(FarmCrop crop, FarmPlantRecord record) {
+    private static int calcHarvestPointsReward(FarmCrop crop, FarmPlantRecord record, int yieldBoostPercent) {
         int baseReward = record.getPlantedPointsReward() != null
                 ? record.getPlantedPointsReward()
                 : (crop.getCoin() != null ? crop.getCoin() : 0);
         int stolenPoints = record.getStolenPoints() != null ? record.getStolenPoints() : 0;
         int minReward = FarmConstants.minHarvestPoints(crop.getPrice());
-        return Math.max(minReward, baseReward - stolenPoints);
+        int boosted = applyYieldBoost(baseReward - stolenPoints, yieldBoostPercent);
+        return Math.max(minReward, boosted);
     }
 
-    private static String buildHarvestPointsDescription(FarmCrop crop, FarmPlantRecord record, int actualReward) {
+    /**
+     * 增产加成：对(基础产出-已偷积分)按百分比提升，四舍五入取整。
+     */
+    private static int applyYieldBoost(int reward, int yieldBoostPercent) {
+        if (yieldBoostPercent <= 0 || reward <= 0) {
+            return reward;
+        }
+        return (int) Math.round(reward * (1 + yieldBoostPercent / 100.0));
+    }
+
+    /**
+     * 图鉴更新额外奖励：应收积分（作物标准收获积分）× 品级 × (1 + 重量超出基准重量的百分比)。
+     * 例：coin=60、品级 5、基准 1200g、roll 出 2160g → 60 × 5 × (1 + 0.8) = 540。
+     */
+    private static int calcCollectionBonus(FarmCrop crop, CollectionRollResult roll) {
+        int base = crop.getCoin() != null ? crop.getCoin() : 0;
+        int baseWeight = crop.getBaseWeight() != null ? crop.getBaseWeight() : 0;
+        if (base <= 0 || baseWeight <= 0 || roll.getWeight() == null || roll.getGrade() == null) {
+            return 0;
+        }
+        double weightRatio = 1.0 + (roll.getWeight() - baseWeight) * 1.0 / baseWeight;
+        return Math.max(0, Math.round(base * roll.getGrade() * (float) weightRatio));
+    }
+
+    private static String buildHarvestPointsDescription(FarmCrop crop, FarmPlantRecord record,
+                                                        int actualReward, int yieldBoostPercent) {
         int stolenPoints = record.getStolenPoints() != null ? record.getStolenPoints() : 0;
         String cropName = crop.getName() != null ? crop.getName() : "作物";
+        String buffMark = yieldBoostPercent > 0
+                ? String.format("，丰收加成+%d%%", yieldBoostPercent) : "";
         if (stolenPoints > 0) {
-            return String.format("农场收获-%s（实得%d积分，已被偷%d积分）", cropName, actualReward, stolenPoints);
+            return String.format("农场收获-%s（实得%d积分，已被偷%d积分%s）", cropName, actualReward, stolenPoints, buffMark);
         }
-        return "农场收获-" + cropName;
+        return String.format("农场收获-%s%s", cropName, buffMark);
     }
 
     @Override

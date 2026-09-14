@@ -160,4 +160,55 @@ public final class FarmConstants {
         }
         return level;
     }
+
+    // ==================== 农场 buff 道具 & 作物图鉴（PRD v2.1） ====================
+
+    /** buff 升级所需积分（下标 = 目标等级），占位数值待平衡 */
+    public static final int[] BUFF_UPGRADE_COST = {0, 0, 10, 20, 30, 40};
+
+    /** buff 升到各等级的一次性里程碑奖励（下标 = 等级）：每级都有，首级 100，最高 500 */
+    public static final int[] BUFF_LEVEL_UP_REWARD = {0, 100, 200, 300, 400, 500};
+
+    /** 每 5 级持续任务的基础奖励，实际奖励 = 基础值 × 档位（level / 5） */
+    public static final int FARM_LEVEL_REWARD_BASE = 50;
+
+    /** 持续任务奖励档位间隔 */
+    public static final int FARM_LEVEL_REWARD_STEP = 5;
+
+    /**
+     * 指定等级的持续任务奖励（等级为 5 的倍数时有效）。
+     */
+    public static int levelRewardFor(int level) {
+        if (level <= 0 || level % FARM_LEVEL_REWARD_STEP != 0) {
+            return 0;
+        }
+        return FARM_LEVEL_REWARD_BASE * (level / FARM_LEVEL_REWARD_STEP);
+    }
+
+    /** 图鉴品级重量乘数曲线（下标 = 品级-1），占位数值待平衡 */
+    private static final double[] GRADE_WEIGHT_MULTIPLIER = {
+            1.0, 1.4, 1.9, 2.5, 3.2, 4.0, 4.9, 5.9, 7.0, 8.2
+    };
+
+    /** 品级内重量随机浮动幅度（±比例） */
+    public static final double GRADE_WEIGHT_FLUCTUATION = 0.10;
+
+    /**
+     * 品级重量乘数（1–10 级，越高级越重）。
+     */
+    public static double weightMultiplier(int grade) {
+        if (grade < 1 || grade > GRADE_WEIGHT_MULTIPLIER.length) {
+            return 1.0;
+        }
+        return GRADE_WEIGHT_MULTIPLIER[grade - 1];
+    }
+
+    /** 图鉴品级默认概率权重（下标 = 品级-1，总和 1000），作物未配置 gradeWeightJson 时使用 */
+    public static final int[] DEFAULT_GRADE_WEIGHTS = {300, 240, 170, 110, 70, 45, 30, 20, 12, 3};
+
+    /** 图鉴品级上限 */
+    public static final int COLLECTION_GRADE_MAX = 10;
+
+    /** 神奇生长光环加成生效的最低品级（低于该品级的概率权重不放大） */
+    public static final int LUCKY_BOOST_MIN_GRADE = 5;
 }

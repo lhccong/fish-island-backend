@@ -5,6 +5,7 @@ import com.cong.fishisland.common.BaseResponse;
 import com.cong.fishisland.common.ErrorCode;
 import com.cong.fishisland.common.ResultUtils;
 import com.cong.fishisland.common.exception.BusinessException;
+import com.cong.fishisland.model.dto.farm.HarvestResultVO;
 import com.cong.fishisland.model.dto.farm.LandDTO;
 import com.cong.fishisland.model.dto.farm.request.HarvestRequest;
 import com.cong.fishisland.model.dto.farm.request.PlantRequest;
@@ -58,14 +59,14 @@ public class LandController {
     }
 
     @PostMapping("/harvest")
-    @ApiOperation(value = "批量收获作物")
-    public BaseResponse<List<LandDTO>> harvest(@RequestBody HarvestRequest request) {
-        List<FarmLand> lands = landService.harvestBatch(request.getLandIds());
+    @ApiOperation(value = "批量收获作物", notes = "返回收获后的地块列表、本次总积分与新解锁图鉴")
+    public BaseResponse<HarvestResultVO> harvest(@RequestBody HarvestRequest request) {
+        HarvestResultVO result = landService.harvestBatch(request.getLandIds());
 
-        for (int i = 0; i < lands.size(); i++) {
+        for (int i = 0; i < result.getLands().size(); i++) {
             taskService.updateTaskProgress(FarmTaskTypeEnum.HARVEST);
         }
 
-        return ResultUtils.success(landService.toDTOList(lands));
+        return ResultUtils.success(result);
     }
 }
