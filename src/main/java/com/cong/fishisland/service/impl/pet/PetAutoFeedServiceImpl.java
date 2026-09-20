@@ -244,8 +244,8 @@ public class PetAutoFeedServiceImpl extends ServiceImpl<PetAutoFeedConfigMapper,
 
         // 6. 消耗一个食物，并记录自动喂食积分日志（食物本身已花积分购买，此处仅做行为记录，不再扣分）
         itemInstancesService.consumeItem(foodInstance.getId(), 1);
-        userPointsService.updateUsedPoints(userId, 0, PET_AUTO_FEED.getValue(),
-                petId.toString(), "宠物自动喂食消耗食物：" + foodTemplate.getName());
+//        userPointsService.updateUsedPoints(userId, 0, PET_AUTO_FEED.getValue(),
+//                petId.toString(), "宠物自动喂食消耗食物：" + foodTemplate.getName());
 
         // 7. 更新宠物饱食度、心情值和经验值
         // hunger 越高越饱，喂食后增加饱食度，上限 100

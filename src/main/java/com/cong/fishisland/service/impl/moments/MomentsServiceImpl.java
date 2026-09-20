@@ -11,6 +11,7 @@ import com.cong.fishisland.constant.PointConstant;
 import com.cong.fishisland.mapper.moments.MomentsCommentMapper;
 import com.cong.fishisland.mapper.moments.MomentsLikeMapper;
 import com.cong.fishisland.mapper.moments.MomentsMapper;
+import com.cong.fishisland.mapper.donation.DonationRecordsMapper;
 import com.cong.fishisland.model.dto.moments.MomentsAddRequest;
 import com.cong.fishisland.model.dto.moments.MomentsCommentAddRequest;
 import com.cong.fishisland.model.dto.moments.MomentsCommentQueryRequest;
@@ -23,6 +24,7 @@ import com.cong.fishisland.model.dto.moments.MomentsUpdateRequest;
 import com.cong.fishisland.model.entity.moments.Moments;
 import com.cong.fishisland.model.entity.moments.MomentsComment;
 import com.cong.fishisland.model.entity.moments.MomentsLike;
+import com.cong.fishisland.model.entity.donation.DonationRecords;
 import com.cong.fishisland.model.entity.user.User;
 import com.cong.fishisland.model.enums.UserRoleEnum;
 import com.cong.fishisland.model.vo.moments.MomentsCommentVO;
@@ -47,6 +49,7 @@ import org.springframework.util.StringUtils;
 import java.time.Duration;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.math.BigDecimal;
 import java.util.*;
 import java.util.stream.Collectors;
 
@@ -63,6 +66,7 @@ public class MomentsServiceImpl extends ServiceImpl<MomentsMapper, Moments>
 
     private final MomentsLikeMapper momentsLikeMapper;
     private final MomentsCommentMapper momentsCommentMapper;
+    private final DonationRecordsMapper donationRecordsMapper;
     private final UserService userService;
     private final EventRemindHandler eventRemindHandler;
     private final UserPointsService userPointsService;
@@ -573,6 +577,12 @@ public class MomentsServiceImpl extends ServiceImpl<MomentsMapper, Moments>
                 .stream()
                 .collect(Collectors.toMap(UserPoints::getUserId, p -> p));
 
+        Map<Long, DonationRecords> donationMap = donationRecordsMapper.selectList(new LambdaQueryWrapper<DonationRecords>()
+                        .in(DonationRecords::getUserId, likeUserIds)
+                        .gt(DonationRecords::getAmount, BigDecimal.valueOf(9)))
+                .stream()
+                .collect(Collectors.toMap(DonationRecords::getUserId, d -> d, (a, b) -> a));
+
         List<MomentsLike> eligibleLikes = likes.stream().filter(like -> {
             User u = likeUserMap.get(like.getUserId());
             if (u == null || u.getCreateTime() == null) {
@@ -584,11 +594,15 @@ public class MomentsServiceImpl extends ServiceImpl<MomentsMapper, Moments>
             }
             UserPoints up = userPointsMap.get(like.getUserId());
             // points 积分必须大于 200
-            return up != null && up.getPoints() != null && up.getPoints() > 200;
+            if (up == null || up.getPoints() == null || up.getPoints() <= 200) {
+                return false;
+            }
+            // 累计打赏金额必须大于 9 元
+            return donationMap.containsKey(like.getUserId());
         }).collect(Collectors.toList());
 
         ThrowUtils.throwIf(eligibleLikes.isEmpty(), ErrorCode.OPERATION_ERROR,
-                "暂无符合条件的参与用户（需注册超过 5 天且积分大于 200）");
+                "暂无符合条件的参与用户（需注册超过 5 天、积分大于 200 ）");
 
         // 随机打乱后取前 N 个
         List<MomentsLike> shuffled = new ArrayList<>(eligibleLikes);
