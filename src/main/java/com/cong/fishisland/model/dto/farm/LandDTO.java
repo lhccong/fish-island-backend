@@ -31,6 +31,12 @@ public class LandDTO {
     @ApiModelProperty(value = "收获时间")
     private LocalDateTime harvestTime;
 
+    @ApiModelProperty(value = "本轮种植上次浇水时间")
+    private LocalDateTime lastWateredTime;
+
+    @ApiModelProperty(value = "下次可浇水时间；尚未浇水或无需浇水时为 null")
+    private LocalDateTime nextWaterTime;
+
     @ApiModelProperty(value = "是否锁定（0-未锁定，1-已锁定）")
     private Integer locked;
 

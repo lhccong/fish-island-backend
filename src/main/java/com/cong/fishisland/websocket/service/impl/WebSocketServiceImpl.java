@@ -127,13 +127,13 @@ public class WebSocketServiceImpl implements WebSocketService {
             }
 
             // 向当前新连接发送在线用户列表信息
+            // 登录完成后总是下发一次全量快照。服务重启后本机在线连接表会被清空，
+            // 前端需要依靠这次快照恢复右侧用户列表，而不是等待后续增量事件。
             List<UserChatResponse> onlineUserList = getOnlineUserList();
-            if (!onlineUserList.isEmpty()) {
-                WSBaseResp<Object> resp = WSBaseResp.builder()
-                        .type(MessageTypeEnum.USER_ONLINE.getType())
-                        .data(onlineUserList).build();
-                sendMsg(channel, resp);
-            }
+            WSBaseResp<Object> resp = WSBaseResp.builder()
+                    .type(MessageTypeEnum.USER_ONLINE.getType())
+                    .data(onlineUserList).build();
+            sendMsg(channel, resp);
         } catch (Exception e) {
             log.error("websocket登录失败", e);
             channel.close();
@@ -152,7 +152,11 @@ public class WebSocketServiceImpl implements WebSocketService {
 
     @Override
     public void removed(Channel channel) {
-        WSChannelExtraDTO wsChannelExtraDTO = ONLINE_WS_MAP.get(channel);
+        // handlerRemoved 和 channelInactive 都可能触发，清理必须对同一 channel 幂等。
+        WSChannelExtraDTO wsChannelExtraDTO = ONLINE_WS_MAP.remove(channel);
+        if (wsChannelExtraDTO == null) {
+            return;
+        }
         Optional<Long> uidOptional = Optional.ofNullable(wsChannelExtraDTO)
                 .map(WSChannelExtraDTO::getUid);
         boolean offlineAll = offline(channel, uidOptional);
@@ -645,7 +649,15 @@ public class WebSocketServiceImpl implements WebSocketService {
      * @param wsBaseResp WS基础研究
      */
     private void sendMsg(Channel channel, WSBaseResp<?> wsBaseResp) {
-        channel.writeAndFlush(new TextWebSocketFrame(JSONUtil.toJsonStr(wsBaseResp)));
+        if (channel == null || !channel.isActive()) {
+            return;
+        }
+        channel.writeAndFlush(new TextWebSocketFrame(JSONUtil.toJsonStr(wsBaseResp)))
+                .addListener(future -> {
+                    if (!future.isSuccess()) {
+                        log.debug("WebSocket消息发送失败，连接可能已关闭: {}", channel.id());
+                    }
+                });
     }
 
     /**
@@ -653,7 +665,6 @@ public class WebSocketServiceImpl implements WebSocketService {
      * return 是否全下线成功（用户所有连接都已断开）
      */
     private boolean offline(Channel channel, Optional<Long> uidOptional) {
-        ONLINE_WS_MAP.remove(channel);
         if (uidOptional.isPresent()) {
             Long uid = uidOptional.get();
             CopyOnWriteArrayList<Channel> channels = ONLINE_UID_MAP.get(uid);

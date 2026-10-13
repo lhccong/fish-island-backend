@@ -9,6 +9,7 @@ import com.cong.fishisland.model.dto.farm.LandDTO;
 import com.cong.fishisland.model.dto.farm.request.HarvestRequest;
 import com.cong.fishisland.model.dto.farm.request.PlantRequest;
 import com.cong.fishisland.model.dto.farm.request.UnlockLandRequest;
+import com.cong.fishisland.model.dto.farm.request.WaterLandRequest;
 import com.cong.fishisland.model.entity.farm.FarmLand;
 import com.cong.fishisland.model.enums.farm.FarmTaskTypeEnum;
 import com.cong.fishisland.service.FarmLandService;
@@ -45,6 +46,15 @@ public class LandController {
         }
         FarmLand land = landService.unlockLand(request.getLandId());
         return ResultUtils.success(landService.toDTO(land));
+    }
+
+    @PostMapping("/water")
+    @ApiOperation(value = "给作物浇水", notes = "仅限自己的未成熟作物，每株每30分钟一次，剩余成熟时间缩短2%（向上取整到秒）")
+    public BaseResponse<LandDTO> water(@RequestBody WaterLandRequest request) {
+        if (request == null || request.getLandId() == null) {
+            throw new BusinessException(ErrorCode.PARAMS_ERROR, "地块ID不能为空");
+        }
+        return ResultUtils.success(landService.toDTO(landService.waterLand(request.getLandId())));
     }
 
     @PostMapping("/plant")

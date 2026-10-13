@@ -4,7 +4,6 @@ import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
 import com.cong.fishisland.common.ErrorCode;
 import com.cong.fishisland.common.exception.BusinessException;
 import com.cong.fishisland.config.TournamentProperties;
-import com.cong.fishisland.constant.BattleConstant;
 import com.cong.fishisland.constant.TournamentRedisKey;
 import com.cong.fishisland.model.entity.pet.FishPet;
 import com.cong.fishisland.model.entity.user.User;
@@ -12,7 +11,6 @@ import com.cong.fishisland.model.enums.user.PointsRecordSourceEnum;
 import com.cong.fishisland.model.vo.game.PetBattleResultVO;
 import com.cong.fishisland.model.vo.game.TournamentChallengeResultVO;
 import com.cong.fishisland.model.vo.game.TournamentRankVO;
-import com.cong.fishisland.model.vo.pet.PetEquipStatsVO;
 import com.cong.fishisland.service.FishPetService;
 import com.cong.fishisland.service.PetBattleService;
 import com.cong.fishisland.service.PetTournamentService;
@@ -20,6 +18,8 @@ import com.cong.fishisland.service.UserPointsService;
 import com.cong.fishisland.service.UserService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.redisson.api.RLock;
+import org.redisson.api.RedissonClient;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.data.redis.core.ZSetOperations;
 import org.springframework.stereotype.Service;
@@ -49,6 +49,7 @@ public class PetTournamentServiceImpl implements PetTournamentService {
     private static final double[] RANK_REWARD_PERCENTAGES = {0.20, 0.15, 0.10, 0.08, 0.08, 0.05, 0.05, 0.05, 0.05, 0.05};
     private static final double OTHER_PARTICIPANTS_REWARD_PERCENTAGE = 0.02;
     private static final DateTimeFormatter REWARD_DATE_FORMAT = DateTimeFormatter.ofPattern("yyyyMMdd");
+    private static final int MAX_DAILY_CHALLENGES = 10;
 
     private final StringRedisTemplate stringRedisTemplate;
     private final UserService userService;
@@ -56,9 +57,7 @@ public class PetTournamentServiceImpl implements PetTournamentService {
     private final PetBattleService petBattleService;
     private final UserPointsService userPointsService;
     private final TournamentProperties tournamentProperties;
-
-    /** 同一对手每日只能挑战一次的冷却时间（秒到当天结束） */
-    // CD 时间动态计算，见 secondsUntilMidnight()
+    private final RedissonClient redissonClient;
 
     // ----------------------------------------------------------------
     // 公开接口
@@ -66,6 +65,16 @@ public class PetTournamentServiceImpl implements PetTournamentService {
 
     @Override
     public TournamentChallengeResultVO challenge(int targetRank) {
+        RLock lock = redissonClient.getLock(TournamentRedisKey.LEADERBOARD_LOCK);
+        lock.lock();
+        try {
+            return challengeUnderLock(targetRank);
+        } finally {
+            lock.unlock();
+        }
+    }
+
+    private TournamentChallengeResultVO challengeUnderLock(int targetRank) {
         if (targetRank < 1) {
             throw new BusinessException(ErrorCode.PARAMS_ERROR, "目标名次不能小于1");
         }
@@ -74,7 +83,7 @@ public class PetTournamentServiceImpl implements PetTournamentService {
         long myUserId = me.getId();
 
         // 校验自己有宠物
-        FishPet myPet = getPetByUserId(myUserId);
+        getPetByUserId(myUserId);
 
         // 获取我当前排名
         Integer myCurrentRank = getRankByUserId(myUserId);
@@ -92,8 +101,17 @@ public class PetTournamentServiceImpl implements PetTournamentService {
         TournamentChallengeResultVO result = new TournamentChallengeResultVO();
         result.setTargetRank(targetRank);
 
+        LocalDateTime now = LocalDateTime.now();
+        String countKey = TournamentRedisKey.dailyChallengeKey(myUserId, now.format(REWARD_DATE_FORMAT));
+        String countValue = stringRedisTemplate.opsForValue().get(countKey);
+        int challengeCount = countValue == null ? 0 : Integer.parseInt(countValue);
+        if (challengeCount >= MAX_DAILY_CHALLENGES) {
+            throw new BusinessException(ErrorCode.OPERATION_ERROR, "武道大会每天最多挑战10次，请明天再来");
+        }
+
         if (slotOccupant == null) {
             // 坑位无人，直接占坑
+            recordChallenge(countKey, challengeCount, now);
             occupySlot(myUserId, targetRank, myCurrentRank);
             result.setIsWin(true);
             result.setMyRank(targetRank);
@@ -110,13 +128,14 @@ public class PetTournamentServiceImpl implements PetTournamentService {
             // 发起对战
             List<PetBattleResultVO> rounds = petBattleService.battle(opponentUserId);
             boolean isWin = determineWinner(rounds);
+            recordChallenge(countKey, challengeCount, now);
 
             result.setIsWin(isWin);
             result.setOpponentUserId(opponentUserId);
             result.setRounds(rounds);
 
             if (isWin) {
-                // 胜利：占据目标坑位，对手失去该坑位
+                // 胜利：插入目标名次，受影响的参赛者依次后移
                 occupySlot(myUserId, targetRank, myCurrentRank);
                 result.setMyRank(targetRank);
                 log.info("用户{}挑战第{}位成功，击败用户{}", myUserId, targetRank, opponentUserId);
@@ -184,8 +203,13 @@ public class PetTournamentServiceImpl implements PetTournamentService {
     @Override
     public void resetDailyLeaderboard() {
         log.info("开始重置武道大会排行榜");
-        stringRedisTemplate.delete(TournamentRedisKey.LEADERBOARD);
-        stringRedisTemplate.delete(TournamentRedisKey.SLOTS);
+        RLock lock = redissonClient.getLock(TournamentRedisKey.LEADERBOARD_LOCK);
+        lock.lock();
+        try {
+            stringRedisTemplate.delete(Arrays.asList(TournamentRedisKey.LEADERBOARD, TournamentRedisKey.SLOTS));
+        } finally {
+            lock.unlock();
+        }
         log.info("武道大会排行榜重置完成");
     }
 
@@ -258,34 +282,29 @@ public class PetTournamentServiceImpl implements PetTournamentService {
     // ----------------------------------------------------------------
 
     /**
-     * 占据坑位：
-     * 1. 从 ZSet 中移除我的旧排名（如有）
-     * 2. 将我写入 ZSet（score = targetRank）
-     * 3. 更新 SLOTS Hash
-     * 4. 如果目标坑位原来有人，将其从 ZSet 和 SLOTS 中移除
+     * 插入目标名次，目标至旧名次之前的所有参赛者后移一位。
+     * 未上榜的挑战者插入时，目标名次及之后的所有参赛者后移。
+     * 调用方须持有排行榜锁。
      */
     private void occupySlot(long myUserId, int targetRank, Integer myOldRank) {
         String myUserIdStr = String.valueOf(myUserId);
 
-        // 查出目标坑位的原占位者
-        String oldOccupant = (String) stringRedisTemplate.opsForHash()
-                .get(TournamentRedisKey.SLOTS, String.valueOf(targetRank));
-
-        // 先清目标坑位
-        stringRedisTemplate.opsForHash().delete(TournamentRedisKey.SLOTS, String.valueOf(targetRank));
-        if (oldOccupant != null && !oldOccupant.equals(myUserIdStr)) {
-            stringRedisTemplate.opsForZSet().remove(TournamentRedisKey.LEADERBOARD, oldOccupant);
-        }
-
-        // 清我的旧坑位
+        Set<ZSetOperations.TypedTuple<String>> affected = stringRedisTemplate.opsForZSet()
+                .rangeByScoreWithScores(TournamentRedisKey.LEADERBOARD, targetRank,
+                        myOldRank == null ? Double.POSITIVE_INFINITY : myOldRank - 1);
         if (myOldRank != null) {
-            stringRedisTemplate.opsForZSet().remove(TournamentRedisKey.LEADERBOARD, myUserIdStr);
             stringRedisTemplate.opsForHash().delete(TournamentRedisKey.SLOTS, String.valueOf(myOldRank));
-
-            // 被打败的原占位者降到我的旧坑位
-            if (oldOccupant != null && !oldOccupant.equals(myUserIdStr)) {
-                stringRedisTemplate.opsForZSet().add(TournamentRedisKey.LEADERBOARD, oldOccupant, myOldRank);
-                stringRedisTemplate.opsForHash().put(TournamentRedisKey.SLOTS, String.valueOf(myOldRank), oldOccupant);
+        }
+        if (affected != null) {
+            // 先清理旧位置，再写入新位置，避免相邻名次相互覆盖。
+            for (ZSetOperations.TypedTuple<String> tuple : affected) {
+                stringRedisTemplate.opsForHash().delete(TournamentRedisKey.SLOTS,
+                        String.valueOf(tuple.getScore().intValue()));
+            }
+            for (ZSetOperations.TypedTuple<String> tuple : affected) {
+                int newRank = tuple.getScore().intValue() + 1;
+                stringRedisTemplate.opsForZSet().add(TournamentRedisKey.LEADERBOARD, tuple.getValue(), newRank);
+                stringRedisTemplate.opsForHash().put(TournamentRedisKey.SLOTS, String.valueOf(newRank), tuple.getValue());
             }
         }
 
@@ -312,6 +331,16 @@ public class PetTournamentServiceImpl implements PetTournamentService {
      * 如果当前用户没有排名，自动放到末位并返回新排名；已有排名则直接返回
      */
     private Integer autoJoinIfAbsent() {
+        RLock lock = redissonClient.getLock(TournamentRedisKey.LEADERBOARD_LOCK);
+        lock.lock();
+        try {
+            return autoJoinUnderLock();
+        } finally {
+            lock.unlock();
+        }
+    }
+
+    private Integer autoJoinUnderLock() {
         long myUserId = userService.getLoginUser().getId();
         getPetByUserId(myUserId);
 
@@ -380,12 +409,9 @@ public class PetTournamentServiceImpl implements PetTournamentService {
         }
     }
 
-    /**
-     * 计算距离今天午夜的秒数
-     */
-    private static long secondsUntilMidnight() {
-        LocalDateTime now = LocalDateTime.now();
+    private void recordChallenge(String countKey, int challengeCount, LocalDateTime now) {
         LocalDateTime midnight = now.toLocalDate().plusDays(1).atStartOfDay();
-        return java.time.Duration.between(now, midnight).getSeconds();
+        long ttl = Math.max(1, java.time.Duration.between(LocalDateTime.now(), midnight).getSeconds());
+        stringRedisTemplate.opsForValue().set(countKey, String.valueOf(challengeCount + 1), ttl, TimeUnit.SECONDS);
     }
 }

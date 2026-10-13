@@ -11,6 +11,12 @@ import java.time.LocalDateTime;
 @Mapper
 public interface FarmPlantRecordMapper extends BaseMapper<FarmPlantRecord> {
 
+    @Update("UPDATE farm_plant_record SET harvestTime = #{harvestTime} "
+            + "WHERE landId = #{landId} AND harvested = 0 AND harvestTime = #{oldHarvestTime}")
+    int updateHarvestTimeAfterWatering(@Param("landId") Long landId,
+                                      @Param("oldHarvestTime") LocalDateTime oldHarvestTime,
+                                      @Param("harvestTime") LocalDateTime harvestTime);
+
     /**
      * 原子增加被偷积分，确保不超过可偷上限（baseReward - minReward，minReward 为种子价格 + 1）。
      */

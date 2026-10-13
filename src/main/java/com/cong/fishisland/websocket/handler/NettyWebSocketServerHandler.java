@@ -12,6 +12,7 @@ import io.netty.handler.timeout.IdleState;
 import io.netty.handler.timeout.IdleStateEvent;
 import lombok.extern.slf4j.Slf4j;
 
+import java.io.IOException;
 
 /**
  * Netty Web 套接字服务器处理程序
@@ -79,8 +80,12 @@ public class NettyWebSocketServerHandler extends SimpleChannelInboundHandler<Tex
     // 处理异常
     @Override
     public void exceptionCaught(ChannelHandlerContext ctx, Throwable cause){
-        // 调试模式：把完整异常堆栈打印出来，方便定位根因
-        log.warn("异常堆栈", cause);
+        // 重部署、刷新页面时连接被动关闭属于正常网络生命周期，不打印完整堆栈污染日志。
+        if (!ctx.channel().isActive() || cause instanceof IOException) {
+            log.debug("WebSocket连接关闭: {}", ctx.channel().id());
+        } else {
+            log.warn("WebSocket连接异常: {}", cause.getMessage());
+        }
         ctx.channel().close();
     }
     private WebSocketService getService() {

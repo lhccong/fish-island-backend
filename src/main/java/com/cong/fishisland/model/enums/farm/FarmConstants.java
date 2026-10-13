@@ -8,6 +8,10 @@ public final class FarmConstants {
     private FarmConstants() {
     }
 
+    public static final int WATER_COOLDOWN_MINUTES = 30;
+
+    public static final int WATER_REDUCTION_PERCENT = 2;
+
     /** 单次偷菜最多获得积分 */
     public static final int MAX_STEAL_POINTS_PER_ACTION = 1;
 

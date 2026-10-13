@@ -10,9 +10,9 @@ public interface TournamentRedisKey {
     String BASE_KEY = "fish:tournament:";
 
     /**
-     * 排行榜 ZSet，score = 坑位分值（越大排名越靠前）
+     * 排行榜 ZSet，score = 名次（越小排名越靠前）
      * key: fish:tournament:leaderboard
-     * member: userId, score: (MAX_RANK - rank + 1)
+     * member: userId, score: rank
      */
     String LEADERBOARD = BASE_KEY + "leaderboard";
 
@@ -21,6 +21,14 @@ public interface TournamentRedisKey {
      * key: fish:tournament:slots
      */
     String SLOTS = BASE_KEY + "slots";
+
+    String LEADERBOARD_LOCK = BASE_KEY + "leaderboard:lock";
+
+    String DAILY_CHALLENGE_PREFIX = BASE_KEY + "challenge:daily:";
+
+    static String dailyChallengeKey(long userId, String dateStr) {
+        return DAILY_CHALLENGE_PREFIX + userId + ":" + dateStr;
+    }
 
     /**
      * 每日挑战冷却，防止同一对手重复刷（String，TTL到当天结束）

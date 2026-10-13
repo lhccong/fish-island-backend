@@ -28,7 +28,7 @@ public class PetTournamentController {
      * 规则：当前用户无排名，或排名比目标位数低（数字更大），才可挑战
      */
     @PostMapping("/challenge")
-    @ApiOperation("挑战指定位数（无排名或排名更低才可挑战）")
+    @ApiOperation("挑战指定位数（每日最多10次，胜利后目标及后续名次顺延）")
     public BaseResponse<TournamentChallengeResultVO> challenge(@RequestParam int targetRank) {
         return ResultUtils.success(petTournamentService.challenge(targetRank));
     }

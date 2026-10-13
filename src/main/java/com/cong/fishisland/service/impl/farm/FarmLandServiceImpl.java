@@ -28,6 +28,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.Duration;
 import java.time.LocalDateTime;
 import java.util.*;
 import java.util.function.Function;
@@ -174,6 +175,50 @@ public class FarmLandServiceImpl extends ServiceImpl<FarmLandMapper, FarmLand> i
 
     @Override
     @Transactional(rollbackFor = Exception.class)
+    public FarmLand waterLand(Long landId) {
+        if (landId == null) {
+            throw new BusinessException(ErrorCode.PARAMS_ERROR, "地块ID不能为空");
+        }
+        long userId = StpUtil.getLoginIdAsLong();
+        FarmLand land = getById(landId);
+        if (land == null) {
+            throw new BusinessException(ErrorCode.NOT_FOUND_ERROR, "地块不存在");
+        }
+        if (!Objects.equals(land.getUserId(), userId)) {
+            throw new BusinessException(ErrorCode.NO_AUTH_ERROR, "无权操作该地块");
+        }
+        if (!FarmYesNoEnum.isNo(land.getLocked())) {
+            throw new BusinessException(ErrorCode.OPERATION_ERROR, "地块未解锁，无法浇水");
+        }
+        // 与数据库 datetime 的秒精度保持一致，避免冷却时间和返回值产生偏差。
+        LocalDateTime now = LocalDateTime.now().withNano(0);
+        if (!Integer.valueOf(FarmLandStatusEnum.PLANTING.getValue()).equals(land.getStatus())
+                || land.getPlantedCropId() == null || land.getHarvestTime() == null
+                || !land.getHarvestTime().isAfter(now)) {
+            throw new BusinessException(ErrorCode.OPERATION_ERROR, "仅可给未成熟的作物浇水");
+        }
+        LocalDateTime cooldownBefore = now.minusMinutes(FarmConstants.WATER_COOLDOWN_MINUTES);
+        if (land.getLastWateredTime() != null && land.getLastWateredTime().isAfter(cooldownBefore)) {
+            throw new BusinessException(ErrorCode.OPERATION_ERROR, "浇水冷却中，每30分钟可浇水一次");
+        }
+        LocalDateTime oldHarvestTime = land.getHarvestTime();
+        long remainingSeconds = Duration.between(now, oldHarvestTime).getSeconds();
+        long reductionSeconds = (remainingSeconds * FarmConstants.WATER_REDUCTION_PERCENT + 99) / 100;
+        LocalDateTime harvestTime = oldHarvestTime.minusSeconds(reductionSeconds);
+        if (baseMapper.waterIfAllowed(land, harvestTime, now, cooldownBefore) != 1) {
+            throw new BusinessException(ErrorCode.OPERATION_ERROR, "地块状态已变化或浇水冷却中，请刷新后重试");
+        }
+        if (plantRecordMapper.updateHarvestTimeAfterWatering(landId, oldHarvestTime, harvestTime) != 1) {
+            throw new BusinessException(ErrorCode.OPERATION_ERROR, "种植记录状态已变化，无法浇水");
+        }
+        land.setHarvestTime(harvestTime);
+        land.setLastWateredTime(now);
+        land.setUpdateTime(now);
+        return land;
+    }
+
+    @Override
+    @Transactional(rollbackFor = Exception.class)
     public List<FarmLand> plantBatch(List<PlantItem> items) {
         if (CollectionUtils.isEmpty(items)) {
             throw new BusinessException(ErrorCode.PARAMS_ERROR, "种植列表不能为空");
@@ -265,6 +310,7 @@ public class FarmLandServiceImpl extends ServiceImpl<FarmLandMapper, FarmLand> i
                     .set(FarmLand::getPlantedCropId, cropId)
                     .set(FarmLand::getPlantedTime, now)
                     .set(FarmLand::getHarvestTime, harvestTime)
+                    .set(FarmLand::getLastWateredTime, null)
                     .set(FarmLand::getUpdateTime, now)
                     .update();
             if (!updated) {
@@ -275,6 +321,7 @@ public class FarmLandServiceImpl extends ServiceImpl<FarmLandMapper, FarmLand> i
             land.setPlantedCropId(cropId);
             land.setPlantedTime(now);
             land.setHarvestTime(harvestTime);
+            land.setLastWateredTime(null);
             land.setUpdateTime(now);
             updatedLands.add(land);
 
@@ -379,6 +426,7 @@ public class FarmLandServiceImpl extends ServiceImpl<FarmLandMapper, FarmLand> i
                     .set(FarmLand::getPlantedCropId, null)
                     .set(FarmLand::getPlantedTime, null)
                     .set(FarmLand::getHarvestTime, null)
+                    .set(FarmLand::getLastWateredTime, null)
                     .set(FarmLand::getUpdateTime, now)
                     .update();
             if (!landUpdated) {
@@ -407,6 +455,7 @@ public class FarmLandServiceImpl extends ServiceImpl<FarmLandMapper, FarmLand> i
             land.setPlantedCropId(null);
             land.setPlantedTime(null);
             land.setHarvestTime(null);
+            land.setLastWateredTime(null);
             land.setUpdateTime(now);
             updatedLands.add(land);
         }
@@ -448,6 +497,11 @@ public class FarmLandServiceImpl extends ServiceImpl<FarmLandMapper, FarmLand> i
         dto.setPlantedCropId(land.getPlantedCropId());
         dto.setPlantedTime(land.getPlantedTime());
         dto.setHarvestTime(land.getHarvestTime());
+        dto.setLastWateredTime(land.getLastWateredTime());
+        if (Integer.valueOf(FarmLandStatusEnum.PLANTING.getValue()).equals(dto.getStatus())
+                && FarmYesNoEnum.isNo(land.getLocked()) && land.getLastWateredTime() != null) {
+            dto.setNextWaterTime(land.getLastWateredTime().plusMinutes(FarmConstants.WATER_COOLDOWN_MINUTES));
+        }
         dto.setLocked(land.getLocked());
         if (land.getLandIndex() != null && FarmConstants.isLevelUnlockableLandIndex(land.getLandIndex())) {
             dto.setUnlockLevel(FarmConstants.unlockLevelForLandIndex(land.getLandIndex()));

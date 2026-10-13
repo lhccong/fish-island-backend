@@ -76,6 +76,7 @@ CREATE TABLE `farm_land`
     `plantedCropId` bigint            DEFAULT NULL COMMENT '种植的作物ID',
     `plantedTime`   datetime          DEFAULT NULL COMMENT '种植时间',
     `harvestTime`   datetime          DEFAULT NULL COMMENT '可收获时间',
+    `lastWateredTime` datetime        DEFAULT NULL COMMENT '本轮种植上次浇水时间',
     `locked`        tinyint           DEFAULT '0' COMMENT '是否锁定',
     `createTime`    DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
     `updateTime`    DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
