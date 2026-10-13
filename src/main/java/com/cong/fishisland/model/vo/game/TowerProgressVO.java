@@ -16,10 +16,16 @@ public class TowerProgressVO implements Serializable {
     @ApiModelProperty("历史最高通关层数")
     private Integer maxFloor;
 
-    @ApiModelProperty("下一层挑战层数（maxFloor + 1）")
+    @ApiModelProperty("当前开放的最高层数")
+    private Integer maxOpenFloor;
+
+    @ApiModelProperty("是否已通关当前开放的全部层数")
+    private Boolean completed;
+
+    @ApiModelProperty("下一层挑战层数（maxFloor + 1），全部通关后为空")
     private Integer nextFloor;
 
-    @ApiModelProperty("下一层怪物信息")
+    @ApiModelProperty("下一层怪物信息，全部通关后为空")
     private TowerFloorMonsterVO nextMonster;
 
     private static final long serialVersionUID = 1L;

@@ -44,10 +44,8 @@ import java.util.stream.Collectors;
 /**
  * 爬塔服务实现类
  * <p>
- * 怪物属性随层数无限递增，公式：
- * - 血量 = BASE_HP * floor^HP_SCALE
- * - 攻击 = BASE_ATK * floor^ATK_SCALE
- * - 概率属性随层数缓慢增长，上限 0.5
+ * 当前开放至 54 层，44 层起血量和攻击按原成长公式的 80% 计算。
+ * 概率属性随层数缓慢增长，上限 2.0。
  *
  * @author cong
  */
@@ -70,13 +68,25 @@ public class TowerClimbServiceImpl implements TowerClimbService {
     // 属性成长指数（floor^scale）
     private static final double HP_SCALE = 1.4;
     private static final double ATK_SCALE = 1.3;
+    private static final int MAX_OPEN_FLOOR = 54;
+    private static final int REDUCED_STATS_AFTER_FLOOR = 43;
+    private static final double HIGH_FLOOR_STAT_MULTIPLIER = 0.8;
+    private static final int ADVANCED_STATS_START_FLOOR = 44;
+    private static final int MONSTER_BASE_DEFENSE = 50;
+    private static final int DEFENSE_GROWTH_PER_FLOOR = 5;
+    private static final int MONSTER_BASE_SPEED = 5;
+    private static final int SPEED_GROWTH_PER_FLOOR = 1;
+    private static final double MONSTER_BASE_RESISTANCE = 0.05;
+    private static final double RESISTANCE_GROWTH_PER_FLOOR = 0.005;
     // 概率属性每层增长量（上限 2.0）
     private static final double PROB_GROWTH_PER_FLOOR = 0.006;
     private static final double PROB_CAP = 2.0;
     // 每层基础奖励积分
     private static final int BASE_REWARD = 10;
-    // 最大战斗回合数
-    private static final int MAX_ROUNDS = 30;
+    private static final int FIXED_REWARD_AFTER_FLOOR = 43;
+    private static final int FIXED_REWARD = 100;
+    // 双方合计最多行动次数，连击和被闪避的攻击也计入
+    private static final int MAX_ROUNDS = 50;
     // 超过该层数后，回合耗尽时必须击杀怪物才算胜利
     private static final int KILL_REQUIRED_AFTER_FLOOR = 43;
     // 每日最多挑战次数
@@ -86,12 +96,15 @@ public class TowerClimbServiceImpl implements TowerClimbService {
     public TowerProgressVO getProgress() {
         Long userId = userService.getLoginUser().getId();
         TowerClimbProgress progress = getOrCreateProgress(userId);
-        int nextFloor = progress.getMaxFloor() + 1;
-
         TowerProgressVO vo = new TowerProgressVO();
         vo.setMaxFloor(progress.getMaxFloor());
-        vo.setNextFloor(nextFloor);
-        vo.setNextMonster(getFloorMonster(nextFloor));
+        vo.setMaxOpenFloor(MAX_OPEN_FLOOR);
+        vo.setCompleted(progress.getMaxFloor() >= MAX_OPEN_FLOOR);
+        if (!vo.getCompleted()) {
+            int nextFloor = progress.getMaxFloor() + 1;
+            vo.setNextFloor(nextFloor);
+            vo.setNextMonster(getFloorMonster(nextFloor));
+        }
         return vo;
     }
 
@@ -100,17 +113,33 @@ public class TowerClimbServiceImpl implements TowerClimbService {
         if (floor < 1) {
             throw new BusinessException(ErrorCode.PARAMS_ERROR, "层数不能小于1");
         }
+        if (floor > MAX_OPEN_FLOOR) {
+            throw new BusinessException(ErrorCode.PARAMS_ERROR, "当前最高开放至第" + MAX_OPEN_FLOOR + "层");
+        }
         TowerFloorMonsterVO vo = new TowerFloorMonsterVO();
         vo.setFloor(floor);
         vo.setName("第 " + floor + " 层守卫");
         vo.setHealth(calcMonsterHp(floor));
         vo.setAttack(calcMonsterAtk(floor));
+        boolean advancedStats = floor >= ADVANCED_STATS_START_FLOOR;
+        int advancedFloorOffset = Math.max(0, floor - ADVANCED_STATS_START_FLOOR);
+        vo.setDefense(advancedStats
+                ? MONSTER_BASE_DEFENSE + advancedFloorOffset * DEFENSE_GROWTH_PER_FLOOR : 0);
+        vo.setSpeed(advancedStats
+                ? MONSTER_BASE_SPEED + advancedFloorOffset * SPEED_GROWTH_PER_FLOOR : 0);
+        double resistance = advancedStats
+                ? MONSTER_BASE_RESISTANCE + advancedFloorOffset * RESISTANCE_GROWTH_PER_FLOOR : 0.0;
+        vo.setCritResistance(resistance);
+        vo.setComboResistance(resistance);
+        vo.setDodgeResistance(resistance);
+        vo.setBlockResistance(resistance);
+        vo.setLifestealResistance(resistance);
         vo.setCritRate(calcProbAttr(floor, 3));
         vo.setComboRate(calcProbAttr(floor, 5));
         vo.setDodgeRate(calcProbAttr(floor, 8));
         vo.setBlockRate(calcProbAttr(floor, 4));
         vo.setLifesteal(calcProbAttr(floor, 6));
-        vo.setRewardPoints(BASE_REWARD * floor);
+        vo.setRewardPoints(floor > FIXED_REWARD_AFTER_FLOOR ? FIXED_REWARD : BASE_REWARD * floor);
         return vo;
     }
 
@@ -119,12 +148,17 @@ public class TowerClimbServiceImpl implements TowerClimbService {
     public TowerClimbResultVO challenge() {
         Long userId = userService.getLoginUser().getId();
 
+        TowerClimbProgress progress = getOrCreateProgress(userId);
+        if (progress.getMaxFloor() >= MAX_OPEN_FLOOR) {
+            throw new BusinessException(ErrorCode.OPERATION_ERROR,
+                    "您已通关当前开放的全部" + MAX_OPEN_FLOOR + "层，敬请期待后续开放");
+        }
+
         if (getRemainingDailyChallenges(userId) <= 0) {
             throw new BusinessException(ErrorCode.OPERATION_ERROR,
                     "您今天已用完" + MAX_DAILY_CHALLENGES + "次挑战机会，请明天再来");
         }
 
-        TowerClimbProgress progress = getOrCreateProgress(userId);
         int floor = progress.getMaxFloor() + 1;
 
         // 获取宠物属性
@@ -144,7 +178,7 @@ public class TowerClimbServiceImpl implements TowerClimbService {
         BattleResultVO lastRound = rounds.get(rounds.size() - 1);
         int lastPetHp = lastRound.getPetRemainingHealth();
         int lastMonsterHp = lastRound.getBossRemainingHealth();
-        // 50 层及以下：宠物存活即胜利；51 层起回合耗尽且怪物未死则失败
+        // 43 层及以下：宠物存活即胜利；44 层起回合耗尽且怪物未死则失败
         boolean win = lastPetHp > 0
                 && !(floor > KILL_REQUIRED_AFTER_FLOOR
                 && lastMonsterHp > 0
@@ -190,7 +224,7 @@ public class TowerClimbServiceImpl implements TowerClimbService {
         List<BattleResultVO> rounds = new ArrayList<>();
         int petHp = pet.getHealth();
         int monsterHp = monster.getHealth();
-        // 速度高的一方先手；相同时随机决定（野怪速度默认 0，宠物通常先手）
+        // 速度高的一方先手；相同时随机决定
         boolean petTurn = BattleStatsVO.aGoesFirst(pet, monster, random);
 
         for (int i = 0; i < MAX_ROUNDS && petHp > 0 && monsterHp > 0; i++) {
@@ -279,14 +313,16 @@ public class TowerClimbServiceImpl implements TowerClimbService {
      * 怪物血量：随层数指数增长
      */
     private int calcMonsterHp(int floor) {
-        return (int) (MONSTER_BASE_HP * Math.pow(floor, HP_SCALE));
+        double multiplier = floor > REDUCED_STATS_AFTER_FLOOR ? HIGH_FLOOR_STAT_MULTIPLIER : 1.0;
+        return (int) (MONSTER_BASE_HP * Math.pow(floor, HP_SCALE) * multiplier);
     }
 
     /**
      * 怪物攻击：随层数指数增长
      */
     private int calcMonsterAtk(int floor) {
-        return (int) (MONSTER_BASE_ATK * Math.pow(floor, ATK_SCALE));
+        double multiplier = floor > REDUCED_STATS_AFTER_FLOOR ? HIGH_FLOOR_STAT_MULTIPLIER : 1.0;
+        return (int) (MONSTER_BASE_ATK * Math.pow(floor, ATK_SCALE) * multiplier);
     }
 
     /**
@@ -301,7 +337,13 @@ public class TowerClimbServiceImpl implements TowerClimbService {
         BattleStatsVO s = new BattleStatsVO();
         s.setAttack(monster.getAttack());
         s.setHealth(monster.getHealth());
-        s.setDefense(0);
+        s.setDefense(monster.getDefense());
+        s.setSpeed(monster.getSpeed());
+        s.setCritResistance(monster.getCritResistance());
+        s.setComboResistance(monster.getComboResistance());
+        s.setDodgeResistance(monster.getDodgeResistance());
+        s.setBlockResistance(monster.getBlockResistance());
+        s.setLifestealResistance(monster.getLifestealResistance());
         s.setCritRate(monster.getCritRate());
         s.setComboRate(monster.getComboRate());
         s.setDodgeRate(monster.getDodgeRate());

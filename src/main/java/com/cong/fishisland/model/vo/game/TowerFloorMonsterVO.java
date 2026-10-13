@@ -28,6 +28,27 @@ public class TowerFloorMonsterVO implements Serializable {
     @ApiModelProperty("怪物攻击力")
     private Integer attack;
 
+    @ApiModelProperty("怪物防御力")
+    private Integer defense;
+
+    @ApiModelProperty("怪物速度")
+    private Integer speed;
+
+    @ApiModelProperty("抗暴击率")
+    private Double critResistance;
+
+    @ApiModelProperty("抗连击率")
+    private Double comboResistance;
+
+    @ApiModelProperty("抗闪避率")
+    private Double dodgeResistance;
+
+    @ApiModelProperty("抗格挡率")
+    private Double blockResistance;
+
+    @ApiModelProperty("抗吸血率")
+    private Double lifestealResistance;
+
     @ApiModelProperty("暴击率")
     private Double critRate;
 
