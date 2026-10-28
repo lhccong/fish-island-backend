@@ -184,6 +184,7 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements Us
     /**
      * 用户邮箱注册
      *
+     * @param userAccount   用户账号，可不填；填写时至少四位，与账号登录规则保持一致
      * @param email         邮箱
      * @param userPassword  用户密码
      * @param checkPassword 校验密码
@@ -199,6 +200,10 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements Us
         // 校验参数
         if (StringUtils.isAnyBlank(email, code, userPassword, checkPassword)) {
             throw new BusinessException(ErrorCode.PARAMS_ERROR, "参数不能为空");
+        }
+        // 未填写账号时继续自动生成；填写的账号必须满足登录要求，避免注册成功后无法登录。
+        if (StringUtils.isNotBlank(userAccount) && userAccount.length() < 4) {
+            throw new BusinessException(ErrorCode.PARAMS_ERROR, "用户账号过短");
         }
         // 校验邮箱格式
         validateEmailFormat(email);
