@@ -13,6 +13,13 @@ import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.test.util.ReflectionTestUtils;
+import org.springframework.transaction.PlatformTransactionManager;
+import org.springframework.transaction.TransactionDefinition;
+import org.springframework.transaction.TransactionStatus;
+import com.cong.fishisland.model.dto.farm.WaterLandResult;
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.List;
 
 import java.time.Duration;
 import java.time.LocalDateTime;
@@ -28,6 +35,7 @@ class FarmLandWateringTest {
     private FarmPlantRecordMapper records;
     private StpLogic previousLogic;
     private FarmLand land;
+    private PlatformTransactionManager transactions;
 
     @BeforeEach
     void setUp() {
@@ -38,6 +46,9 @@ class FarmLandWateringTest {
         lands = mock(FarmLandMapper.class);
         records = mock(FarmPlantRecordMapper.class);
         service = new FarmLandServiceImpl();
+        transactions = mock(PlatformTransactionManager.class);
+        when(transactions.getTransaction(any())).thenAnswer(call -> mock(TransactionStatus.class));
+        ReflectionTestUtils.setField(service, "transactionManager", transactions);
         ReflectionTestUtils.setField(service, "baseMapper", lands);
         ReflectionTestUtils.setField(service, "plantRecordMapper", records);
         ReflectionTestUtils.setField(service, "cropMapper", mock(FarmCropMapper.class));
@@ -154,5 +165,92 @@ class FarmLandWateringTest {
         land.setHarvestTime(LocalDateTime.now().minusSeconds(1));
         land.setLastWateredTime(LocalDateTime.now().minusMinutes(1));
         assertNull(service.toDTO(land).getNextWaterTime());
+    }
+
+    @Test
+    void batchCommitsSuccessAndRollsBackFailureIndependently() {
+        List<WaterLandResult> results = service.waterBatch(Arrays.asList(2L, 1L));
+        assertEquals(2L, results.get(0).getLandId().longValue());
+        assertFalse(results.get(0).isSuccess());
+        assertNull(results.get(0).getLand());
+        assertTrue(results.get(1).isSuccess());
+        assertEquals(Integer.valueOf(1), results.get(1).getLand().getDailyWaterCount());
+        verify(transactions).commit(any());
+        verify(transactions).rollback(any());
+        verify(transactions, times(2)).getTransaction(argThat(definition ->
+                definition.getPropagationBehavior() == TransactionDefinition.PROPAGATION_REQUIRES_NEW));
+    }
+
+    @Test
+    void batchRejectsInvalidListsBeforeAnyTransaction() {
+        assertThrows(BusinessException.class, () -> service.waterBatch(null));
+        assertThrows(BusinessException.class, () -> service.waterBatch(Collections.emptyList()));
+        assertThrows(BusinessException.class, () -> service.waterBatch(Arrays.asList(1L, 1L)));
+        assertThrows(BusinessException.class, () -> service.waterBatch(Arrays.asList(1L, null)));
+        assertThrows(BusinessException.class, () -> service.waterBatch(Collections.singletonList(0L)));
+        assertThrows(BusinessException.class, () -> service.waterBatch(Collections.nCopies(25, 1L)));
+        verifyNoInteractions(transactions, lands, records);
+    }
+
+    @Test
+    void batchRollsBackWhenPlantRecordUpdateFails() {
+        when(records.updateHarvestTimeAfterWatering(anyLong(), any(), any())).thenReturn(0);
+        WaterLandResult result = service.waterBatch(Collections.singletonList(1L)).get(0);
+        assertFalse(result.isSuccess());
+        assertNull(result.getLand());
+        verify(transactions).rollback(any());
+        verify(transactions, never()).commit(any());
+    }
+
+    @Test
+    void batchEnforcesOwnershipAndDailyLimit() {
+        land.setUserId(8L);
+        assertFalse(service.waterBatch(Collections.singletonList(1L)).get(0).isSuccess());
+        land.setUserId(7L);
+        land.setLastWateredTime(LocalDateTime.now());
+        land.setDailyWaterCount(5);
+        assertFalse(service.waterBatch(Collections.singletonList(1L)).get(0).isSuccess());
+        verify(lands, never()).waterIfAllowed(any(), any(), any(), any());
+        verify(transactions, times(2)).rollback(any());
+    }
+
+    @Test
+    void dailyLimitRejectsSixthWaterWithoutWriting() {
+        land.setLastWateredTime(LocalDateTime.now());
+        land.setDailyWaterCount(5);
+        BusinessException error = assertThrows(BusinessException.class, () -> service.waterLand(1L));
+        assertTrue(error.getMessage().contains("5"));
+        verify(lands, never()).waterIfAllowed(any(), any(), any(), any());
+        verifyNoInteractions(records);
+    }
+
+    @Test
+    void fifthWaterIsAllowedAndIncrementsCount() {
+        LocalDateTime last = LocalDateTime.now().withNano(0).minusMinutes(30);
+        land.setLastWateredTime(last);
+        land.setDailyWaterCount(4);
+        FarmLand result = service.waterLand(1L);
+        int expected = last.toLocalDate().equals(result.getLastWateredTime().toLocalDate()) ? 5 : 1;
+        assertEquals(Integer.valueOf(expected), result.getDailyWaterCount());
+    }
+
+    @Test
+    void previousDayLimitResets() {
+        land.setLastWateredTime(LocalDateTime.now().minusDays(1));
+        land.setDailyWaterCount(5);
+        assertEquals(Integer.valueOf(0), service.toDTO(land).getDailyWaterCount());
+        assertEquals(Integer.valueOf(1), service.waterLand(1L).getDailyWaterCount());
+    }
+
+    @Test
+    void dailyLimitNextWaterTimeRespectsMidnightAndCooldown() {
+        LocalDateTime now = LocalDateTime.now();
+        land.setLastWateredTime(now);
+        land.setDailyWaterCount(5);
+        LocalDateTime tomorrow = now.toLocalDate().plusDays(1).atStartOfDay();
+        LocalDateTime cooldownEnd = now.plusMinutes(30);
+        assertEquals(cooldownEnd.isAfter(tomorrow) ? cooldownEnd : tomorrow,
+                service.toDTO(land).getNextWaterTime());
+        assertEquals(Integer.valueOf(5), service.toDTO(land).getDailyWaterCount());
     }
 }

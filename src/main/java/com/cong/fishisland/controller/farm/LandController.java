@@ -6,6 +6,8 @@ import com.cong.fishisland.common.ErrorCode;
 import com.cong.fishisland.common.ResultUtils;
 import com.cong.fishisland.common.exception.BusinessException;
 import com.cong.fishisland.model.dto.farm.LandDTO;
+import com.cong.fishisland.model.dto.farm.WaterLandResult;
+import com.cong.fishisland.model.dto.farm.request.WaterBatchRequest;
 import com.cong.fishisland.model.dto.farm.request.HarvestRequest;
 import com.cong.fishisland.model.dto.farm.request.PlantRequest;
 import com.cong.fishisland.model.dto.farm.request.UnlockLandRequest;
@@ -49,12 +51,21 @@ public class LandController {
     }
 
     @PostMapping("/water")
-    @ApiOperation(value = "给作物浇水", notes = "仅限自己的未成熟作物，每株每30分钟一次，剩余成熟时间缩短2%（向上取整到秒）")
+    @ApiOperation(value = "给作物浇水", notes = "仅限自己的未成熟作物，每株每30分钟一次、每天最多5次，剩余成熟时间缩短2%（向上取整到秒）")
     public BaseResponse<LandDTO> water(@RequestBody WaterLandRequest request) {
         if (request == null || request.getLandId() == null) {
             throw new BusinessException(ErrorCode.PARAMS_ERROR, "地块ID不能为空");
         }
         return ResultUtils.success(landService.toDTO(landService.waterLand(request.getLandId())));
+    }
+
+    @PostMapping("/water/batch")
+    @ApiOperation(value = "批量浇水", notes = "最多24株，每株独立校验与事务；返回各株结果，不影响其他株。冷却30分钟、每日5次、剩余成熟时间缩短2%。")
+    public BaseResponse<List<WaterLandResult>> waterBatch(@RequestBody WaterBatchRequest request) {
+        if (request == null) {
+            throw new BusinessException(ErrorCode.PARAMS_ERROR, "浇水列表不能为空");
+        }
+        return ResultUtils.success(landService.waterBatch(request.getLandIds()));
     }
 
     @PostMapping("/plant")

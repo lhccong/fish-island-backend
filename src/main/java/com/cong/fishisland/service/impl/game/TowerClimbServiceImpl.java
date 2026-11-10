@@ -44,7 +44,7 @@ import java.util.stream.Collectors;
 /**
  * 爬塔服务实现类
  * <p>
- * 当前开放至 54 层，44 层起血量和攻击按原成长公式的 80% 计算。
+ * 当前开放至 54 层，44 层起血量和攻击按原成长公式的 64% 计算。
  * 概率属性随层数缓慢增长，上限 2.0。
  *
  * @author cong
@@ -70,7 +70,9 @@ public class TowerClimbServiceImpl implements TowerClimbService {
     private static final double ATK_SCALE = 1.3;
     private static final int MAX_OPEN_FLOOR = 54;
     private static final int REDUCED_STATS_AFTER_FLOOR = 43;
-    private static final double HIGH_FLOOR_STAT_MULTIPLIER = 0.8;
+    // 44 层起血量和攻击分别按原始成长值的 64% 计算
+    private static final double HIGH_FLOOR_HP_MULTIPLIER = 0.64;
+    private static final double HIGH_FLOOR_ATK_MULTIPLIER = 0.64;
     private static final int ADVANCED_STATS_START_FLOOR = 44;
     private static final int MONSTER_BASE_DEFENSE = 50;
     private static final int DEFENSE_GROWTH_PER_FLOOR = 5;
@@ -313,7 +315,7 @@ public class TowerClimbServiceImpl implements TowerClimbService {
      * 怪物血量：随层数指数增长
      */
     private int calcMonsterHp(int floor) {
-        double multiplier = floor > REDUCED_STATS_AFTER_FLOOR ? HIGH_FLOOR_STAT_MULTIPLIER : 1.0;
+        double multiplier = floor > REDUCED_STATS_AFTER_FLOOR ? HIGH_FLOOR_HP_MULTIPLIER : 1.0;
         return (int) (MONSTER_BASE_HP * Math.pow(floor, HP_SCALE) * multiplier);
     }
 
@@ -321,7 +323,7 @@ public class TowerClimbServiceImpl implements TowerClimbService {
      * 怪物攻击：随层数指数增长
      */
     private int calcMonsterAtk(int floor) {
-        double multiplier = floor > REDUCED_STATS_AFTER_FLOOR ? HIGH_FLOOR_STAT_MULTIPLIER : 1.0;
+        double multiplier = floor > REDUCED_STATS_AFTER_FLOOR ? HIGH_FLOOR_ATK_MULTIPLIER : 1.0;
         return (int) (MONSTER_BASE_ATK * Math.pow(floor, ATK_SCALE) * multiplier);
     }
 
