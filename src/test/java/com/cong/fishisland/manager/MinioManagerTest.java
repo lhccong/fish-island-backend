@@ -243,7 +243,7 @@ class MinioManagerTest extends TestBase {
                 // 检查是否为图片
                 boolean isImage = imageExtensions.stream().anyMatch(lowerCaseName::endsWith);
 
-                if (isImage && !srcList.contains(("https://oss.cqbo.com/moyu/" + objectName))) {
+                if (isImage && !srcList.contains(("https://oss.cqbo.com/moyu/" + objectName))&& !srcList.contains(("https://oss.yucoder.cn/moyu/" + objectName))) {
                     // 删除该对象
                     log.info("正在删除文件: {}", objectName);
                     minioManager.deleteObject(objectName);

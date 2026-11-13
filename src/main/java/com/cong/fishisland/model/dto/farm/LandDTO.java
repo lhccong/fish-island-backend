@@ -37,7 +37,7 @@ public class LandDTO {
     @ApiModelProperty(value = "下次可浇水时间；尚未浇水或无需浇水时为 null")
     private LocalDateTime nextWaterTime;
 
-    @ApiModelProperty(value = "今日已浇水次数，每株每天最多5次")
+    @ApiModelProperty(value = "今日已浇水次数，每株每天最多10次")
     private Integer dailyWaterCount;
 
     @ApiModelProperty(value = "是否锁定（0-未锁定，1-已锁定）")

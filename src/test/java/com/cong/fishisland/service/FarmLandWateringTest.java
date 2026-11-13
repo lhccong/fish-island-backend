@@ -208,36 +208,36 @@ class FarmLandWateringTest {
         assertFalse(service.waterBatch(Collections.singletonList(1L)).get(0).isSuccess());
         land.setUserId(7L);
         land.setLastWateredTime(LocalDateTime.now());
-        land.setDailyWaterCount(5);
+        land.setDailyWaterCount(10);
         assertFalse(service.waterBatch(Collections.singletonList(1L)).get(0).isSuccess());
         verify(lands, never()).waterIfAllowed(any(), any(), any(), any());
         verify(transactions, times(2)).rollback(any());
     }
 
     @Test
-    void dailyLimitRejectsSixthWaterWithoutWriting() {
+    void dailyLimitRejectsEleventhWaterWithoutWriting() {
         land.setLastWateredTime(LocalDateTime.now());
-        land.setDailyWaterCount(5);
+        land.setDailyWaterCount(10);
         BusinessException error = assertThrows(BusinessException.class, () -> service.waterLand(1L));
-        assertTrue(error.getMessage().contains("5"));
+        assertTrue(error.getMessage().contains("10"));
         verify(lands, never()).waterIfAllowed(any(), any(), any(), any());
         verifyNoInteractions(records);
     }
 
     @Test
-    void fifthWaterIsAllowedAndIncrementsCount() {
+    void tenthWaterIsAllowedAndIncrementsCount() {
         LocalDateTime last = LocalDateTime.now().withNano(0).minusMinutes(30);
         land.setLastWateredTime(last);
-        land.setDailyWaterCount(4);
+        land.setDailyWaterCount(9);
         FarmLand result = service.waterLand(1L);
-        int expected = last.toLocalDate().equals(result.getLastWateredTime().toLocalDate()) ? 5 : 1;
+        int expected = last.toLocalDate().equals(result.getLastWateredTime().toLocalDate()) ? 10 : 1;
         assertEquals(Integer.valueOf(expected), result.getDailyWaterCount());
     }
 
     @Test
     void previousDayLimitResets() {
         land.setLastWateredTime(LocalDateTime.now().minusDays(1));
-        land.setDailyWaterCount(5);
+        land.setDailyWaterCount(10);
         assertEquals(Integer.valueOf(0), service.toDTO(land).getDailyWaterCount());
         assertEquals(Integer.valueOf(1), service.waterLand(1L).getDailyWaterCount());
     }
@@ -246,11 +246,11 @@ class FarmLandWateringTest {
     void dailyLimitNextWaterTimeRespectsMidnightAndCooldown() {
         LocalDateTime now = LocalDateTime.now();
         land.setLastWateredTime(now);
-        land.setDailyWaterCount(5);
+        land.setDailyWaterCount(10);
         LocalDateTime tomorrow = now.toLocalDate().plusDays(1).atStartOfDay();
         LocalDateTime cooldownEnd = now.plusMinutes(30);
         assertEquals(cooldownEnd.isAfter(tomorrow) ? cooldownEnd : tomorrow,
                 service.toDTO(land).getNextWaterTime());
-        assertEquals(Integer.valueOf(5), service.toDTO(land).getDailyWaterCount());
+        assertEquals(Integer.valueOf(10), service.toDTO(land).getDailyWaterCount());
     }
 }

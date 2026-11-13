@@ -244,7 +244,8 @@ public class FarmLandServiceImpl extends ServiceImpl<FarmLandMapper, FarmLand> i
         LocalDateTime cooldownBefore = now.minusMinutes(FarmConstants.WATER_COOLDOWN_MINUTES);
         int dailyWaterCount = getDailyWaterCount(land, now);
         if (dailyWaterCount >= FarmConstants.WATER_DAILY_LIMIT) {
-            throw new BusinessException(ErrorCode.OPERATION_ERROR, "每株作物每天最多浇水5次，请明天再来");
+            throw new BusinessException(ErrorCode.OPERATION_ERROR,
+                    "每株作物每天最多浇水" + FarmConstants.WATER_DAILY_LIMIT + "次，请明天再来");
         }
         if (land.getLastWateredTime() != null && land.getLastWateredTime().isAfter(cooldownBefore)) {
             throw new BusinessException(ErrorCode.OPERATION_ERROR, "浇水冷却中，每30分钟可浇水一次");

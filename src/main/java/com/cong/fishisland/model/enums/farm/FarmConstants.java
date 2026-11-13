@@ -10,7 +10,7 @@ public final class FarmConstants {
 
     public static final int WATER_COOLDOWN_MINUTES = 30;
 
-    public static final int WATER_DAILY_LIMIT = 5;
+    public static final int WATER_DAILY_LIMIT = 10;
 
     public static final int WATER_REDUCTION_PERCENT = 2;
 
