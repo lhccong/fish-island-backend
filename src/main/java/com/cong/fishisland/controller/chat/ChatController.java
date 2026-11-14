@@ -1,5 +1,10 @@
 package com.cong.fishisland.controller.chat;
 
+import com.cong.fishisland.model.dto.chat.SendMessageRequest;
+import com.cong.fishisland.model.ws.request.MessageWrapper;
+import com.cong.fishisland.service.impl.chat.HttpChatMessageService;
+import com.cong.fishisland.utils.NetUtils;
+import javax.servlet.http.HttpServletRequest;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.cong.fishisland.common.BaseResponse;
 import com.cong.fishisland.common.ResultUtils;
@@ -33,6 +38,8 @@ import java.util.List;
 @Api(value = "聊天")
 public class ChatController {
 
+    private final HttpChatMessageService httpChatMessageService;
+
     private final RoomMessageService roomMessageService;
     private final WebSocketService webSocketService;
 
@@ -42,6 +49,12 @@ public class ChatController {
     @GetMapping(value = "/stream", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
     public Flux<String> streamChatDemo(@RequestParam String prompt) {
         return flexChatServiceDemo.streamChat(prompt);
+    }
+
+    @PostMapping("/message/send")
+    @ApiOperation(value = "HTTP 发送公共群聊消息，服务端补齐身份并向包含本人的全体连接广播")
+    public BaseResponse<MessageWrapper> sendMessage(@RequestBody SendMessageRequest input, HttpServletRequest request) {
+        return ResultUtils.success(httpChatMessageService.send(input, NetUtils.getIpAddress(request)));
     }
 
     @PostMapping("/message/page/vo")

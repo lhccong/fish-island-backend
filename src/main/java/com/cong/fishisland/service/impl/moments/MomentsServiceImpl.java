@@ -332,6 +332,16 @@ public class MomentsServiceImpl extends ServiceImpl<MomentsMapper, Moments>
         MomentsComment comment = new MomentsComment();
         BeanUtils.copyProperties(request, comment);
         comment.setUserId(userId);
+        MomentsComment parentComment = null;
+        if (request.getParentId() != null) {
+            parentComment = momentsCommentMapper.selectById(request.getParentId());
+            ThrowUtils.throwIf(parentComment == null, ErrorCode.NOT_FOUND_ERROR, "被回复的评论不存在");
+            ThrowUtils.throwIf(!request.getMomentId().equals(parentComment.getMomentId()),
+                    ErrorCode.PARAMS_ERROR, "不能回复其他动态的评论");
+            comment.setReplyUserId(parentComment.getUserId());
+        } else {
+            comment.setReplyUserId(null);
+        }
         momentsCommentMapper.insert(comment);
 
         lambdaUpdate()
@@ -344,7 +354,6 @@ public class MomentsServiceImpl extends ServiceImpl<MomentsMapper, Moments>
         boolean isReply = false;
         if (request.getParentId() != null) {
             // 回复评论，通知被回复的用户
-            MomentsComment parentComment = momentsCommentMapper.selectById(request.getParentId());
             if (parentComment != null && !parentComment.getUserId().equals(userId)) {
                 recipientId = parentComment.getUserId();
                 isReply = true;
@@ -371,10 +380,13 @@ public class MomentsServiceImpl extends ServiceImpl<MomentsMapper, Moments>
         ThrowUtils.throwIf(comment == null, ErrorCode.NOT_FOUND_ERROR);
         ThrowUtils.throwIf(!comment.getUserId().equals(userId) && !userService.isAdmin(), ErrorCode.NO_AUTH_ERROR);
 
-        momentsCommentMapper.deleteById(commentId);
+        List<MomentsComment> subtree = commentDescendants(comment.getMomentId(), Collections.singletonList(comment));
+        List<Long> ids = subtree.stream().map(MomentsComment::getId).collect(Collectors.toList());
+        ids.add(commentId);
+        int deleted = momentsCommentMapper.deleteBatchIds(ids);
         lambdaUpdate()
                 .eq(Moments::getId, comment.getMomentId())
-                .setSql("commentNum = GREATEST(commentNum - 1, 0)")
+                .setSql("commentNum = GREATEST(commentNum - " + deleted + ", 0)")
                 .update();
     }
 
@@ -393,17 +405,11 @@ public class MomentsServiceImpl extends ServiceImpl<MomentsMapper, Moments>
                         .orderByDesc(MomentsComment::getCreateTime));
 
         if (page.getRecords().isEmpty()) {
-            return new Page<>(page.getCurrent(), page.getSize(), 0);
+            return new Page<>(page.getCurrent(), page.getSize(), page.getTotal());
         }
 
         // 查询这批顶级评论下的所有子评论
-        List<Long> parentIds = page.getRecords().stream()
-                .map(MomentsComment::getId).collect(Collectors.toList());
-        List<MomentsComment> children = momentsCommentMapper.selectList(
-                new LambdaQueryWrapper<MomentsComment>()
-                        .eq(MomentsComment::getMomentId, request.getMomentId())
-                        .in(MomentsComment::getParentId, parentIds)
-                        .orderByDesc(MomentsComment::getCreateTime));
+        List<MomentsComment> children = commentDescendants(request.getMomentId(), page.getRecords());
 
         // 批量查询用户信息
         Set<Long> userIds = new HashSet<>();
@@ -416,10 +422,12 @@ public class MomentsServiceImpl extends ServiceImpl<MomentsMapper, Moments>
         });
         Map<Long, User> userMap = getUserMap(userIds);
 
-        // 子评论按 parentId 分组
+        // 为每一层挂载子评论，复用同一 VO 实例组装完整树。
         Map<Long, List<MomentsCommentVO>> childrenMap = children.stream()
                 .map(c -> toCommentVO(c, userMap))
                 .collect(Collectors.groupingBy(MomentsCommentVO::getParentId));
+        childrenMap.values().forEach(siblings -> siblings.forEach(c ->
+                c.setChildren(childrenMap.getOrDefault(c.getId(), Collections.emptyList()))));
 
         // 组装顶级评论 + 子评论
         List<MomentsCommentVO> voList = page.getRecords().stream().map(c -> {
@@ -431,6 +439,28 @@ public class MomentsServiceImpl extends ServiceImpl<MomentsMapper, Moments>
         Page<MomentsCommentVO> voPage = new Page<>(page.getCurrent(), page.getSize(), page.getTotal());
         voPage.setRecords(voList);
         return voPage;
+    }
+
+    private List<MomentsComment> commentDescendants(Long momentId, List<MomentsComment> roots) {
+        Set<Long> visited = roots.stream().map(MomentsComment::getId).collect(Collectors.toSet());
+        List<Long> frontier = new ArrayList<>(visited);
+        List<MomentsComment> descendants = new ArrayList<>();
+        while (!frontier.isEmpty()) {
+            List<MomentsComment> level = momentsCommentMapper.selectList(
+                    new LambdaQueryWrapper<MomentsComment>()
+                            .eq(MomentsComment::getMomentId, momentId)
+                            .in(MomentsComment::getParentId, frontier)
+                            .orderByDesc(MomentsComment::getCreateTime)
+                            .orderByDesc(MomentsComment::getId));
+            frontier = new ArrayList<>();
+            for (MomentsComment child : level) {
+                if (visited.add(child.getId())) {
+                    descendants.add(child);
+                    frontier.add(child.getId());
+                }
+            }
+        }
+        return descendants;
     }
 
     @Override

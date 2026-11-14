@@ -50,7 +50,7 @@ public class MomentsCommentVO implements Serializable {
     @ApiModelProperty(value = "评论时间")
     private Date createTime;
 
-    @ApiModelProperty(value = "子评论列表（仅顶级评论携带）")
+    @ApiModelProperty(value = "直接子评论列表（逐级嵌套）")
     private List<MomentsCommentVO> children;
 
     private static final long serialVersionUID = 1L;

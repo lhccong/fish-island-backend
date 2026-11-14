@@ -18,7 +18,7 @@ public class MessageQueryRequest extends PageRequest {
     private Long roomId;
 
     /**
-     * 游标消息 ID（room_message.id），传入后走游标分页，忽略页码
+     * 游标业务消息 ID（room_message.messageId），兼容数字字符串及系统消息 UUID
      */
-    private Long messageId;
+    private String messageId;
 }

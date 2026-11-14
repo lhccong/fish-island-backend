@@ -20,6 +20,15 @@ public interface EventRemindService extends IService<EventRemind> {
      */
     Boolean batchSetRead();
 
+    /** 当前用户全量未读数。 */
+    long unreadCount();
+
+    /** 仅将指定的本人通知已读，不影响其余通知。 */
+    Boolean readSelected(EventRemindStateRequest request);
+
+    /** 删除当前用户全部通知，空集也成功。 */
+    Boolean deleteAll();
+
     /**
      * 批量删除事件提醒（仅接收者可删除）
      */

@@ -12,6 +12,7 @@ import com.cong.fishisland.model.vo.event.EventRemindVO;
 import com.cong.fishisland.service.EventRemindService;
 import io.swagger.annotations.ApiOperation;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
@@ -29,6 +30,24 @@ public class EventRemindController {
 
     @Resource
     private EventRemindService eventRemindService;
+
+    @GetMapping("/my/unread/count")
+    @ApiOperation(value = "当前用户全部未读通知数量")
+    public BaseResponse<Long> unreadCount() {
+        return ResultUtils.success(eventRemindService.unreadCount());
+    }
+
+    @PostMapping("/batch/read")
+    @ApiOperation(value = "指定通知已读（仅接收者）")
+    public BaseResponse<Boolean> readSelected(@RequestBody EventRemindStateRequest request) {
+        return ResultUtils.success(eventRemindService.readSelected(request));
+    }
+
+    @PostMapping("/all/delete")
+    @ApiOperation(value = "删除当前用户全部通知")
+    public BaseResponse<Boolean> deleteAll() {
+        return ResultUtils.success(eventRemindService.deleteAll());
+    }
 
 
     /**

@@ -53,7 +53,32 @@ public class EventRemindServiceImpl extends ServiceImpl<EventRemindMapper, Event
         updateWrapper.eq("recipientId", loginUser.getId())
                 .ne("state", READ)
                 .set("state", READ);
-        return update(updateWrapper);
+        update(updateWrapper);
+        return true;
+    }
+
+    @Override
+    public long unreadCount() {
+        User loginUser = userService.getLoginUser();
+        return count(new QueryWrapper<EventRemind>()
+                .eq("recipientId", loginUser.getId()).eq("state", 0));
+    }
+
+    @Override
+    public Boolean readSelected(EventRemindStateRequest request) {
+        validEventRemindStateRequest(request);
+        User loginUser = userService.getLoginUser();
+        update(new UpdateWrapper<EventRemind>()
+                .eq("recipientId", loginUser.getId())
+                .in("id", request.getIds()).ne("state", READ).set("state", READ));
+        return true;
+    }
+
+    @Override
+    public Boolean deleteAll() {
+        User loginUser = userService.getLoginUser();
+        remove(new QueryWrapper<EventRemind>().eq("recipientId", loginUser.getId()));
+        return true;
     }
 
     @Override
