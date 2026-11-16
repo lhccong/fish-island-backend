@@ -19,6 +19,7 @@ import java.util.stream.Collectors;
 public enum MessageTypeEnum {
     ERROR("error", "错误提示"),
     INFO("info", "系统消息"),
+    BROADCAST("broadcast", "全体播报"),
     COUNTDOWN("countdown", "倒计时"),
     CREATE_CHESS_ROOM("createChessRoom", "创建五子棋房间"),
     JOIN_ROOM("joinRoom", "加入房间"),

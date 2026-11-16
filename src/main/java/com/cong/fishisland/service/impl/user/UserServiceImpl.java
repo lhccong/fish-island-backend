@@ -299,10 +299,10 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements Us
 
         // 检查 Redis 是否已有验证码，防止频繁发送
         String redisKey = EMAIL_CODE_PREFIX + email;
-        Boolean occupied = stringRedisTemplate.opsForValue()
+        Boolean reserved = stringRedisTemplate.opsForValue()
                 .setIfAbsent(redisKey, "SENT", Duration.ofMinutes(5));
-        if (Boolean.TRUE.equals(occupied)) {
-            // 如果已存在占位（意味着该邮箱已被处理过），直接拒绝
+        if (!Boolean.TRUE.equals(reserved)) {
+            // 仅占位成功的请求可以发送，已有验证码或占位时拒绝重复发送
             throw new BusinessException(ErrorCode.PARAMS_ERROR, "验证码已发送，请稍后再试");
         }
         try {

@@ -29,6 +29,7 @@ import com.cong.fishisland.model.ws.response.DrawPlayer;
 import com.cong.fishisland.model.ws.response.UserChatResponse;
 import com.cong.fishisland.model.ws.response.WSBaseResp;
 import com.cong.fishisland.service.*;
+import com.cong.fishisland.service.impl.chat.MessageRevokePolicy;
 import com.cong.fishisland.websocket.cache.UserCache;
 import com.cong.fishisland.websocket.event.*;
 import com.cong.fishisland.websocket.service.WebSocketService;
@@ -305,8 +306,7 @@ public class WebSocketServiceImpl implements WebSocketService {
                 //撤回消息
                 RoomMessage roomMess = roomMessageService.getOne(new LambdaQueryWrapper<RoomMessage>()
                         .eq(RoomMessage::getMessageId, chatMessageVo.getContent()));
-                if (roomMess != null && (roomMess.getUserId() == loginUserId
-                        || loginUser.getUserRole().equals(UserConstant.ADMIN_ROLE))) {
+                if (MessageRevokePolicy.canRevoke(roomMess, loginUserId, loginUser.getUserRole())) {
 
                     // 如果是管理员撤回他人消息，记录到Redis
                     if (!roomMess.getUserId().equals(loginUserId)) {

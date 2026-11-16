@@ -15,6 +15,7 @@ import com.cong.fishisland.model.ws.request.Message;
 import com.cong.fishisland.model.ws.request.MessageWrapper;
 import com.cong.fishisland.model.ws.response.WSBaseResp;
 import com.cong.fishisland.service.impl.chat.HttpChatMessageService;
+import com.cong.fishisland.service.impl.chat.ChatSenderLocationResolver;
 import com.cong.fishisland.websocket.service.WebSocketService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -25,6 +26,12 @@ import org.springframework.context.ApplicationEventPublisher;
 import toolgood.words.StringSearch;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.List;
+import java.util.Arrays;
+import java.nio.charset.StandardCharsets;
+import io.netty.buffer.ByteBuf;
+import org.redisson.codec.Kryo5Codec;
+import org.redisson.config.Config;
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.Mockito.*;
 import static org.mockito.ArgumentMatchers.*;
@@ -62,9 +69,22 @@ class HttpChatMessageServiceTest {
             doAnswer(x->{ cache.put(key,(String)x.getArgument(0));return null; }).when(bucket).set(any(),anyLong(),any());
             return bucket;
         });
-        RAtomicLong seq=mock(RAtomicLong.class);
-        when(seq.compareAndSet(anyLong(),anyLong())).thenReturn(true);
-        when(redis.getAtomicLong(anyString())).thenReturn(seq);
+        Kryo5Codec codec = new Kryo5Codec();
+        when(redis.getConfig()).thenReturn(new Config().setCodec(codec));
+        RScript script=mock(RScript.class);
+        when(redis.getScript(any())).thenReturn(script);
+        when(script.eval(any(RScript.Mode.class),anyString(),any(RScript.ReturnType.class),anyList(),any())).thenAnswer(call -> {
+            List<Object> keys=call.getArgument(3);
+            String key=(String)keys.get(0);
+            if(cache.containsKey(key)) {
+                ByteBuf value = codec.getValueEncoder().encode(cache.get(key));
+                try {
+                    byte[] bytes = new byte[value.readableBytes()]; value.readBytes(bytes);
+                    return Arrays.asList(bytes,"existing".getBytes(StandardCharsets.US_ASCII));
+                } finally { value.release(); }
+            }
+            return Arrays.asList(call.getArgument(4),"created".getBytes(StandardCharsets.US_ASCII));
+        });
         StringSearch words=mock(StringSearch.class); when(words.Replace(anyString())).thenAnswer(c->c.getArgument(0));
         user=new User();user.setId(123L);user.setUserName("合成昵称");user.setUserRole("user");user.setTitleId(8L);user.setTitleIdList("[8]");user.setUserAvatar("https://synthetic.test/avatar.png");
         when(users.getLoginUser()).thenReturn(user);
@@ -73,7 +93,9 @@ class HttpChatMessageServiceTest {
         mute=new UserMuteVO();mute.setIsMuted(false);when(mutes.getUserMuteInfo(123L)).thenReturn(mute);
         IpLocationVO location=new IpLocationVO();location.setCountry("合成国家");location.setRegionName("合成地区");when(ips.getLocationByIp("192.0.2.1")).thenReturn(location);
         when(messages.save(any(RoomMessage.class))).thenAnswer(c->{stored=c.getArgument(0);return true;});
-        service=new HttpChatMessageService(users,points,messages,mutes,vips,ips,socket,mock(ApplicationEventPublisher.class),words,redis);
+        ChatSenderLocationResolver resolver=mock(ChatSenderLocationResolver.class);
+        when(resolver.cachedOrSchedule("192.0.2.1")).thenReturn(location);
+        service=new HttpChatMessageService(users,points,messages,mutes,vips,resolver,socket,mock(ApplicationEventPublisher.class),words,redis);
     }
     SendMessageRequest input() {
         SendMessageRequest input=new SendMessageRequest(); input.setContent("合成正文");input.setClientMessageId("synthetic-client-id-123");return input;

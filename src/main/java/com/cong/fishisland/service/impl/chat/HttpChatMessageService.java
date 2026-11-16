@@ -19,20 +19,26 @@ import com.cong.fishisland.service.*;
 import com.cong.fishisland.websocket.event.AddSpeakPointEvent;
 import com.cong.fishisland.websocket.event.AIAnswerEvent;
 import com.cong.fishisland.websocket.service.WebSocketService;
-import com.github.benmanes.caffeine.cache.Cache;
-import com.github.benmanes.caffeine.cache.Caffeine;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.redisson.api.RAtomicLong;
 import org.redisson.api.RBucket;
 import org.redisson.api.RLock;
+import org.redisson.api.RScript;
 import org.redisson.api.RedissonClient;
+import org.redisson.client.codec.ByteArrayCodec;
+import org.redisson.client.handler.State;
+import io.netty.buffer.ByteBuf;
+import io.netty.buffer.Unpooled;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 import toolgood.words.StringSearch;
 
 import java.time.Instant;
+import java.io.IOException;
+import java.nio.charset.StandardCharsets;
+import java.util.Arrays;
+import java.util.List;
 import java.util.concurrent.TimeUnit;
 
 /** HTTP command path. Existing WebSocket transport is used only for fan-out. */
@@ -45,13 +51,20 @@ public class HttpChatMessageService {
     private final RoomMessageService roomMessageService;
     private final UserMuteService userMuteService;
     private final UserVipService userVipService;
-    private final IpLocationService ipLocationService;
+    private final ChatSenderLocationResolver senderLocations;
     private final WebSocketService webSocketService;
     private final ApplicationEventPublisher publisher;
     private final StringSearch wordsUtil;
     private final RedissonClient redisson;
-    private final Cache<String, IpLocationVO> locations = Caffeine.newBuilder()
-            .maximumSize(10000).expireAfterWrite(1, TimeUnit.HOURS).build();
+    // Keep the existing sequence and reservation keys; all numeric IDs remain below 2^53.
+    private static final String RESERVE_ID =
+            "local id = redis.call('GET', KEYS[1]); " +
+            "if id then return {id, 'existing'} end; " +
+            "local previous = tonumber(redis.call('GET', KEYS[2]) or '0'); " +
+            "local next = math.max(tonumber(ARGV[1]), previous + 1); " +
+            "id = string.format('%.0f', next); " +
+            "redis.call('SET', KEYS[2], id); " +
+            "return {id, 'created'};";
 
     public MessageWrapper send(SendMessageRequest input, String ip) {
         User user = userService.getLoginUser();
@@ -63,10 +76,18 @@ public class HttpChatMessageService {
         RLock lock = redisson.getLock(key + ":lock");
         lock.lock();
         try {
-            RBucket<String> reservation = redisson.getBucket(key + ":id");
-            String messageId = reservation.get();
+            List<byte[]> reserved = redisson.getScript(ByteArrayCodec.INSTANCE).eval(
+                    RScript.Mode.READ_WRITE, RESERVE_ID, RScript.ReturnType.MULTI,
+                    Arrays.<Object>asList(key + ":id", "chat:http-send:sequence"),
+                    Long.toString(System.currentTimeMillis()).getBytes(StandardCharsets.US_ASCII));
+            boolean created = "created".equals(new String(reserved.get(1), StandardCharsets.US_ASCII));
+            byte[] encodedId = reserved.get(0);
+            boolean plainId = new String(encodedId, StandardCharsets.US_ASCII).matches("[0-9]{1,20}");
+            String messageId = plainId ? new String(encodedId, StandardCharsets.US_ASCII) : decodeReservation(encodedId);
+            // Preserve Redisson's configured codec so existing servers and receipts stay compatible.
+            if (created || plainId) redisson.<String>getBucket(key + ":id").set(messageId, 7, TimeUnit.DAYS);
             RBucket<String> receipt = redisson.getBucket(key + ":receipt");
-            if (messageId != null) {
+            if (!created) {
                 RoomMessage existing = find(messageId);
                 if (existing != null) {
                     MessageWrapper wrapper = JSON.parseObject(existing.getMessageJson(), MessageWrapper.class);
@@ -99,10 +120,6 @@ public class HttpChatMessageService {
                 quoted.setMentionedUsers(null);
                 message.setQuotedMessage(quoted);
             }
-            if (messageId == null) {
-                messageId = nextMessageId();
-                reservation.set(messageId, 7, TimeUnit.DAYS);
-            }
             message.setId(messageId);
             MessageWrapper wrapper = new MessageWrapper();
             wrapper.setMessage(message);
@@ -131,18 +148,20 @@ public class HttpChatMessageService {
                 .eq(RoomMessage::getRoomId, -1L).eq(RoomMessage::getMessageId, id));
     }
 
+    private String decodeReservation(byte[] encodedId) {
+        ByteBuf buffer = Unpooled.wrappedBuffer(encodedId);
+        try {
+            return (String) redisson.getConfig().getCodec().getValueDecoder().decode(buffer, new State());
+        } catch (IOException error) {
+            throw new IllegalStateException("Cannot decode chat message reservation", error);
+        } finally {
+            buffer.release();
+        }
+    }
+
     private void broadcast(MessageWrapper wrapper) {
         // No skipUid: the sender and every tab/device receive the canonical message too.
         webSocketService.sendToAllOnline(WSBaseResp.builder().type(MessageTypeEnum.CHAT.getType()).data(wrapper).build());
-    }
-
-    private String nextMessageId() {
-        RAtomicLong sequence = redisson.getAtomicLong("chat:http-send:sequence");
-        while (true) {
-            long previous = sequence.get();
-            long next = Math.max(System.currentTimeMillis(), previous + 1);
-            if (sequence.compareAndSet(previous, next)) return Long.toString(next);
-        }
     }
 
     private void validate(SendMessageRequest input) {
@@ -173,7 +192,7 @@ public class HttpChatMessageService {
         sender.setRegion("未知地区");
         if (StringUtils.hasText(ip)) {
             try {
-                IpLocationVO location = locations.get(ip, ipLocationService::getLocationByIp);
+                IpLocationVO location = senderLocations.cachedOrSchedule(ip);
                 if (location != null) {
                     if (StringUtils.hasText(location.getCountry())) sender.setCountry(location.getCountry());
                     if (StringUtils.hasText(location.getRegionName())) sender.setRegion(location.getRegionName());
