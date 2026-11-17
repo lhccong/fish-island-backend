@@ -460,6 +460,10 @@ public class UserController {
         ThrowUtils.throwIf(StringUtils.isBlank(userName), ErrorCode.PARAMS_ERROR, "请输入用户名");
         ThrowUtils.throwIf(userName.length() > 10, ErrorCode.PARAMS_ERROR, "用户名不能超过10个字符");
         String userProfile = userUpdateMyRequest.getUserProfile();
+        String pokeSuffix = userUpdateMyRequest.getPokeSuffix();
+        ThrowUtils.throwIf(pokeSuffix != null && (pokeSuffix.length() > 30
+                || pokeSuffix.codePoints().anyMatch(Character::isISOControl)),
+                ErrorCode.PARAMS_ERROR, "被戳后缀最多30个字符，不能包含换行或控制字符");
         ThrowUtils.throwIf(StringUtils.isNotBlank(userProfile) && userProfile.length() > 100, ErrorCode.PARAMS_ERROR, "个人简介不能超过100个字符");
         User loginUser = userService.getLoginUser();
         String loginUserUserName = loginUser.getUserName();
@@ -472,9 +476,10 @@ public class UserController {
         }
         user.setUserAvatar(userUpdateMyRequest.getUserAvatar());
         user.setUserProfile(userProfile);
+        if (pokeSuffix != null) user.setPokeSuffix(pokeSuffix.trim());
         user.setMomentsBgUrl(userUpdateMyRequest.getMomentsBgUrl());
         user.setId(loginUser.getId());
-        if (!StringUtils.isAllBlank(user.getUserName(), user.getUserAvatar(), userProfile)) {
+        if (pokeSuffix != null || !StringUtils.isAllBlank(user.getUserName(), user.getUserAvatar(), userProfile)) {
             boolean result = userService.updateById(user);
             ThrowUtils.throwIf(!result, ErrorCode.OPERATION_ERROR);
         }

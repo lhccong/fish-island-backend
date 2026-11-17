@@ -434,6 +434,8 @@ public class WebSocketServiceImpl implements WebSocketService {
     private SendMessageDto getSendMessageDto(ChatMessageVo chatMessageVo, Channel channel, Object loginIdObj, long loginUserId) {
         MessageWrapper messageDto = JSON.parseObject(chatMessageVo.getContent(), MessageWrapper.class);
         Message message = messageDto.getMessage();
+        // Poke snapshots are issued exclusively by the authenticated HTTP command path.
+        message.setPoke(null);
         if (!message.getSender().getId().equals(loginIdObj)) {
             log.info("非法消息发送者：{}，消息内容：{}", message.getSender().getId(), message.getContent());
             //直接移除当前用户 ID

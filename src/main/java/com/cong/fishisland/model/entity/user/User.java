@@ -63,6 +63,9 @@ public class User implements Serializable {
      */
     private String userProfile;
 
+    /** 被戳时追加的文字，空串表示无后缀。 */
+    private String pokeSuffix;
+
     /**
      * 用户角色：user/admin/ban
      */

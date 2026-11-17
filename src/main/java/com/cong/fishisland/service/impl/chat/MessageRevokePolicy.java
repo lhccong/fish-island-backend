@@ -22,7 +22,7 @@ public final class MessageRevokePolicy {
             MessageWrapper stored = JSON.parseObject(message.getMessageJson(), MessageWrapper.class);
             if (stored == null || stored.getMessage() == null || stored.getMessage().getContent() == null)
                 return false;
-            return !REWARD.matcher(stored.getMessage().getContent()).find();
+            return stored.getMessage().getPoke() != null || !REWARD.matcher(stored.getMessage().getContent()).find();
         } catch (RuntimeException invalidMessage) {
             return false;
         }

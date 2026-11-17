@@ -12,6 +12,7 @@ import com.cong.fishisland.model.entity.user.UserPoints;
 import com.cong.fishisland.model.enums.MessageTypeEnum;
 import com.cong.fishisland.model.vo.IpLocationVO;
 import com.cong.fishisland.model.ws.request.Message;
+import com.cong.fishisland.model.ws.request.Poke;
 import com.cong.fishisland.model.ws.request.MessageWrapper;
 import com.cong.fishisland.model.ws.request.Sender;
 import com.cong.fishisland.model.ws.response.WSBaseResp;
@@ -74,8 +75,14 @@ public class HttpChatMessageService {
         validate(input);
         String key = "chat:http-send:" + user.getId() + ":" + input.getClientMessageId();
         RLock lock = redisson.getLock(key + ":lock");
+        RLock pokeLock = input.getPokeTargetId() == null ? null : redisson.getLock("chat:poke:" + user.getId() + ":lock");
+        boolean pokeLocked = false;
         lock.lock();
         try {
+            if (pokeLock != null) {
+                pokeLock.lock();
+                pokeLocked = true;
+            }
             List<byte[]> reserved = redisson.getScript(ByteArrayCodec.INSTANCE).eval(
                     RScript.Mode.READ_WRITE, RESERVE_ID, RScript.ReturnType.MULTI,
                     Arrays.<Object>asList(key + ":id", "chat:http-send:sequence"),
@@ -92,9 +99,12 @@ public class HttpChatMessageService {
                 if (existing != null) {
                     MessageWrapper wrapper = JSON.parseObject(existing.getMessageJson(), MessageWrapper.class);
                     Message message = wrapper.getMessage();
-                    String normalized = wordsUtil.Replace(input.getContent()).replace("```", "");
+                    String normalized = input.getPokeTargetId() == null ? wordsUtil.Replace(input.getContent()).replace("```", "") : null;
                     String quotedId = message.getQuotedMessage() == null ? null : message.getQuotedMessage().getId();
-                    if (!normalized.equals(message.getContent()) || !java.util.Objects.equals(input.getQuotedMessageId(), quotedId)) {
+                    boolean same = input.getPokeTargetId() == null
+                            ? message.getPoke() == null && normalized.equals(message.getContent())
+                            : message.getPoke() != null && input.getPokeTargetId().equals(message.getPoke().getTargetId());
+                    if (!same || !java.util.Objects.equals(input.getQuotedMessageId(), quotedId)) {
                         throw new BusinessException(ErrorCode.PARAMS_ERROR, "重复发送标识不能用于不同消息");
                     }
                     broadcast(wrapper);
@@ -106,7 +116,21 @@ public class HttpChatMessageService {
                 throw new BusinessException(ErrorCode.FORBIDDEN_ERROR, "你已被禁言，暂时无法发送消息");
             }
             Message message = new Message();
-            message.setContent(wordsUtil.Replace(input.getContent()).replace("```", ""));
+            if (input.getPokeTargetId() != null) {
+                RBucket<String> cooldown = redisson.getBucket("chat:poke:" + user.getId() + ":cooldown");
+                if (cooldown.isExists()) throw new BusinessException(ErrorCode.OPERATION_ERROR, "戳得太快啦，请稍后再试");
+                User target = userService.getById(Long.valueOf(input.getPokeTargetId()));
+                if (target == null || UserConstant.BAN_ROLE.equals(target.getUserRole()))
+                    throw new BusinessException(ErrorCode.PARAMS_ERROR, "该用户暂不可戳");
+                Poke poke = new Poke();
+                poke.setTargetId(target.getId().toString());
+                poke.setTargetName(StringUtils.hasText(target.getUserName()) ? target.getUserName() : "岛友");
+                poke.setSuffix(wordsUtil.Replace(target.getPokeSuffix() == null ? "" : target.getPokeSuffix()));
+                message.setPoke(poke);
+                message.setContent(user.getUserName() + "拍了拍「" + poke.getTargetName() + "」" + poke.getSuffix());
+            } else {
+                message.setContent(wordsUtil.Replace(input.getContent()).replace("```", ""));
+            }
             if (!StringUtils.hasText(message.getContent())) throw new BusinessException(ErrorCode.PARAMS_ERROR, "消息内容不能为空");
             message.setClientMessageId(input.getClientMessageId());
             message.setRoomId("-1");
@@ -130,15 +154,20 @@ public class HttpChatMessageService {
             record.setMessageJson(JSON.toJSONString(wrapper));
             if (!roomMessageService.save(record)) throw new BusinessException(ErrorCode.OPERATION_ERROR, "消息保存失败，请重试");
             receipt.set("saved", 7, TimeUnit.DAYS);
+            if (message.getPoke() != null)
+                redisson.<String>getBucket("chat:poke:" + user.getId() + ":cooldown").set("1", 3, TimeUnit.SECONDS);
             broadcast(wrapper);
             try {
-                publisher.publishEvent(new AddSpeakPointEvent(this, user.getId().toString()));
-                if (message.getContent().contains("@摸鱼助手")) publisher.publishEvent(new AIAnswerEvent(this, wrapper));
+                if (message.getPoke() == null) {
+                    publisher.publishEvent(new AddSpeakPointEvent(this, user.getId().toString()));
+                    if (message.getContent().contains("@摸鱼助手")) publisher.publishEvent(new AIAnswerEvent(this, wrapper));
+                }
             } catch (RuntimeException ignored) {
                 log.warn("Chat side effect failed after message persistence");
             }
             return wrapper;
         } finally {
+            if (pokeLocked) pokeLock.unlock();
             lock.unlock();
         }
     }
@@ -165,6 +194,14 @@ public class HttpChatMessageService {
     }
 
     private void validate(SendMessageRequest input) {
+        if (input != null && input.getPokeTargetId() != null) {
+            if (!input.getPokeTargetId().matches("[1-9][0-9]{0,18}")
+                    || (input.getPokeTargetId().length() == 19 && input.getPokeTargetId().compareTo(Long.toString(Long.MAX_VALUE)) > 0)
+                    || input.getQuotedMessageId() != null || StringUtils.hasText(input.getContent())
+                    || input.getClientMessageId() == null || !input.getClientMessageId().matches("[a-zA-Z0-9-]{16,64}"))
+                throw new BusinessException(ErrorCode.PARAMS_ERROR, "戳一戳参数不合法");
+            return;
+        }
         if (input == null || !StringUtils.hasText(input.getContent()) || input.getContent().length() > 5000
                 || input.getClientMessageId() == null || !input.getClientMessageId().matches("[a-zA-Z0-9-]{16,64}")
                 || (input.getQuotedMessageId() != null && !input.getQuotedMessageId().matches("[0-9]{1,20}"))) {

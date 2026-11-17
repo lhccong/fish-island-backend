@@ -1,6 +1,7 @@
 package com.cong.fishisland.service.pet;
 
 import com.cong.fishisland.common.exception.BusinessException;
+import com.cong.fishisland.common.ErrorCode;
 import com.cong.fishisland.mapper.pet.PetTreasureMapper;
 import com.cong.fishisland.model.entity.pet.PetTreasureDig;
 import com.cong.fishisland.model.vo.pet.PetTreasureVO;
@@ -23,6 +24,7 @@ class PetTreasureServiceTest {
     private PetTreasureMapper mapper;
     private PlatformTransactionManager manager;
     private PetTreasureService service;
+    private UserPointsService points;
     private AchievementBroadcastService broadcasts;
 
     @BeforeEach
@@ -30,7 +32,7 @@ class PetTreasureServiceTest {
         mapper = mock(PetTreasureMapper.class);
         manager = mock(PlatformTransactionManager.class);
         when(manager.getTransaction(any())).thenAnswer(i -> new SimpleTransactionStatus());
-        UserPointsService points = mock(UserPointsService.class);
+        points = mock(UserPointsService.class);
         doAnswer(i -> { ((Runnable) i.getArgument(1)).run(); return null; })
                 .when(points).runWithUserPointsLocks(any(), any());
         when(mapper.latest(anyLong())).thenAnswer(i -> digs.isEmpty() ? null : digs.get(digs.size() - 1));
@@ -46,8 +48,6 @@ class PetTreasureServiceTest {
             if (d.getCompletedAt() != null) return 0;
             d.setCompletedAt(i.getArgument(2)); return 1;
         });
-        when(mapper.credit(anyLong(), anyInt())).thenReturn(1);
-        when(mapper.recordReward(anyLong(), anyString(), anyInt())).thenReturn(1);
         broadcasts = mock(AchievementBroadcastService.class);
         service = new PetTreasureService(mapper, points, new TransactionTemplate(manager), clock, broadcasts);
     }
@@ -66,8 +66,8 @@ class PetTreasureServiceTest {
         assertNull(done.getActive());
         assertTrue(done.getLastReward().getPoints() >= 1 && done.getLastReward().getPoints() <= 10);
         service.finish(1L, id);
-        verify(mapper, times(1)).credit(eq(1L), anyInt());
-        verify(mapper, times(1)).recordReward(eq(1L), eq(id), anyInt());
+        verify(points, times(1)).updateUsedPoints(1L, -done.getLastReward().getPoints(),
+                "pet_treasure", id, "营地挖宝奖励");
         assertEquals(1, digs.size());
     }
 
@@ -104,15 +104,26 @@ class PetTreasureServiceTest {
     }
 
     @Test
-    void invalidSitesNoCompanionAndLedgerFailureCannotSucceed() {
+    void invalidSitesNoCompanionAndPointFailureRollsBackAndCanRetry() {
         assertThrows(BusinessException.class, () -> service.start(1L, "lake"));
         assertThrows(BusinessException.class, () -> service.start(2L, "grove"));
         String id = service.start(1L, "grove").getActive().getId();
         clock.now += 5000;
-        when(mapper.recordReward(anyLong(), anyString(), anyInt())).thenReturn(0);
+        doThrow(new BusinessException(ErrorCode.OPERATION_ERROR, "积分服务失败"))
+                .doNothing().when(points).updateUsedPoints(eq(1L), anyInt(), eq("pet_treasure"), eq(id), eq("营地挖宝奖励"));
+        // Simulate the completion flag restoration performed by the real database transaction.
+        doAnswer(i -> { digs.get(0).setCompletedAt(null); return null; }).when(manager).rollback(any());
+        clearInvocations(manager);
         assertThrows(BusinessException.class, () -> service.finish(1L, id));
-        verify(manager, atLeastOnce()).rollback(any());
+        verify(manager, times(1)).rollback(any());
+        assertNull(digs.get(0).getCompletedAt());
         verifyNoInteractions(broadcasts);
+        PetTreasureVO done = service.finish(1L, id);
+        assertNotNull(done.getLastReward());
+        service.finish(1L, id);
+        verify(points, times(2)).updateUsedPoints(1L, -done.getLastReward().getPoints(),
+                "pet_treasure", id, "营地挖宝奖励");
+        verify(broadcasts, times(1)).treasureFound(1L, done.getLastReward().getPoints());
     }
 
     @Test
@@ -123,6 +134,11 @@ class PetTreasureServiceTest {
         service.finish(1L, id);
         service.finish(1L, id);
         verify(broadcasts, times(1)).treasureFound(1L, 10);
+        org.mockito.InOrder order = inOrder(mapper, points, broadcasts, manager);
+        order.verify(mapper).complete(eq(1L), eq(id), anyLong());
+        order.verify(points).updateUsedPoints(1L, -10, "pet_treasure", id, "营地挖宝奖励");
+        order.verify(broadcasts).treasureFound(1L, 10);
+        order.verify(manager).commit(any());
     }
 
     @Test
@@ -133,7 +149,7 @@ class PetTreasureServiceTest {
         doReturn(0).when(mapper).complete(anyLong(), anyString(), anyLong());
         service.finish(1L, id);
         verifyNoInteractions(broadcasts);
-        verify(mapper, never()).credit(anyLong(), anyInt());
+        verify(points, never()).updateUsedPoints(anyLong(), anyInt(), anyString(), anyString(), anyString());
     }
 
     private static class MutableClock extends Clock {

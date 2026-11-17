@@ -25,6 +25,8 @@ public class UserUpdateMyRequest implements Serializable {
      */
     private String userProfile;
 
+    private String pokeSuffix;
+
     /**
      * 朋友圈背景图
      */

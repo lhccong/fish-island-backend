@@ -5,6 +5,7 @@ import java.util.Date;
 import java.util.List;
 
 import com.baomidou.mybatisplus.annotation.TableField;
+import com.fasterxml.jackson.annotation.JsonInclude;
 import lombok.Data;
 
 /**
@@ -24,6 +25,10 @@ public class LoginUserVO implements Serializable {
      */
     private String userName;
 
+    /** 下次可修改用户名的带时区时间；null 表示当前没有月度限制。 */
+    @JsonInclude(JsonInclude.Include.ALWAYS)
+    private String nextRenameTime;
+
     /**
      * 用户头像
      */
@@ -38,6 +43,8 @@ public class LoginUserVO implements Serializable {
      * 用户简介
      */
     private String userProfile;
+
+    private String pokeSuffix;
 
     /**
      * 邮箱

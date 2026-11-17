@@ -274,18 +274,20 @@ public class UserPointsServiceImpl extends ServiceImpl<UserPointsMapper, UserPoi
             throw new BusinessException(ErrorCode.OPERATION_ERROR, "积分数值超出系统支持范围");
         }
         userPoints.setUsedPoints(afterUsedPoints);
-        this.updateById(userPoints);
+        ThrowUtils.throwIf(!this.updateById(userPoints), ErrorCode.OPERATION_ERROR, "更新可用积分失败");
 
         if (points < 0) {
-            userPointsRecordService.addPointsRecord(userId, 1, -points,
+            boolean recorded = userPointsRecordService.addPointsRecord(userId, 1, -points,
                     userPoints.getPoints(), userPoints.getPoints(),
                     beforeUsedPoints, afterUsedPoints,
                     sourceType, sourceId, description);
+            ThrowUtils.throwIf(!recorded, ErrorCode.OPERATION_ERROR, "记录积分流水失败");
         } else {
-            userPointsRecordService.addPointsRecord(userId, 2, points,
+            boolean recorded = userPointsRecordService.addPointsRecord(userId, 2, points,
                     userPoints.getPoints(), userPoints.getPoints(),
                     beforeUsedPoints, afterUsedPoints,
                     sourceType, sourceId, description);
+            ThrowUtils.throwIf(!recorded, ErrorCode.OPERATION_ERROR, "记录积分流水失败");
             notifyAdminIfLargePointsConsume(userId, points, description);
         }
     }

@@ -101,3 +101,9 @@ sa-token:
 ai:
   model:
     siliconFlow: xxx
+
+fishisland:
+  third-party:
+    music:
+      api-url: ${MUSIC_API_URL:}
+      token: ${MUSIC_API_TOKEN:}

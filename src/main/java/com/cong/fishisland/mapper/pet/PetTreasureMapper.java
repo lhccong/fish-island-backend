@@ -27,13 +27,4 @@ public interface PetTreasureMapper {
     @Update("UPDATE pet_treasure_dig SET completed_at=#{now} WHERE id=#{id} AND user_id=#{userId} AND completed_at IS NULL")
     int complete(@Param("userId") Long userId, @Param("id") String id, @Param("now") long now);
 
-    @Update("UPDATE user_points SET usedPoints=COALESCE(usedPoints,0)-#{reward} "
-            + "WHERE userId=#{userId} AND isDelete=0")
-    int credit(@Param("userId") Long userId, @Param("reward") int reward);
-
-    @Insert("INSERT INTO user_points_record (user_id,change_type,change_points,before_points,after_points,"
-            + "before_used_points,after_used_points,source_type,source_id,description) "
-            + "SELECT userId,1,#{reward},points,points,usedPoints+#{reward},usedPoints,"
-            + "'pet_treasure',#{id},'营地挖宝奖励' FROM user_points WHERE userId=#{userId} AND isDelete=0")
-    int recordReward(@Param("userId") Long userId, @Param("id") String id, @Param("reward") int reward);
 }

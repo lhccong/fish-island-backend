@@ -16,6 +16,8 @@ import com.cong.fishisland.common.exception.BusinessException;
 import com.cong.fishisland.common.exception.ThrowUtils;
 import com.cong.fishisland.config.GitHubConfig;
 import com.cong.fishisland.constant.CommonConstant;
+import com.cong.fishisland.constant.RedisKey;
+import com.cong.fishisland.constant.UserConstant;
 import com.cong.fishisland.constant.NewUserDataTypeWebConstant;
 import com.cong.fishisland.constant.SystemConstants;
 import com.cong.fishisland.constant.VipTypeConstant;
@@ -60,6 +62,8 @@ import org.springframework.util.DigestUtils;
 import javax.annotation.Resource;
 import javax.servlet.http.HttpServletRequest;
 import java.time.Duration;
+import java.time.ZonedDateTime;
+import java.time.format.DateTimeFormatter;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.TimeUnit;
@@ -579,6 +583,7 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements Us
         }
         TokenLoginUserVo loginUserVO = new TokenLoginUserVo();
         BeanUtils.copyProperties(user, loginUserVO);
+        loginUserVO.setNextRenameTime(nextRenameTime(user, ZonedDateTime.now()));
         // 获取 Token  相关参数
         SaTokenInfo tokenInfo = StpUtil.getTokenInfo();
         loginUserVO.setSaTokenInfo(tokenInfo);
@@ -680,6 +685,7 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements Us
         }
         LoginUserVO loginUserVO = new LoginUserVO();
         BeanUtils.copyProperties(user, loginUserVO);
+        loginUserVO.setNextRenameTime(nextRenameTime(user, ZonedDateTime.now()));
         UserPoints userPoints = userPointsService.getOne(new LambdaQueryWrapper<UserPoints>().eq(UserPoints::getUserId, user.getId()));
         if (userPoints == null) {
             return loginUserVO;
@@ -712,6 +718,17 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements Us
         loginUserVO.setFollowerCount(userFollowMapper.countFollowers(user.getId()));
 
         return loginUserVO;
+    }
+
+    String nextRenameTime(User user, ZonedDateTime now) {
+        if (StringUtils.isBlank(user.getUserName()) || !UserConstant.DEFAULT_ROLE.equals(user.getUserRole())) {
+            return null;
+        }
+        String key = RedisKey.getKey(RedisKey.USER_RENAME_LIMIT, user.getId(),
+                now.format(DateTimeFormatter.ofPattern("yyyyMM")));
+        if (!Boolean.TRUE.equals(stringRedisTemplate.hasKey(key))) return null;
+        return now.toLocalDate().withDayOfMonth(1).plusMonths(1).atStartOfDay(now.getZone())
+                .format(DateTimeFormatter.ISO_OFFSET_DATE_TIME);
     }
 
     @Override

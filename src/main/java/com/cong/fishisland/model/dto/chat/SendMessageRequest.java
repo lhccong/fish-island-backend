@@ -8,4 +8,5 @@ public class SendMessageRequest {
     private String content;
     private String quotedMessageId;
     private String clientMessageId;
+    private String pokeTargetId;
 }

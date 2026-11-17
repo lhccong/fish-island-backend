@@ -15,6 +15,8 @@ public class Message {
 
     private String clientMessageId;
 
+    private Poke poke;
+
     @JsonProperty("roomId")
     private String roomId;
 

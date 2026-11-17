@@ -52,7 +52,7 @@ public class ChatController {
     }
 
     @PostMapping("/message/send")
-    @ApiOperation(value = "HTTP 发送公共群聊消息，服务端补齐身份并向包含本人的全体连接广播")
+    @ApiOperation(value = "HTTP 发送公共群聊消息或戳一戳，服务端补齐身份并向包含本人的全体连接广播")
     public BaseResponse<MessageWrapper> sendMessage(@RequestBody SendMessageRequest input, HttpServletRequest request) {
         return ResultUtils.success(httpChatMessageService.send(input, NetUtils.getIpAddress(request)));
     }

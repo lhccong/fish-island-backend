@@ -49,6 +49,7 @@ class HttpChatMessageServiceTest {
     UserMuteVO mute;
     Map<String, String> cache;
     RoomMessage stored;
+    ApplicationEventPublisher publisher;
 
     @BeforeEach
     @SuppressWarnings("unchecked")
@@ -95,10 +96,58 @@ class HttpChatMessageServiceTest {
         when(messages.save(any(RoomMessage.class))).thenAnswer(c->{stored=c.getArgument(0);return true;});
         ChatSenderLocationResolver resolver=mock(ChatSenderLocationResolver.class);
         when(resolver.cachedOrSchedule("192.0.2.1")).thenReturn(location);
-        service=new HttpChatMessageService(users,points,messages,mutes,vips,resolver,socket,mock(ApplicationEventPublisher.class),words,redis);
+        publisher=mock(ApplicationEventPublisher.class);
+        service=new HttpChatMessageService(users,points,messages,mutes,vips,resolver,socket,publisher,words,redis);
     }
     SendMessageRequest input() {
         SendMessageRequest input=new SendMessageRequest(); input.setContent("合成正文");input.setClientMessageId("synthetic-client-id-123");return input;
+    }
+    SendMessageRequest poke(String suffix) {
+        User target=new User();target.setId(456L);target.setUserName("被戳岛友");target.setPokeSuffix(suffix);
+        when(users.getById(456L)).thenReturn(target);
+        SendMessageRequest input=input();input.setContent("");input.setPokeTargetId("456");return input;
+    }
+    @Test void pokeSnapshotIsCanonicalAndRetriesIgnoreChangedSettingsWithoutAwardingPoints() {
+        SendMessageRequest input=poke("嗷嗷🤪");
+        MessageWrapper result=service.send(input,"");
+        assertEquals("合成昵称拍了拍「被戳岛友」嗷嗷🤪",result.getMessage().getContent());
+        assertEquals("456",result.getMessage().getPoke().getTargetId());
+        when(messages.getOne(any(LambdaQueryWrapper.class))).thenReturn(stored);
+        when(users.getById(456L)).thenReturn(null);
+        assertEquals(result.getMessage(), service.send(input,"").getMessage());
+        verify(messages,times(1)).save(any());verifyNoInteractions(publisher);
+        assertTrue(com.cong.fishisland.service.impl.chat.MessageRevokePolicy.canRevoke(stored,123L,"user"));
+        input.setPokeTargetId("789");
+        assertThrows(BusinessException.class,()->service.send(input,""));
+    }
+    @Test void defaultPokeHasNoSuffixAndCooldownOnlyBlocksNewCommands() {
+        SendMessageRequest input=poke(null);
+        assertEquals("合成昵称拍了拍「被戳岛友」",service.send(input,"").getMessage().getContent());
+        input.setClientMessageId("another-synthetic-id-123");
+        assertThrows(BusinessException.class,()->service.send(input,""));
+        verify(messages,times(1)).save(any());
+    }
+    @Test void pokeValidatesTargetMuteAndRejectsClientContentOrQuote() {
+        SendMessageRequest input=poke("");input.setContent("forged");
+        assertThrows(BusinessException.class,()->service.send(input,""));
+        input.setContent("");input.setQuotedMessageId("1");
+        assertThrows(BusinessException.class,()->service.send(input,""));
+        input.setQuotedMessageId(null);input.setPokeTargetId("9223372036854775808");
+        assertThrows(BusinessException.class,()->service.send(input,""));
+        input.setPokeTargetId("456");mute.setIsMuted(true);
+        assertThrows(BusinessException.class,()->service.send(input,""));
+        mute.setIsMuted(false);when(users.getById(456L)).thenReturn(null);
+        assertThrows(BusinessException.class,()->service.send(input,""));
+        User target=new User();target.setUserRole("ban");when(users.getById(456L)).thenReturn(target);
+        assertThrows(BusinessException.class,()->service.send(input,""));
+        verify(messages,never()).save(any());verifyNoInteractions(socket,publisher);
+    }
+    @Test void pokeDoesNotResurrectARevokedReceiptAndSaveFailureDoesNotBroadcast() {
+        SendMessageRequest input=poke("");when(messages.save(any(RoomMessage.class))).thenReturn(false);
+        assertThrows(BusinessException.class,()->service.send(input,""));verifyNoInteractions(socket);
+        when(messages.save(any(RoomMessage.class))).thenReturn(true);service.send(input,"");
+        assertThrows(BusinessException.class,()->service.send(input,""));
+        verify(socket,times(1)).sendToAllOnline(any());
     }
     @Test void canonicalIdentityPersistedBeforeBroadcastIncludingSelfAndRetry() {
         MessageWrapper result=service.send(input(),"192.0.2.1");

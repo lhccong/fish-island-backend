@@ -17,6 +17,7 @@ import java.util.UUID;
 import java.util.concurrent.ThreadLocalRandom;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Supplier;
+import static com.cong.fishisland.model.enums.user.PointsRecordSourceEnum.PET_TREASURE;
 
 @Service
 public class PetTreasureService {
@@ -92,8 +93,7 @@ public class PetTreasureService {
             }
             // Conditional write protects settlement even if a distributed lock lease expires.
             if (mapper.complete(userId, id, now) == 1) {
-                if (mapper.credit(userId, dig.getReward()) != 1
-                        || mapper.recordReward(userId, id, dig.getReward()) != 1) throw failure();
+                points.updateUsedPoints(userId, -dig.getReward(), PET_TREASURE.getValue(), id, "营地挖宝奖励");
                 broadcasts.treasureFound(userId, dig.getReward());
             }
             return snapshot(userId, now);

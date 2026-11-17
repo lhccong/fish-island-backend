@@ -35,3 +35,9 @@ knife4j:
     enable: true
     username: root
     password: 123456
+
+fishisland:
+  third-party:
+    music:
+      api-url: ${MUSIC_API_URL:}
+      token: ${MUSIC_API_TOKEN:}
