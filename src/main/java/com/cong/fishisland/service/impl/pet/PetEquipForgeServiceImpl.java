@@ -25,6 +25,7 @@ import com.cong.fishisland.model.vo.pet.PetEquipStatsVO;
 import com.cong.fishisland.service.FishPetService;
 import com.cong.fishisland.service.PetEquipForgeService;
 import com.cong.fishisland.service.UserPointsService;
+import com.cong.fishisland.service.broadcast.AchievementBroadcastService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.redisson.api.RLock;
@@ -52,6 +53,8 @@ public class PetEquipForgeServiceImpl extends ServiceImpl<PetEquipForgeMapper, P
     private final UserPointsService userPointsService;
     private final PetForgeProperties petForgeProperties;
     private final RedissonClient redissonClient;
+    private final AchievementBroadcastService broadcasts;
+    private final Random random = new Random();
 
     private static final long FORGE_UPGRADE_LOCK_WAIT_SECONDS = 3;
     private static final long FORGE_UPGRADE_LOCK_LEASE_SECONDS = 10;
@@ -173,9 +176,13 @@ public class PetEquipForgeServiceImpl extends ServiceImpl<PetEquipForgeMapper, P
                 "宠物装备词条刷新-" + slot.getLabel());
 
         // 刷新未锁定的词条，锁定的词条保留
+        int newRedCount = 0;
         for (int i = 0; i < 4; i++) {
             if (current[i] == null || !Boolean.TRUE.equals(current[i].getLocked())) {
                 current[i] = randomEntry();
+                if (Objects.equals(current[i].getGrade(), EntryGradeEnum.RED.getLevel())) {
+                    newRedCount++;
+                }
             }
         }
 
@@ -183,7 +190,10 @@ public class PetEquipForgeServiceImpl extends ServiceImpl<PetEquipForgeMapper, P
         forge.setEntry2(current[1]);
         forge.setEntry3(current[2]);
         forge.setEntry4(current[3]);
-        updateById(forge);
+        if (!updateById(forge)) {
+            throw new BusinessException(ErrorCode.OPERATION_ERROR, "装备词条保存失败");
+        }
+        broadcasts.redEntriesForged(userId, slot, newRedCount);
 
         return toVO(forge);
     }
@@ -221,11 +231,14 @@ public class PetEquipForgeServiceImpl extends ServiceImpl<PetEquipForgeMapper, P
                     "宠物装备升级-" + slot.getLabel() + "-Lv" + currentLevel);
 
             int successRate = Math.max(1, 80 - currentLevel * 5);
-            boolean success = new Random().nextInt(100) < successRate;
+            boolean success = random.nextInt(100) < successRate;
 
             if (success) {
                 forge.setEquipLevel(currentLevel + 1);
-                updateById(forge);
+                if (!updateById(forge)) {
+                    throw new BusinessException(ErrorCode.OPERATION_ERROR, "装备强化保存失败");
+                }
+                broadcasts.equipmentUpgraded(userId, slot, currentLevel + 1);
                 log.info("宠物[{}]装备[{}]升级成功 {} -> {}", request.getPetId(), slot.getLabel(),
                         currentLevel, currentLevel + 1);
             } else {
@@ -293,7 +306,7 @@ public class PetEquipForgeServiceImpl extends ServiceImpl<PetEquipForgeMapper, P
      * 随机生成一条词条（按等级权重随机，数值在对应等级区间内随机）
      */
     private EquipEntry randomEntry() {
-        Random rng = new Random();
+        Random rng = random;
         EntryAttrEnum attr = ALL_ATTRS[rng.nextInt(ALL_ATTRS.length)];
         EntryGradeEnum grade = randomGrade();
         double value = randomValueInRange(attr, grade.getLevel(), rng);
@@ -329,7 +342,7 @@ public class PetEquipForgeServiceImpl extends ServiceImpl<PetEquipForgeMapper, P
      * WHITE=50% BLUE=25% PURPLE=15% GOLD=8% RED=2%
      */
     private EntryGradeEnum randomGrade() {
-        int roll = new Random().nextInt(100);
+        int roll = random.nextInt(100);
         int cumulative = 0;
         for (EntryGradeEnum grade : EntryGradeEnum.values()) {
             cumulative += grade.getWeight();

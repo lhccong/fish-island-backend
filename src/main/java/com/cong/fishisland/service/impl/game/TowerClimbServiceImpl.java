@@ -24,6 +24,7 @@ import com.cong.fishisland.service.FishPetService;
 import com.cong.fishisland.service.TowerClimbService;
 import com.cong.fishisland.service.UserPointsService;
 import com.cong.fishisland.service.UserService;
+import com.cong.fishisland.service.broadcast.AchievementBroadcastService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.redis.core.StringRedisTemplate;
@@ -60,6 +61,7 @@ public class TowerClimbServiceImpl implements TowerClimbService {
     private final TowerClimbRecordMapper towerClimbRecordMapper;
     private final TowerClimbProgressMapper towerClimbProgressMapper;
     private final StringRedisTemplate redisTemplate;
+    private final AchievementBroadcastService broadcasts;
     private final Random random = new Random();
 
     // 怪物基础属性
@@ -191,7 +193,9 @@ public class TowerClimbServiceImpl implements TowerClimbService {
             rewardPoints = monster.getRewardPoints();
             // 更新最高层数
             progress.setMaxFloor(floor);
-            towerClimbProgressMapper.updateById(progress);
+            if (towerClimbProgressMapper.updateById(progress) != 1) {
+                throw new BusinessException(ErrorCode.OPERATION_ERROR, "爬塔进度保存失败");
+            }
             // 发放积分（记录来源为爬塔奖励）
             userPointsService.updateUsedPoints(userId, -rewardPoints,
                     PointsRecordSourceEnum.TOWER_CLIMB.getValue(),
@@ -207,8 +211,11 @@ public class TowerClimbServiceImpl implements TowerClimbService {
         record.setPetLevel(petLevel);
         record.setPetHpLeft(lastPetHp);
         record.setRewardPoints(rewardPoints);
-        towerClimbRecordMapper.insert(record);
+        if (towerClimbRecordMapper.insert(record) != 1) {
+            throw new BusinessException(ErrorCode.OPERATION_ERROR, "爬塔记录保存失败");
+        }
         incrementDailyChallengeCount(userId);
+        if (win) broadcasts.towerCleared(userId, floor);
 
         TowerClimbResultVO result = new TowerClimbResultVO();
         result.setFloor(floor);

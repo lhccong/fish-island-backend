@@ -26,6 +26,7 @@ public enum PointsRecordSourceEnum {
     PROPS_PURCHASE("props_purchase", "购买道具"),
     ITEM_DECOMPOSE("item_decompose", "物品分解"),
     PET_DAILY("pet_daily", "宠物每日产出"),
+    PET_TREASURE("pet_treasure", "营地挖宝"),
     PRIZE_CONVERT("prize_convert", "奖品转积分"),
     ADMIN("admin", "管理员操作"),
     AVATAR_FRAME_EXCHANGE("avatar_frame_exchange", "兑换头像框"),

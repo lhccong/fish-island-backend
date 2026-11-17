@@ -5,11 +5,15 @@ import com.cong.fishisland.mapper.game.TowerClimbProgressMapper;
 import com.cong.fishisland.mapper.game.TowerClimbRecordMapper;
 import com.cong.fishisland.model.entity.game.TowerClimbProgress;
 import com.cong.fishisland.model.entity.user.User;
+import com.cong.fishisland.model.entity.pet.FishPet;
+import com.cong.fishisland.model.vo.pet.PetEquipStatsVO;
+import org.springframework.data.redis.core.ValueOperations;
 import com.cong.fishisland.model.vo.game.BattleStatsVO;
 import com.cong.fishisland.model.vo.game.BattleResultVO;
 import com.cong.fishisland.model.vo.game.TowerFloorMonsterVO;
 import com.cong.fishisland.model.vo.game.TowerProgressVO;
 import com.cong.fishisland.service.impl.game.TowerClimbServiceImpl;
+import com.cong.fishisland.service.broadcast.AchievementBroadcastService;
 import org.junit.jupiter.api.Test;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.test.util.ReflectionTestUtils;
@@ -28,8 +32,9 @@ class TowerClimbServiceTest {
     private final TowerClimbRecordMapper recordMapper = mock(TowerClimbRecordMapper.class);
     private final TowerClimbProgressMapper progressMapper = mock(TowerClimbProgressMapper.class);
     private final StringRedisTemplate redisTemplate = mock(StringRedisTemplate.class);
+    private final AchievementBroadcastService broadcasts = mock(AchievementBroadcastService.class);
     private final TowerClimbServiceImpl service = new TowerClimbServiceImpl(
-            userService, petService, pointsService, recordMapper, progressMapper, redisTemplate);
+            userService, petService, pointsService, recordMapper, progressMapper, redisTemplate, broadcasts);
 
     @Test
     void rewardsScaleThroughFloor43() {
@@ -196,5 +201,33 @@ class TowerClimbServiceTest {
         progress.setUserId(1L);
         progress.setMaxFloor(maxFloor);
         when(progressMapper.selectOne(any())).thenReturn(progress);
+    }
+
+    @Test
+    @SuppressWarnings("unchecked")
+    void onlyWonAndPersistedChallengeTriggersBroadcast() {
+        ValueOperations<String, String> values = mock(ValueOperations.class);
+        when(redisTemplate.opsForValue()).thenReturn(values);
+        FishPet pet = new FishPet(); pet.setLevel(1);
+        when(petService.getOne(any())).thenReturn(pet);
+        PetEquipStatsVO stats = new PetEquipStatsVO();
+        stats.setTotalBaseHp(1000000); stats.setTotalBaseAttack(1000000); stats.setSpeed(100);
+        when(petService.getPetEquipStats()).thenReturn(stats);
+        when(progressMapper.updateById(any())).thenReturn(1);
+        when(recordMapper.insert(any())).thenReturn(1);
+        mockProgress(30);
+        assertTrue(service.challenge().getWin());
+        verify(broadcasts).towerCleared(1L, 31);
+        clearInvocations(broadcasts);
+
+        stats.setTotalBaseHp(0); stats.setTotalBaseAttack(0); stats.setSpeed(0);
+        mockProgress(31);
+        assertFalse(service.challenge().getWin());
+        verifyNoInteractions(broadcasts);
+
+        stats.setTotalBaseHp(1000000); stats.setTotalBaseAttack(1000000); stats.setSpeed(100);
+        when(recordMapper.insert(any())).thenReturn(0);
+        assertThrows(BusinessException.class, service::challenge);
+        verifyNoInteractions(broadcasts);
     }
 }

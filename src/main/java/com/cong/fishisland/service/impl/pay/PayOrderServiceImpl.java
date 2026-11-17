@@ -4,6 +4,7 @@ import cn.dev33.satoken.stp.StpUtil;
 import com.alibaba.fastjson.JSON;
 import com.alibaba.fastjson.JSONObject;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
+import com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import com.cong.fishisland.common.ErrorCode;
 import com.cong.fishisland.common.exception.ThrowUtils;
@@ -38,6 +39,7 @@ import com.cong.fishisland.model.entity.user.User;
 import com.cong.fishisland.model.vo.pay.PayOrderVO;
 import com.cong.fishisland.service.PayOrderService;
 import com.cong.fishisland.service.UserService;
+import com.cong.fishisland.service.broadcast.AchievementBroadcastService;
 import com.cong.fishisland.utils.XunhuPayUtils;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.StringUtils;
@@ -70,6 +72,9 @@ public class PayOrderServiceImpl extends ServiceImpl<PayOrderMapper, PayOrder>
 
     @Resource
     private XunhuPayConfig xunhuPayConfig;
+
+    @Resource
+    private AchievementBroadcastService broadcasts;
 
     @Resource
     private DonationRecordsService donationRecordsService;
@@ -222,7 +227,11 @@ public class PayOrderServiceImpl extends ServiceImpl<PayOrderMapper, PayOrder>
         payOrder.setOpenOrderId(notify.getOpen_order_id());
         payOrder.setNotifyTime(new Date());
         payOrder.setUpdateTime(new Date());
-        this.updateById(payOrder);
+        // 只有一个回调能把待支付订单变为已处理，避免并发重复结算和播报。
+        boolean claimed = this.update(payOrder, new LambdaUpdateWrapper<PayOrder>()
+                .eq(PayOrder::getId, payOrder.getId())
+                .eq(PayOrder::getStatus, STATUS_PENDING));
+        if (!claimed) return "success";
 
         // 支付成功后的业务处理（如发放积分、开通会员等）
         if (STATUS_PAID.equals(status)) {
@@ -268,6 +277,7 @@ public class PayOrderServiceImpl extends ServiceImpl<PayOrderMapper, PayOrder>
 
         if (PayOrderTypeEnum.SPONSOR.getText().equals(payOrder.getTitle())) {
             handleSponsor(userId, payOrder.getTotalFee(), remark);
+            broadcasts.sponsorReceived(userId, payOrder.getTotalFee());
         }
     }
 
