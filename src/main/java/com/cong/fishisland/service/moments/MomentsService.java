@@ -70,6 +70,8 @@ public interface MomentsService extends IService<Moments> {
      */
     Page<MomentsCommentVO> listComments(MomentsCommentQueryRequest request);
 
+    void setCommentLiked(Long commentId, Boolean liked);
+
     /**
      * 查询朋友圈动态详情
      */

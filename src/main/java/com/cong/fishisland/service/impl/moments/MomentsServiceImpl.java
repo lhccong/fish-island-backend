@@ -2,6 +2,7 @@ package com.cong.fishisland.service.impl.moments;
 
 import cn.dev33.satoken.stp.StpUtil;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
+import com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import com.cong.fishisland.common.ErrorCode;
@@ -391,8 +392,47 @@ public class MomentsServiceImpl extends ServiceImpl<MomentsMapper, Moments>
     }
 
     @Override
+    @Transactional(rollbackFor = Exception.class)
+    public void setCommentLiked(Long commentId, Boolean liked) {
+        ThrowUtils.throwIf(commentId == null || commentId <= 0 || liked == null, ErrorCode.PARAMS_ERROR);
+        long userId = StpUtil.getLoginIdAsLong();
+        // 锁定评论行，串行处理同一评论的点赞与计数。
+        MomentsComment comment = momentsCommentMapper.selectOne(new LambdaQueryWrapper<MomentsComment>()
+                .eq(MomentsComment::getId, commentId)
+                .last("FOR UPDATE"));
+        ThrowUtils.throwIf(comment == null, ErrorCode.NOT_FOUND_ERROR, "评论不存在");
+        requireVisibleMoment(comment.getMomentId(), userId);
+
+        boolean alreadyLiked = !momentsCommentMapper
+                .selectLikedCommentIds(userId, Collections.singletonList(commentId)).isEmpty();
+        if (liked == alreadyLiked) {
+            return;
+        }
+        int changed = liked
+                ? momentsCommentMapper.insertLike(commentId, userId)
+                : momentsCommentMapper.deleteLike(commentId, userId);
+        ThrowUtils.throwIf(changed != 1, ErrorCode.OPERATION_ERROR);
+        int updated = momentsCommentMapper.update(null, new LambdaUpdateWrapper<MomentsComment>()
+                .eq(MomentsComment::getId, commentId)
+                .set(MomentsComment::getLikeNum, comment.getLikeNum() + (liked ? 1 : -1))
+                .setSql("updateTime = updateTime"));
+        ThrowUtils.throwIf(updated != 1, ErrorCode.OPERATION_ERROR);
+    }
+
+    private Moments requireVisibleMoment(Long momentId, Long userId) {
+        Moments moment = getById(momentId);
+        ThrowUtils.throwIf(moment == null, ErrorCode.NOT_FOUND_ERROR, "动态不存在");
+        ThrowUtils.throwIf(Integer.valueOf(1).equals(moment.getVisibility())
+                && !moment.getUserId().equals(userId), ErrorCode.NO_AUTH_ERROR, "该动态仅自己可见");
+        return moment;
+    }
+
+    @Override
+    @Transactional(readOnly = true)
     public Page<MomentsCommentVO> listComments(MomentsCommentQueryRequest request) {
         ThrowUtils.throwIf(request.getMomentId() == null, ErrorCode.PARAMS_ERROR, "动态ID不能为空");
+        Long userId = StpUtil.isLogin() ? StpUtil.getLoginIdAsLong() : null;
+        requireVisibleMoment(request.getMomentId(), userId);
 
         // 分页查询顶级评论
         Page<MomentsComment> page = new Page<>(request.getCurrent(), request.getPageSize());
@@ -400,9 +440,8 @@ public class MomentsServiceImpl extends ServiceImpl<MomentsMapper, Moments>
                 new LambdaQueryWrapper<MomentsComment>()
                         .eq(MomentsComment::getMomentId, request.getMomentId())
                         .isNull(MomentsComment::getParentId)
-                        // 置顶评论排在最前，同层内按时间倒序
                         .orderByDesc(MomentsComment::getIsTop)
-                        .orderByDesc(MomentsComment::getCreateTime));
+                        .orderByDesc(MomentsComment::getLikeNum, MomentsComment::getCreateTime, MomentsComment::getId));
 
         if (page.getRecords().isEmpty()) {
             return new Page<>(page.getCurrent(), page.getSize(), page.getTotal());
@@ -410,6 +449,15 @@ public class MomentsServiceImpl extends ServiceImpl<MomentsMapper, Moments>
 
         // 查询这批顶级评论下的所有子评论
         List<MomentsComment> children = commentDescendants(request.getMomentId(), page.getRecords());
+
+        Set<Long> likedIds = Collections.emptySet();
+        if (userId != null) {
+            List<Long> commentIds = page.getRecords().stream().map(MomentsComment::getId)
+                    .collect(Collectors.toList());
+            children.forEach(c -> commentIds.add(c.getId()));
+            likedIds = new HashSet<>(momentsCommentMapper.selectLikedCommentIds(userId, commentIds));
+        }
+        final Set<Long> liked = likedIds;
 
         // 批量查询用户信息
         Set<Long> userIds = new HashSet<>();
@@ -424,14 +472,14 @@ public class MomentsServiceImpl extends ServiceImpl<MomentsMapper, Moments>
 
         // 为每一层挂载子评论，复用同一 VO 实例组装完整树。
         Map<Long, List<MomentsCommentVO>> childrenMap = children.stream()
-                .map(c -> toCommentVO(c, userMap))
+                .map(c -> toCommentVO(c, userMap, liked))
                 .collect(Collectors.groupingBy(MomentsCommentVO::getParentId));
         childrenMap.values().forEach(siblings -> siblings.forEach(c ->
                 c.setChildren(childrenMap.getOrDefault(c.getId(), Collections.emptyList()))));
 
         // 组装顶级评论 + 子评论
         List<MomentsCommentVO> voList = page.getRecords().stream().map(c -> {
-            MomentsCommentVO vo = toCommentVO(c, userMap);
+            MomentsCommentVO vo = toCommentVO(c, userMap, liked);
             vo.setChildren(childrenMap.getOrDefault(c.getId(), Collections.emptyList()));
             return vo;
         }).collect(Collectors.toList());
@@ -450,8 +498,7 @@ public class MomentsServiceImpl extends ServiceImpl<MomentsMapper, Moments>
                     new LambdaQueryWrapper<MomentsComment>()
                             .eq(MomentsComment::getMomentId, momentId)
                             .in(MomentsComment::getParentId, frontier)
-                            .orderByDesc(MomentsComment::getCreateTime)
-                            .orderByDesc(MomentsComment::getId));
+                            .orderByDesc(MomentsComment::getLikeNum, MomentsComment::getCreateTime, MomentsComment::getId));
             frontier = new ArrayList<>();
             for (MomentsComment child : level) {
                 if (visited.add(child.getId())) {
@@ -466,16 +513,8 @@ public class MomentsServiceImpl extends ServiceImpl<MomentsMapper, Moments>
     @Override
     public MomentsVO getMomentDetail(Long id) {
         ThrowUtils.throwIf(id == null, ErrorCode.PARAMS_ERROR, "动态ID不能为空");
-        Moments moments = getById(id);
-        ThrowUtils.throwIf(moments == null, ErrorCode.NOT_FOUND_ERROR);
-
         long userId = StpUtil.getLoginIdAsLong();
-        // 仅自己可见时，非本人不能查看
-        ThrowUtils.throwIf(
-                moments.getVisibility() != null && moments.getVisibility() == 1
-                        && !moments.getUserId().equals(userId),
-                ErrorCode.NO_AUTH_ERROR
-        );
+        Moments moments = requireVisibleMoment(id, userId);
 
         List<Long> momentIds = Collections.singletonList(id);
         Set<Long> likedSet = getLikedSet(userId, momentIds);
@@ -514,9 +553,10 @@ public class MomentsServiceImpl extends ServiceImpl<MomentsMapper, Moments>
         return vo;
     }
 
-    private MomentsCommentVO toCommentVO(MomentsComment c, Map<Long, User> userMap) {
+    private MomentsCommentVO toCommentVO(MomentsComment c, Map<Long, User> userMap, Set<Long> likedIds) {
         MomentsCommentVO vo = new MomentsCommentVO();
         BeanUtils.copyProperties(c, vo);
+        vo.setLiked(likedIds.contains(c.getId()));
         User user = userMap.get(c.getUserId());
         if (user != null) {
             vo.setUserName(user.getUserName());

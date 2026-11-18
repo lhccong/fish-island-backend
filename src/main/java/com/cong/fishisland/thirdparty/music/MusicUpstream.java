@@ -45,28 +45,55 @@ public class MusicUpstream {
         return searches.get(source + ":" + page + ":" + word, key -> {
             try {
                 JsonNode raw = mapper.readTree(fetch(source, "search", word, "&page=" + page + "&limit=20"));
-                if (raw == null || !raw.isArray()) throw unavailable();
-                ArrayNode songs = mapper.createArrayNode();
-                Set<String> seen = new HashSet<>();
-                for (JsonNode row : raw) {
-                    String id = first(row, "id", "songId", "mid");
-                    if (id.isEmpty()) id = idFromUrl(row.path("url").asText());
-                    String name = first(row, "name", "title");
-                    if (id.isEmpty() || id.length() > 200 || name.isEmpty() || !seen.add(id)) continue;
-                    ObjectNode song = mapper.createObjectNode();
-                    song.put("id", id);
-                    song.put("name", truncate(name));
-                    song.put("artist", artist(row));
-                    songs.add(song);
-                    if (songs.size() == 20) break;
-                }
-                return songs;
+                return normalizeSongs(raw);
             } catch (BusinessException error) {
                 throw error;
             } catch (Exception ignored) {
                 throw unavailable();
             }
         });
+    }
+
+    public JsonNode recommendations(String source) {
+        validateSource(source);
+        try {
+            JsonNode raw = mapper.readTree(fetch(source, "fm", "", ""));
+            for (int depth = 0; depth < 4 && raw != null && raw.isObject(); depth++) {
+                JsonNode next = null;
+                for (String field : new String[]{"data", "songs", "results", "list"}) {
+                    if (raw.has(field)) { next = raw.get(field); break; }
+                }
+                if (next == null) break;
+                raw = next;
+            }
+            if (raw != null && raw.isObject() && !first(raw, "name", "title").isEmpty()) {
+                raw = mapper.createArrayNode().add(raw);
+            }
+            return normalizeSongs(raw);
+        } catch (BusinessException error) {
+            throw error;
+        } catch (Exception ignored) {
+            throw new BusinessException(ErrorCode.OPERATION_ERROR, "今日推荐暂不可用，请稍后重试或搜索歌曲");
+        }
+    }
+
+    private JsonNode normalizeSongs(JsonNode raw) {
+        if (raw == null || !raw.isArray()) throw unavailable();
+        ArrayNode songs = mapper.createArrayNode();
+        Set<String> seen = new HashSet<>();
+        for (JsonNode row : raw) {
+            String id = first(row, "id", "songId", "mid");
+            if (id.isEmpty()) id = idFromUrl(row.path("url").asText());
+            String name = first(row, "name", "title");
+            if (id.isEmpty() || id.length() > 200 || name.isEmpty() || !seen.add(id)) continue;
+            ObjectNode song = mapper.createObjectNode();
+            song.put("id", id);
+            song.put("name", truncate(name));
+            song.put("artist", artist(row));
+            songs.add(song);
+            if (songs.size() == 20) break;
+        }
+        return songs;
     }
 
     public String resolve(String source, String id) {

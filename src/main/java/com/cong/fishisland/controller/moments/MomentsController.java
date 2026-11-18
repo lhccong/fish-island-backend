@@ -3,8 +3,10 @@ package com.cong.fishisland.controller.moments;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.cong.fishisland.common.BaseResponse;
 import com.cong.fishisland.common.DeleteRequest;
-import com.cong.fishisland.common.ResultUtils;import com.cong.fishisland.model.dto.moments.MomentsAddRequest;
+import com.cong.fishisland.common.ResultUtils;
+import com.cong.fishisland.model.dto.moments.MomentsAddRequest;
 import com.cong.fishisland.model.dto.moments.MomentsCommentAddRequest;
+import com.cong.fishisland.model.dto.moments.MomentsCommentLikeRequest;
 import com.cong.fishisland.model.dto.moments.MomentsCommentQueryRequest;
 import com.cong.fishisland.model.dto.moments.MomentsCommentTopRequest;
 import com.cong.fishisland.model.dto.moments.MomentsLikeRequest;
@@ -101,6 +103,13 @@ public class MomentsController {
     @ApiOperation("发表评论")
     public BaseResponse<Long> addComment(@RequestBody MomentsCommentAddRequest request) {
         return ResultUtils.success(momentsService.addComment(request));
+    }
+
+    @PostMapping("/comment/like")
+    @ApiOperation("点赞或取消点赞评论")
+    public BaseResponse<Boolean> setCommentLiked(@RequestBody MomentsCommentLikeRequest request) {
+        momentsService.setCommentLiked(request.getCommentId(), request.getLiked());
+        return ResultUtils.success(true);
     }
 
     /**

@@ -15,6 +15,48 @@ import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.Mockito.*;
 
 class MusicUpstreamTest {
+    @Test void recommendationsUseFreshFmResultsWithoutSearchOrExistingPlaylist() throws Exception {
+        HttpURLConnection connection = mock(HttpURLConnection.class);
+        MusicUpstream service = upstream(connection);
+        String body = "{\"data\":{\"songs\":[{\"id\":\"new\",\"name\":\"推荐歌曲\",\"artist\":[{\"name\":\"歌手\"}],"
+                + "\"url\":\"https://upstream.test/private?auth=synthetic\"},"
+                + "{\"id\":\"new\",\"name\":\"重复歌曲\"}]}}";
+        when(connection.getInputStream()).thenAnswer(call -> new ByteArrayInputStream(body.getBytes(StandardCharsets.UTF_8)));
+        for (String source : new String[]{"netease", "tencent"}) {
+            JsonNode songs = service.recommendations(source);
+            assertEquals(1, songs.size());
+            assertEquals("new", songs.get(0).path("id").asText());
+            assertEquals("歌手", songs.get(0).path("artist").asText());
+            assertFalse(songs.toString().contains("url"));
+            assertFalse(songs.toString().contains("synthetic"));
+        }
+        ArgumentCaptor<URI> uri = ArgumentCaptor.forClass(URI.class);
+        verify(service, times(2)).openConnection(uri.capture());
+        for (URI value : uri.getAllValues()) {
+            assertTrue(value.getQuery().contains("type=fm"));
+            assertFalse(value.getQuery().contains("search"));
+            assertFalse(value.getQuery().contains("token"));
+        }
+    }
+
+    @Test void recommendationsAreBoundedAndDoNotInventSongsOnEmptyOrInvalidResponses() throws Exception {
+        HttpURLConnection connection = mock(HttpURLConnection.class);
+        MusicUpstream service = upstream(connection);
+        StringBuilder body = new StringBuilder("[");
+        for (int index = 0; index < 25; index++) {
+            if (index > 0) body.append(',');
+            body.append("{\"id\":\"").append(index).append("\",\"name\":\"推荐歌曲\"}");
+        }
+        body.append(']');
+        when(connection.getInputStream()).thenReturn(new ByteArrayInputStream(body.toString().getBytes(StandardCharsets.UTF_8)));
+        assertEquals(20, service.recommendations("netease").size());
+        when(connection.getInputStream()).thenReturn(new ByteArrayInputStream("[]".getBytes(StandardCharsets.UTF_8)));
+        assertEquals(0, service.recommendations("netease").size());
+        when(connection.getInputStream()).thenReturn(new ByteArrayInputStream("{\"error\":\"unsupported\"}".getBytes(StandardCharsets.UTF_8)));
+        assertThrows(BusinessException.class, () -> service.recommendations("netease"));
+        assertThrows(BusinessException.class, () -> service.recommendations("unknown"));
+    }
+
     private MusicUpstream upstream(HttpURLConnection connection) throws Exception {
         MusicProperties properties = new MusicProperties();
         properties.setApiUrl("https://upstream.example.test");

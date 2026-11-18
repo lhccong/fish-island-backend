@@ -30,4 +30,9 @@ public class MusicController {
     public BaseResponse<String> url(@RequestParam String source, @RequestParam String id) {
         return ResultUtils.success(upstream.resolve(source, id));
     }
+
+    @GetMapping("/recommendations")
+    public BaseResponse<JsonNode> recommendations(@RequestParam String source) {
+        return ResultUtils.success(upstream.recommendations(source));
+    }
 }

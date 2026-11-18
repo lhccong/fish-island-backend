@@ -47,6 +47,12 @@ public class MomentsCommentVO implements Serializable {
     @ApiModelProperty(value = "是否置顶：0-否，1-是")
     private Integer isTop;
 
+    @ApiModelProperty(value = "点赞数")
+    private Integer likeNum;
+
+    @ApiModelProperty(value = "当前账号是否已点赞")
+    private boolean liked;
+
     @ApiModelProperty(value = "评论时间")
     private Date createTime;
 

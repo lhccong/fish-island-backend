@@ -38,6 +38,8 @@ public class MomentsComment implements Serializable {
      */
     private Integer isTop;
 
+    private Integer likeNum;
+
     private Date createTime;
 
     private Date updateTime;

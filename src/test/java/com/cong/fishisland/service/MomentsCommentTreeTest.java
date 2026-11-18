@@ -4,6 +4,8 @@ import cn.dev33.satoken.stp.StpLogic;
 import cn.dev33.satoken.stp.StpUtil;
 import com.baomidou.mybatisplus.core.MybatisConfiguration;
 import com.baomidou.mybatisplus.core.conditions.Wrapper;
+import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
+import com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper;
 import com.baomidou.mybatisplus.core.metadata.TableInfoHelper;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.cong.fishisland.common.exception.BusinessException;
@@ -30,8 +32,11 @@ class MomentsCommentTreeTest {
     StpLogic previous;
 
     @BeforeEach void setup() {
-        TableInfoHelper.initTableInfo(new MapperBuilderAssistant(new MybatisConfiguration(), "moments-tree"), MomentsComment.class);
-        TableInfoHelper.initTableInfo(new MapperBuilderAssistant(new MybatisConfiguration(), "moments-tree"), Moments.class);
+        MybatisConfiguration configuration = new MybatisConfiguration();
+        configuration.setMapUnderscoreToCamelCase(false);
+        MapperBuilderAssistant assistant = new MapperBuilderAssistant(configuration, "moments-tree");
+        TableInfoHelper.initTableInfo(assistant, MomentsComment.class);
+        TableInfoHelper.initTableInfo(assistant, Moments.class);
         comments = mock(MomentsCommentMapper.class);
         moments = mock(MomentsMapper.class);
         UserService users = mock(UserService.class);
@@ -44,6 +49,7 @@ class MomentsCommentTreeTest {
         previous = StpUtil.getStpLogic();
         StpLogic login = mock(StpLogic.class);
         when(login.getLoginType()).thenReturn("login");
+        when(login.isLogin()).thenReturn(true);
         when(login.getLoginIdAsLong()).thenReturn(123L);
         StpUtil.setStpLogic(login);
     }
@@ -52,6 +58,7 @@ class MomentsCommentTreeTest {
     MomentsComment node(long id, Long parent) {
         MomentsComment c = new MomentsComment(); c.setId(id); c.setMomentId(10L);
         c.setUserId(123L); c.setParentId(parent); c.setContent("synthetic");
+        c.setLikeNum(0);
         return c;
     }
     MomentsCommentQueryRequest query() {
@@ -90,6 +97,73 @@ class MomentsCommentTreeTest {
         });
         assertEquals(17, service.listComments(query()).getTotal());
         verify(comments, never()).selectList(any(Wrapper.class));
+    }
+    @Test void ranksBeforePaginationAndProjectsViewerLikesForRootsAndReplies() {
+        MomentsComment root = node(1, null);
+        MomentsComment child = node(2, 1L);
+        child.setLikeNum(4);
+        when(comments.selectPage(any(Page.class), any(Wrapper.class))).thenAnswer(call -> {
+            Page<MomentsComment> page = call.getArgument(0);
+            LambdaQueryWrapper<MomentsComment> query = call.getArgument(1);
+            String sql = query.getSqlSegment();
+            assertTrue(sql.contains("ORDER BY isTop DESC,likeNum DESC,createTime DESC,id DESC"), sql);
+            page.setRecords(Collections.singletonList(root));
+            return page;
+        });
+        when(comments.selectList(any(Wrapper.class))).thenAnswer(call -> {
+            LambdaQueryWrapper<MomentsComment> query = call.getArgument(0);
+            String sql = query.getSqlSegment();
+            assertTrue(sql.contains("ORDER BY likeNum DESC,createTime DESC,id DESC"), sql);
+            return query.getParamNameValuePairs().containsValue(1L)
+                    ? Collections.singletonList(child) : Collections.emptyList();
+        });
+        when(comments.selectLikedCommentIds(123L, Arrays.asList(1L, 2L)))
+                .thenReturn(Collections.singletonList(2L));
+
+        MomentsCommentVO result = service.listComments(query()).getRecords().get(0);
+        assertFalse(result.isLiked());
+        assertTrue(result.getChildren().get(0).isLiked());
+        assertEquals(Integer.valueOf(4), result.getChildren().get(0).getLikeNum());
+    }
+
+    @Test void setsAndCancelsLikeOncePerTargetState() {
+        MomentsComment comment = node(1, null);
+        comment.setLikeNum(4);
+        when(comments.selectOne(any(Wrapper.class))).thenAnswer(call -> {
+            LambdaQueryWrapper<MomentsComment> query = call.getArgument(0);
+            assertTrue(query.getSqlSegment().endsWith("FOR UPDATE"));
+            return comment;
+        });
+        when(comments.selectLikedCommentIds(123L, Collections.singletonList(1L))).thenReturn(
+                Collections.emptyList(), Collections.singletonList(1L),
+                Collections.singletonList(1L), Collections.emptyList());
+        when(comments.insertLike(1L, 123L)).thenReturn(1);
+        when(comments.deleteLike(1L, 123L)).thenReturn(1);
+        List<Integer> counts = new ArrayList<>();
+        when(comments.update(isNull(), any(Wrapper.class))).thenAnswer(call -> {
+            LambdaUpdateWrapper<MomentsComment> update = call.getArgument(1);
+            String sql = update.getSqlSet();
+            assertTrue(sql.contains("likeNum="), sql);
+            int count = (int) update.getParamNameValuePairs().get("MPGENVAL1");
+            counts.add(count);
+            comment.setLikeNum(count);
+            return 1;
+        });
+        service.setCommentLiked(1L, true);
+        service.setCommentLiked(1L, true);
+        service.setCommentLiked(1L, false);
+        service.setCommentLiked(1L, false);
+        assertEquals(Arrays.asList(5, 4), counts);
+        verify(comments).insertLike(1L, 123L);
+        verify(comments).deleteLike(1L, 123L);
+    }
+
+    @Test void rejectsLikesOnMissingCommentsAndPrivateMoments() {
+        assertThrows(BusinessException.class, () -> service.setCommentLiked(1L, true));
+        when(comments.selectOne(any(Wrapper.class))).thenReturn(node(1, null));
+        service.getById(10L).setVisibility(1);
+        assertThrows(BusinessException.class, () -> service.setCommentLiked(1L, true));
+        verify(comments, never()).insertLike(anyLong(), anyLong());
     }
     @Test void rejectsMissingAndCrossMomentParentsBeforeInsert() {
         MomentsCommentAddRequest input = new MomentsCommentAddRequest();
