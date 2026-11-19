@@ -40,6 +40,12 @@ public class LandController {
         return ResultUtils.success(landService.toDTOList(landService.getLandsByUserId(userId)));
     }
 
+    @GetMapping("/harvest-status")
+    @ApiOperation(value = "查询我的农场是否有可收获作物")
+    public BaseResponse<Boolean> getHarvestStatus() {
+        return ResultUtils.success(landService.hasHarvestableLand(StpUtil.getLoginIdAsLong()));
+    }
+
     @PostMapping("/unlock")
     @ApiOperation(value = "按农场等级解锁地块", notes = "第1–8块默认解锁；第9–12块需达到对应等级、消耗可用积分，且按顺序解锁")
     public BaseResponse<LandDTO> unlock(@RequestBody UnlockLandRequest request) {

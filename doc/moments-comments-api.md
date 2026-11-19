@@ -12,6 +12,8 @@
 
 部署前在已应用 `add_top_field.sql` 的数据库执行 `sql/20261118_moments_comment_like.sql`，现有评论的 `likeNum` 初始化为 0。
 
-`POST /moments/comment/like` 接收 `{ "commentId": "123", "liked": true }`，取消点赞传 `false`。接口须登录且遵循动态可见范围。成功返回 `data: true`，重复提交相同目标状态也成功，且赞数只在关系发生变化时调整。不发通知或发放积分。评论采用软删除，已删除评论的点赞关系随原评论保留，无法再写入或通过评论列表读取。
+`POST /moments/comment/like` 接收 `{ "commentId": "123", "liked": true }`，取消点赞传 `false`。接口须登录且遵循动态可见范围。成功返回 `data: true`，重复提交相同目标状态也成功，且赞数只在关系发生变化时调整。评论采用软删除，已删除评论的点赞关系随原评论保留，无法再写入或通过评论列表读取。
+
+部署前执行 `sql/20261118_moments_comment_like_notice.sql`。首次给他人的评论点赞会在同一事务写入一次性去重记录和未读互动通知。通知的 `action` 为 `like`，`sourceType` 为 7，`sourceId` 为评论 ID，`url` 为动态 ID 字符串。已存在的点赞不补发；取消后再次点赞仅在尚未发送过通知时发送。
 
 `POST /moments/comment/list` 在各级节点返回 `likeNum` 和当前账号的 `liked`。顶级评论在分页前按置顶、赞数、创建时间、ID 倒序；回复在同一父评论下按赞数、创建时间、ID 倒序。

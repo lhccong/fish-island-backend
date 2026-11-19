@@ -1,11 +1,11 @@
 package com.cong.fishisland.controller.emoticon;
 
-import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.cong.fishisland.annotation.NoRepeatSubmit;
 import com.cong.fishisland.common.*;
 import com.cong.fishisland.common.exception.BusinessException;
 import com.cong.fishisland.common.exception.ThrowUtils;
+import com.cong.fishisland.model.dto.emoticon.EmoticonFavourQueryRequest;
 import com.cong.fishisland.model.entity.emoticon.EmoticonFavour;
 import com.cong.fishisland.model.entity.user.User;
 import com.cong.fishisland.service.EmoticonFavourService;
@@ -78,17 +78,11 @@ public class EmoticonFavourController{
      */
     @PostMapping("/list/page")
     @ApiOperation(value = "根据用户id分页查询收藏表情包")
-    public BaseResponse<Page<EmoticonFavour>> listEmoticonFavourByPage(@RequestBody PageRequest request) {
+    public BaseResponse<Page<EmoticonFavour>> listEmoticonFavourByPage(@RequestBody EmoticonFavourQueryRequest request) {
         // 登录才能操作
         final User loginUser = userService.getLoginUser();
         Long userId = loginUser.getId();
         ThrowUtils.throwIf(userId == null, ErrorCode.NOT_LOGIN_ERROR);
-        long current = request.getCurrent();
-        long size = request.getPageSize();
-        QueryWrapper<EmoticonFavour> queryWrapper = new QueryWrapper<>();
-        queryWrapper.eq("userId", userId);
-        // 按照创建时间倒序排列
-        queryWrapper.orderByDesc("createTime");
-        return ResultUtils.success(emoticonFavourService.page(new Page<>(current, size), queryWrapper));
+        return ResultUtils.success(emoticonFavourService.listForUser(userId, request));
     }
 }

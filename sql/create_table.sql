@@ -280,9 +280,13 @@ create table if not exists emoticon_favour
     id          bigint auto_increment comment 'id' primary key,
     userId      bigint                             not null comment '用户 id',
     emoticonSrc varchar(512)                       null comment '表情包地址',
+    ocrText     text                               null comment '表情包识别文字',
+    ocrAttempts tinyint unsigned default 0         not null comment '识别重试次数',
+    ocrNextAttemptAt datetime(3)                   null comment '识别下次执行时间',
     createTime  datetime default CURRENT_TIMESTAMP not null comment '创建时间',
     updateTime  datetime default CURRENT_TIMESTAMP not null on update CURRENT_TIMESTAMP comment '更新时间',
-    index idx_userId (userId)
+    index idx_userId (userId),
+    index idx_emoticon_ocr_due (ocrNextAttemptAt, id)
 ) comment '收藏表情包表' collate = utf8mb4_unicode_ci;
 
 -- 第三方用户关联表

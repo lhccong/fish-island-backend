@@ -43,7 +43,7 @@ jobs:
 
       # 5. 构建 Docker 镜像
       - name: Build Docker image
-        run: docker build -t fish-island-backend:latest .
+        run: docker build --build-arg JAR_FILE=target/fish-island-backend-0.0.1-SNAPSHOT.jar -t fish-island-backend:latest .
 
       # 6. 推送 Docker 镜像到 GitHub Packages
       - name: Log in to GitHub Container Registry

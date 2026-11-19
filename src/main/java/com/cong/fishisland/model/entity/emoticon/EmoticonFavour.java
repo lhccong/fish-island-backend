@@ -4,6 +4,7 @@ import com.baomidou.mybatisplus.annotation.IdType;
 import com.baomidou.mybatisplus.annotation.TableField;
 import com.baomidou.mybatisplus.annotation.TableId;
 import com.baomidou.mybatisplus.annotation.TableName;
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import java.io.Serializable;
 import java.util.Date;
 import lombok.Data;
@@ -30,6 +31,14 @@ public class EmoticonFavour implements Serializable {
      * 表情包地址
      */
     private String emoticonSrc;
+
+    private String ocrText;
+
+    @JsonIgnore
+    private Integer ocrAttempts;
+
+    @JsonIgnore
+    private Date ocrNextAttemptAt;
 
     /**
      * 创建时间

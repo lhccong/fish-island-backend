@@ -114,6 +114,17 @@ public class FarmLandServiceImpl extends ServiceImpl<FarmLandMapper, FarmLand> i
     }
 
     @Override
+    public boolean hasHarvestableLand(Long userId) {
+        return baseMapper.exists(new LambdaQueryWrapper<FarmLand>()
+                .eq(FarmLand::getUserId, userId)
+                .eq(FarmLand::getLocked, FarmYesNoEnum.NO.getValue())
+                .isNotNull(FarmLand::getPlantedCropId)
+                .and(land -> land.eq(FarmLand::getStatus, FarmLandStatusEnum.MATURE.getValue())
+                        .or(growing -> growing.eq(FarmLand::getStatus, FarmLandStatusEnum.PLANTING.getValue())
+                                .le(FarmLand::getHarvestTime, LocalDateTime.now()))));
+    }
+
+    @Override
     public void initLands(Long userId) {
         long existingCount = count(new LambdaQueryWrapper<FarmLand>()
                 .eq(FarmLand::getUserId, userId));

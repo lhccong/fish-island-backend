@@ -8,12 +8,15 @@
             <id property="id" column="id" jdbcType="BIGINT"/>
             <result property="userId" column="userId" jdbcType="BIGINT"/>
             <result property="emoticonSrc" column="emoticonSrc" jdbcType="VARCHAR"/>
+            <result property="ocrText" column="ocrText" jdbcType="LONGVARCHAR"/>
+            <result property="ocrAttempts" column="ocrAttempts" jdbcType="TINYINT"/>
+            <result property="ocrNextAttemptAt" column="ocrNextAttemptAt" jdbcType="TIMESTAMP"/>
             <result property="createTime" column="createTime" jdbcType="TIMESTAMP"/>
             <result property="updateTime" column="updateTime" jdbcType="TIMESTAMP"/>
     </resultMap>
 
     <sql id="Base_Column_List">
-        id,userId,emoticonSrc,
+        id,userId,emoticonSrc,ocrText,ocrAttempts,ocrNextAttemptAt,
         createTime,updateTime
     </sql>
 </mapper>

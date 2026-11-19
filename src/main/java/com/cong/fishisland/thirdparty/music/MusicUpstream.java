@@ -17,7 +17,13 @@ import java.net.HttpURLConnection;
 import java.net.URI;
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
+import java.time.LocalDate;
+import java.time.ZoneId;
+import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashSet;
+import java.util.List;
+import java.util.Random;
 import java.util.Set;
 import java.util.concurrent.Semaphore;
 import java.util.concurrent.TimeUnit;
@@ -25,11 +31,15 @@ import java.util.concurrent.TimeUnit;
 /** Meting adapter. No chat state, socket, database or platform cookies. */
 @Service
 public class MusicUpstream {
+    private static final ZoneId DAILY_ZONE = ZoneId.of("Asia/Shanghai");
+    private static final String NETEASE_HOT_PLAYLIST = "3778678";
+    private static final int DAILY_LIMIT = 30;
     private final MusicProperties properties;
     private final ObjectMapper mapper;
     private final Semaphore requests = new Semaphore(6);
     private final Cache<String, JsonNode> searches = Caffeine.newBuilder()
             .maximumSize(200).expireAfterWrite(30, TimeUnit.SECONDS).build();
+    private final Cache<LocalDate, JsonNode> dailyLists = Caffeine.newBuilder().maximumSize(2).build();
 
     public MusicUpstream(MusicProperties properties, ObjectMapper mapper) {
         this.properties = properties;
@@ -77,11 +87,34 @@ public class MusicUpstream {
         }
     }
 
+    public JsonNode daily() {
+        JsonNode list = dailyLists.get(LocalDate.now(DAILY_ZONE), this::loadDailyList);
+        return list == null ? mapper.createArrayNode() : list;
+    }
+
+    private JsonNode loadDailyList(LocalDate day) {
+        try {
+            JsonNode raw = mapper.readTree(fetch("netease", "playlist", NETEASE_HOT_PLAYLIST, ""));
+            if (raw == null || !raw.isArray()) throw unavailable();
+            List<JsonNode> entries = new ArrayList<>();
+            raw.forEach(entries::add);
+            Collections.shuffle(entries, new Random(day.toEpochDay()));
+            JsonNode songs = normalizeSongs(entries, DAILY_LIMIT);
+            return songs.size() == 0 ? null : songs;
+        } catch (IOException ignored) {
+            throw unavailable();
+        }
+    }
+
     private JsonNode normalizeSongs(JsonNode raw) {
         if (raw == null || !raw.isArray()) throw unavailable();
+        return normalizeSongs(raw, 20);
+    }
+
+    private JsonNode normalizeSongs(Iterable<JsonNode> rows, int limit) {
         ArrayNode songs = mapper.createArrayNode();
         Set<String> seen = new HashSet<>();
-        for (JsonNode row : raw) {
+        for (JsonNode row : rows) {
             String id = first(row, "id", "songId", "mid");
             if (id.isEmpty()) id = idFromUrl(row.path("url").asText());
             String name = first(row, "name", "title");
@@ -91,7 +124,7 @@ public class MusicUpstream {
             song.put("name", truncate(name));
             song.put("artist", artist(row));
             songs.add(song);
-            if (songs.size() == 20) break;
+            if (songs.size() == limit) break;
         }
         return songs;
     }

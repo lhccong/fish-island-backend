@@ -156,6 +156,24 @@ class MomentsCommentTreeTest {
         assertEquals(Arrays.asList(5, 4), counts);
         verify(comments).insertLike(1L, 123L);
         verify(comments).deleteLike(1L, 123L);
+        verify(comments, never()).claimLikeNotice(anyLong(), anyLong());
+    }
+
+    @Test void notifiesTheCommentAuthorOnlyOnTheFirstLike() {
+        MomentsComment comment = node(1, 2L);
+        comment.setUserId(456L);
+        when(comments.selectOne(any(Wrapper.class))).thenReturn(comment);
+        when(comments.selectLikedCommentIds(123L, Collections.singletonList(1L))).thenReturn(
+                Collections.emptyList(), Collections.singletonList(1L), Collections.emptyList());
+        when(comments.insertLike(1L, 123L)).thenReturn(1);
+        when(comments.deleteLike(1L, 123L)).thenReturn(1);
+        when(comments.update(isNull(), any(Wrapper.class))).thenReturn(1);
+        when(comments.claimLikeNotice(1L, 123L)).thenReturn(1, 0);
+        service.setCommentLiked(1L, true);
+        service.setCommentLiked(1L, false);
+        service.setCommentLiked(1L, true);
+        verify(comments, times(2)).claimLikeNotice(1L, 123L);
+        verify(events).handleMomentsCommentLike(1L, 10L, 123L, 456L, "synthetic");
     }
 
     @Test void rejectsLikesOnMissingCommentsAndPrivateMoments() {

@@ -18,6 +18,8 @@
     <properties>
         <java.version>1.8</java.version>
         <netty-all.version>4.1.76.Final</netty-all.version>
+        <rapidocr.version>0.0.7</rapidocr.version>
+        <rapidocr.onnx.version>1.2.2</rapidocr.onnx.version>
         <maven.test.skip>true</maven.test.skip>
     </properties>
     <dependencies>
@@ -202,6 +204,30 @@
             <groupId>com.squareup.okhttp3</groupId>
             <artifactId>okhttp</artifactId>
             <version>4.9.3</version>
+        </dependency>
+        <dependency>
+            <groupId>io.github.mymonstercat</groupId>
+            <artifactId>rapidocr</artifactId>
+            <version>${rapidocr.version}</version>
+        </dependency>
+        <!-- Include both runtimes so a Windows build can also run in the Linux container. -->
+        <dependency>
+            <groupId>io.github.mymonstercat</groupId>
+            <artifactId>rapidocr-onnx-windows-x86_64</artifactId>
+            <version>${rapidocr.onnx.version}</version>
+            <scope>runtime</scope>
+        </dependency>
+        <dependency>
+            <groupId>io.github.mymonstercat</groupId>
+            <artifactId>rapidocr-onnx-linux-x86_64</artifactId>
+            <version>${rapidocr.onnx.version}</version>
+            <scope>runtime</scope>
+        </dependency>
+        <dependency>
+            <groupId>com.twelvemonkeys.imageio</groupId>
+            <artifactId>imageio-webp</artifactId>
+            <version>3.12.0</version>
+            <scope>runtime</scope>
         </dependency>
     </dependencies>
 

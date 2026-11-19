@@ -1,6 +1,8 @@
 package com.cong.fishisland.service.event;
 
 import com.cong.fishisland.constant.ActionTypeConstant;
+import com.cong.fishisland.common.ErrorCode;
+import com.cong.fishisland.common.exception.ThrowUtils;
 import com.cong.fishisland.constant.SourceTypeConstant;
 import com.cong.fishisland.model.entity.event.EventRemind;
 import com.cong.fishisland.service.EventRemindService;
@@ -165,6 +167,27 @@ public class EventRemindHandler {
         event.setRemindTime(new Date());
         eventRemindService.save(event);
         log.info("保存朋友圈评论事件: commentId={}, momentId={}, senderId={}, recipientId={}", commentId, momentId, senderId, recipientId);
+    }
+
+    /** 由评论点赞事务调用，与去重记录一起提交。 */
+    public void handleMomentsCommentLike(Long commentId, Long momentId, Long senderId,
+                                         Long recipientId, String content) {
+        String preview = content.replaceAll("\\[img:[^\\]]+\\]", "").trim();
+        if (preview.isEmpty()) {
+            preview = "图片评论";
+        } else if (preview.codePointCount(0, preview.length()) > 256) {
+            preview = preview.substring(0, preview.offsetByCodePoints(0, 255)) + "…";
+        }
+        EventRemind event = new EventRemind();
+        event.setAction(ActionTypeConstant.LIKE);
+        event.setSourceId(commentId);
+        event.setSourceType(SourceTypeConstant.MOMENTS_COMMENT);
+        event.setSourceContent(preview);
+        event.setUrl(String.valueOf(momentId));
+        event.setSenderId(senderId);
+        event.setRecipientId(recipientId);
+        event.setRemindTime(new Date());
+        ThrowUtils.throwIf(!eventRemindService.save(event), ErrorCode.OPERATION_ERROR);
     }
 
     /**

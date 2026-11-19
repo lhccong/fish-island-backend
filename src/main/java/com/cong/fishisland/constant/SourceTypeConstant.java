@@ -30,4 +30,7 @@ public interface SourceTypeConstant {
      * 福袋
      */
     int LUCKY_BAG = 6;
+
+    /** 朋友圈评论 */
+    int MOMENTS_COMMENT = 7;
 }

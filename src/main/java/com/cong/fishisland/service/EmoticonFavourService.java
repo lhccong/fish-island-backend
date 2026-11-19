@@ -2,6 +2,8 @@ package com.cong.fishisland.service;
 
 
 import com.baomidou.mybatisplus.extension.service.IService;
+import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
+import com.cong.fishisland.model.dto.emoticon.EmoticonFavourQueryRequest;
 import com.cong.fishisland.model.entity.emoticon.EmoticonFavour;
 import com.cong.fishisland.model.entity.user.User;
 
@@ -14,5 +16,5 @@ public interface EmoticonFavourService extends IService<EmoticonFavour> {
 
     Boolean addEmoticonFavour(String emoticonSrc, User loginUser);
 
-    Boolean addEmoticonFavourInner(String emoticonSrc, Long userId);
+    Page<EmoticonFavour> listForUser(Long userId, EmoticonFavourQueryRequest request);
 }

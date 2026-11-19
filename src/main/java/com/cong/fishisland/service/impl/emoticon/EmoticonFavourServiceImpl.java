@@ -1,32 +1,29 @@
 package com.cong.fishisland.service.impl.emoticon;
 
 import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
+import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import com.cong.fishisland.common.ErrorCode;
 import com.cong.fishisland.common.exception.BusinessException;
 import com.cong.fishisland.common.exception.ThrowUtils;
 import com.cong.fishisland.mapper.emoticon.EmoticonFavourMapper;
+import com.cong.fishisland.model.dto.emoticon.EmoticonFavourQueryRequest;
 import com.cong.fishisland.model.entity.emoticon.EmoticonFavour;
 import com.cong.fishisland.model.entity.user.User;
 import com.cong.fishisland.service.EmoticonFavourService;
-import lombok.extern.slf4j.Slf4j;
-import org.springframework.aop.framework.AopContext;
+import org.apache.commons.lang3.StringUtils;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
 
-import javax.annotation.Resource;
+import java.util.Date;
 
 /**
 * @author 许林涛
 * @description 针对表【emoticon_favour(收藏表情包表)】的数据库操作Service实现
 * @createDate 2025-04-02 16:04:59
 */
-@Slf4j
 @Service
 public class EmoticonFavourServiceImpl extends ServiceImpl<EmoticonFavourMapper, EmoticonFavour>
     implements EmoticonFavourService{
-    @Resource
-    private EmoticonFavourMapper emoticonFavourMapper;
 
     /**
      * 新增收藏表情包
@@ -44,23 +41,24 @@ public class EmoticonFavourServiceImpl extends ServiceImpl<EmoticonFavourMapper,
         if (existed) {
             throw new BusinessException(ErrorCode.PARAMS_ERROR, "该表情包已收藏过");
         }
-        EmoticonFavourService emoticonFavourService = (EmoticonFavourService) AopContext.currentProxy();
-        return emoticonFavourService.addEmoticonFavourInner(emoticonSrc, userId);
-    }
-
-    /**
-     * 收藏表情包到数据库
-     * @param emoticonSrc 收藏表情包路径
-     * @param userId 用户id
-     * @return 是否收藏成功
-     */
-    @Transactional(rollbackFor = Exception.class)
-    @Override
-    public Boolean addEmoticonFavourInner(String emoticonSrc, Long userId) {
         EmoticonFavour emoticonFavour = new EmoticonFavour();
         emoticonFavour.setEmoticonSrc(emoticonSrc);
         emoticonFavour.setUserId(userId);
+        emoticonFavour.setOcrNextAttemptAt(new Date());
         return this.save(emoticonFavour);
+    }
+
+    @Override
+    public Page<EmoticonFavour> listForUser(Long userId, EmoticonFavourQueryRequest request) {
+        String keyword = StringUtils.normalizeSpace(StringUtils.defaultString(request.getKeyword()));
+        ThrowUtils.throwIf(keyword.length() > 80, ErrorCode.PARAMS_ERROR, "搜索内容不能超过 80 字");
+        QueryWrapper<EmoticonFavour> query = new QueryWrapper<>();
+        query.eq("userId", userId).orderByDesc("createTime", "id");
+        if (!keyword.isEmpty()) {
+            String literal = keyword.replace("!", "!!").replace("%", "!%").replace("_", "!_");
+            query.apply("ocrText LIKE {0} ESCAPE '!'", "%" + literal + "%");
+        }
+        return page(new Page<>(request.getCurrent(), request.getPageSize()), query);
     }
 
     /**
@@ -75,7 +73,7 @@ public class EmoticonFavourServiceImpl extends ServiceImpl<EmoticonFavourMapper,
         QueryWrapper<EmoticonFavour> queryWrapper = new QueryWrapper<>();
         queryWrapper.eq("emoticonSrc", emoticonSrc)
                 .eq("userId", userId);
-        return emoticonFavourMapper.exists(queryWrapper);
+        return baseMapper.exists(queryWrapper);
     }
 
 

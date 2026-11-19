@@ -15,6 +15,31 @@ import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.Mockito.*;
 
 class MusicUpstreamTest {
+    @Test void dailyRetriesEmptyChartAndCachesThirtyDistinctSongs() throws Exception {
+        HttpURLConnection connection = mock(HttpURLConnection.class);
+        MusicUpstream service = upstream(connection);
+        ObjectMapper mapper = new ObjectMapper();
+        com.fasterxml.jackson.databind.node.ArrayNode chart = mapper.createArrayNode();
+        for (int index = 0; index < 40; index++) {
+            chart.addObject().put("id", index).put("name", "榜单歌曲");
+            chart.addObject().put("id", index).put("name", "重复歌曲");
+        }
+        when(connection.getInputStream()).thenReturn(
+                new ByteArrayInputStream("[]".getBytes(StandardCharsets.UTF_8)),
+                new ByteArrayInputStream(mapper.writeValueAsBytes(chart)));
+
+        assertEquals(0, service.daily().size());
+        JsonNode songs = service.daily();
+        assertEquals(30, songs.size());
+        java.util.Set<String> ids = new java.util.HashSet<>();
+        songs.forEach(song -> ids.add(song.path("id").asText()));
+        assertEquals(30, ids.size());
+        assertEquals(songs, service.daily());
+        ArgumentCaptor<URI> requested = ArgumentCaptor.forClass(URI.class);
+        verify(service, times(2)).openConnection(requested.capture());
+        assertEquals("server=netease&type=playlist&id=3778678", requested.getValue().getQuery());
+    }
+
     @Test void recommendationsUseFreshFmResultsWithoutSearchOrExistingPlaylist() throws Exception {
         HttpURLConnection connection = mock(HttpURLConnection.class);
         MusicUpstream service = upstream(connection);

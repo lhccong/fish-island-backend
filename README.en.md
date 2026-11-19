@@ -177,26 +177,14 @@ _✨ Open Source 🌟 One-Stop Procrastination Website ✨_
 
 - Maven packaging
 
-- Docker deployment
-
-- Dockerfile
-
-  ```dockerfile
-  FROM openjdk:8
-  ENV workdir=/cong/fish
-  COPY . ${workdir}
-  WORKDIR ${workdir}
-  EXPOSE 8123
-  CMD ["java","-jar","-Duser.timezone=GMT+08","fish-island-backend-0.0.1-SNAPSHOT.jar"]
-  ```
-
-- Build command
+- Build the image from the Maven output using the repository's [Dockerfile](./Dockerfile).
 
   ```shell
-  docker build -f ./dockerfile -t fish .
-  
-  Start command: docker run -d -e TZ=CST -p 8123:8123 -p 8090:8090 --name "fish" fish:latest
+  docker build --build-arg JAR_FILE=target/fish-island-backend-0.0.1-SNAPSHOT.jar -t fish .
+  docker run -d -e TZ=CST -p 8123:8123 -p 8090:8090 --name fish fish:latest
   ```
+
+- For 1Panel, put the packaged JAR next to the Dockerfile and run `docker build -t fish .`. See the [deployment notes](./doc/emoticon-favour-ocr.md) for the migration on existing databases.
 
 - Nginx configuration
 

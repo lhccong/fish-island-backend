@@ -178,26 +178,14 @@ _✨ 开源🌟一站式摸鱼网 ✨_
 
 - Maven 打包
 
-- docker 部署
-
-- dockerfile 文件
-
-  ```dockerfile
-  FROM openjdk:8
-  ENV workdir=/cong/fish
-  COPY . ${workdir}
-  WORKDIR ${workdir}
-  EXPOSE 8123
-  CMD ["java","-jar","-Duser.timezone=GMT+08","fish-island-backend-0.0.1-SNAPSHOT.jar"]
-  ```
-
-- 打包命令
+- 使用仓库的 [Dockerfile](./Dockerfile) 从 Maven 输出构建镜像
 
   ```shell
-  docker build -f ./dockerfile -t fish .
-  
-  启动命令：docker run -d -e TZ=CST -p 8123:8123 -p 8090:8090 --name "fish" fish:latest
+  docker build --build-arg JAR_FILE=target/fish-island-backend-0.0.1-SNAPSHOT.jar -t fish .
+  docker run -d -e TZ=CST -p 8123:8123 -p 8090:8090 --name fish fish:latest
   ```
+
+- 1Panel 部署的 JAR 路径及已有数据库迁移见 [部署说明](./doc/emoticon-favour-ocr.md)。
 
 - nginx 配置
 

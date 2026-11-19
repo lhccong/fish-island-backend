@@ -35,4 +35,9 @@ public class MusicController {
     public BaseResponse<JsonNode> recommendations(@RequestParam String source) {
         return ResultUtils.success(upstream.recommendations(source));
     }
+
+    @GetMapping("/daily")
+    public BaseResponse<JsonNode> daily() {
+        return ResultUtils.success(upstream.daily());
+    }
 }

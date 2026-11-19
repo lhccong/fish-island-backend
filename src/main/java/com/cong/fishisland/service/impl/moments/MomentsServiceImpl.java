@@ -417,6 +417,10 @@ public class MomentsServiceImpl extends ServiceImpl<MomentsMapper, Moments>
                 .set(MomentsComment::getLikeNum, comment.getLikeNum() + (liked ? 1 : -1))
                 .setSql("updateTime = updateTime"));
         ThrowUtils.throwIf(updated != 1, ErrorCode.OPERATION_ERROR);
+        if (liked && comment.getUserId() != userId && momentsCommentMapper.claimLikeNotice(commentId, userId) == 1) {
+            eventRemindHandler.handleMomentsCommentLike(commentId, comment.getMomentId(), userId,
+                    comment.getUserId(), comment.getContent());
+        }
     }
 
     private Moments requireVisibleMoment(Long momentId, Long userId) {

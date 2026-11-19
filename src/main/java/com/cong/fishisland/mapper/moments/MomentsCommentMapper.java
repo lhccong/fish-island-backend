@@ -28,6 +28,9 @@ public interface MomentsCommentMapper extends BaseMapper<MomentsComment> {
     @Insert("INSERT INTO moments_comment_like (commentId, userId) VALUES (#{commentId}, #{userId})")
     int insertLike(@Param("commentId") long commentId, @Param("userId") long userId);
 
+    @Insert("INSERT IGNORE INTO moments_comment_like_notice (commentId, userId) VALUES (#{commentId}, #{userId})")
+    int claimLikeNotice(@Param("commentId") long commentId, @Param("userId") long userId);
+
     @Delete("DELETE FROM moments_comment_like WHERE commentId = #{commentId} AND userId = #{userId}")
     int deleteLike(@Param("commentId") long commentId, @Param("userId") long userId);
 }

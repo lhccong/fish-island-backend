@@ -22,6 +22,11 @@ public interface FarmLandService {
     List<FarmLand> getLandsByUserId(Long userId);
 
     /**
+     * 查询是否有可收获作物，不初始化地块。
+     */
+    boolean hasHarvestableLand(Long userId);
+
+    /**
      * 为指定农场用户初始化地块（最多 24 块，前 8 块默认解锁）。
      *
      * @param userId 系统用户 ID
