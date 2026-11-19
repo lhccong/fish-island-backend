@@ -283,7 +283,7 @@ public class WebSocketServiceImpl implements WebSocketService {
                 if (result == null) {
                     return;
                 }
-                result.message.setBubbleId(chatBubbles.activeStyle(loginUserId));
+                result.message.applyBubble(chatBubbles.activeStyle(loginUserId));
                 applicationEventPublisher.publishEvent(new AddSpeakPointEvent(this, result.message.getSender().getId()));
                 sendToAllOnline(WSBaseResp.builder()
                         .type(MessageTypeEnum.CHAT.getType())
@@ -439,7 +439,7 @@ public class WebSocketServiceImpl implements WebSocketService {
         Message message = messageDto.getMessage();
         // Poke snapshots are issued exclusively by the authenticated HTTP command path.
         message.setPoke(null);
-        message.setBubbleId(null);
+        message.applyBubble(null);
         if (!message.getSender().getId().equals(loginIdObj)) {
             log.info("非法消息发送者：{}，消息内容：{}", message.getSender().getId(), message.getContent());
             //直接移除当前用户 ID

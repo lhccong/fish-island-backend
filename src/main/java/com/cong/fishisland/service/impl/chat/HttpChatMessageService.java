@@ -139,7 +139,7 @@ public class HttpChatMessageService {
             message.setTimestamp(Instant.now().toString());
             message.setSender(sender(user, ip));
             if (message.getPoke() == null) {
-                message.setBubbleId(chatBubbles.activeStyle(user.getId()));
+                message.applyBubble(chatBubbles.activeStyle(user.getId()));
             }
             if (input.getQuotedMessageId() != null) {
                 RoomMessage original = find(input.getQuotedMessageId());

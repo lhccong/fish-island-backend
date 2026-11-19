@@ -10,4 +10,5 @@ public class ChatBubbleVO {
     int durationDays;
     String expiresAt;
     boolean equipped;
+    ChatBubbleArtwork artwork;
 }

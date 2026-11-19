@@ -5,10 +5,12 @@ import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.core.metadata.TableInfoHelper;
 import com.cong.fishisland.common.exception.BusinessException;
 import com.cong.fishisland.mapper.user.UserChatBubbleMapper;
+import com.cong.fishisland.model.entity.user.ChatBubbleProduct;
 import com.cong.fishisland.model.entity.user.UserChatBubble;
 import com.cong.fishisland.model.entity.user.UserPoints;
 import com.cong.fishisland.model.vo.user.ChatBubbleVO;
 import com.cong.fishisland.service.UserPointsService;
+import com.cong.fishisland.service.impl.user.ChatBubbleCatalog;
 import com.cong.fishisland.service.impl.user.ChatBubbleService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -31,15 +33,19 @@ class ChatBubbleServiceTest {
     private static final String STYLE = "berry-cat-paw";
     private final UserChatBubbleMapper mapper = mock(UserChatBubbleMapper.class);
     private final UserPointsService points = mock(UserPointsService.class);
+    private final ChatBubbleCatalog products = mock(ChatBubbleCatalog.class);
     private final PlatformTransactionManager transactions = mock(PlatformTransactionManager.class);
     private final TransactionStatus status = mock(TransactionStatus.class);
-    private final ChatBubbleService service = new ChatBubbleService(mapper, points, transactions);
+    private final ChatBubbleService service = new ChatBubbleService(mapper, points, transactions, products);
 
     @BeforeEach
     @SuppressWarnings("unchecked")
     void setup() {
         TableInfoHelper.initTableInfo(new MapperBuilderAssistant(new MybatisConfiguration(), "chat-bubble-test"), UserPoints.class);
         when(points.getOne(any(LambdaQueryWrapper.class))).thenReturn(new UserPoints());
+        ChatBubbleProduct product = new ChatBubbleProduct(STYLE, "草莓猫爪", 425, null, null, "theme");
+        when(products.forExchange(STYLE)).thenReturn(product);
+        when(products.list()).thenReturn(Collections.singletonList(product));
         when(transactions.getTransaction(any())).thenReturn(status);
         doAnswer(call -> {
             call.<Runnable>getArgument(1).run();
@@ -52,29 +58,38 @@ class ChatBubbleServiceTest {
         long before = System.currentTimeMillis();
         when(mapper.findExpiry(ACCOUNT, STYLE)).thenReturn(before - 1);
         when(mapper.grant(eq(ACCOUNT), eq(STYLE), anyLong())).thenReturn(2);
-        service.exchange(ACCOUNT, STYLE);
+        service.exchange(ACCOUNT, STYLE, 425);
 
         ArgumentCaptor<Long> expiry = ArgumentCaptor.forClass(Long.class);
         verify(mapper).grant(eq(ACCOUNT), eq(STYLE), expiry.capture());
         long period = Duration.ofDays(30).toMillis();
         assertTrue(expiry.getValue() >= before + period);
         assertTrue(expiry.getValue() <= System.currentTimeMillis() + period);
-        verify(points).checkAvailablePoints(ACCOUNT, 300);
-        verify(points).updateUsedPoints(ACCOUNT, 300, "chat_bubble_exchange", STYLE, "兑换聊天气泡「草莓猫爪」");
+        verify(points).checkAvailablePoints(ACCOUNT, 425);
+        verify(points).updateUsedPoints(ACCOUNT, 425, "chat_bubble_exchange", STYLE, "兑换聊天气泡「草莓猫爪」");
         verify(transactions).commit(status);
     }
 
     @Test
     void blocksDuplicateExchangeBeforeDebitAndRollsBackFailedGrant() {
         when(mapper.findExpiry(ACCOUNT, STYLE)).thenReturn(System.currentTimeMillis() + 60_000);
-        assertThrows(BusinessException.class, () -> service.exchange(ACCOUNT, STYLE));
+        assertThrows(BusinessException.class, () -> service.exchange(ACCOUNT, STYLE, 425));
         verify(points, never()).updateUsedPoints(anyLong(), anyInt(), any(), any(), any());
         verify(mapper, never()).grant(anyLong(), any(), anyLong());
 
         when(mapper.findExpiry(ACCOUNT, STYLE)).thenReturn(null);
-        assertThrows(BusinessException.class, () -> service.exchange(ACCOUNT, STYLE));
+        assertThrows(BusinessException.class, () -> service.exchange(ACCOUNT, STYLE, 425));
         verify(transactions, times(2)).rollback(status);
         verify(transactions, never()).commit(any());
+    }
+
+    @Test
+    void changedOrMissingQuoteNeverChargesAnyPoints() {
+        assertThrows(BusinessException.class, () -> service.exchange(ACCOUNT, STYLE, 300));
+        assertThrows(BusinessException.class, () -> service.exchange(ACCOUNT, STYLE, null));
+        verify(points, never()).updateUsedPoints(anyLong(), anyInt(), any(), any(), any());
+        verify(mapper, never()).grant(anyLong(), any(), anyLong());
+        verify(transactions, times(2)).rollback(status);
     }
 
     @Test
@@ -98,13 +113,13 @@ class ChatBubbleServiceTest {
         expired.setExpiresAt(System.currentTimeMillis() - 1);
         when(mapper.findAll(ACCOUNT)).thenReturn(Collections.singletonList(expired));
         List<ChatBubbleVO> catalog = service.list(ACCOUNT);
-        assertEquals(6, catalog.size());
-        assertTrue(catalog.stream().allMatch(item -> item.getPoints() == 300 && item.getDurationDays() == 30));
+        assertEquals(1, catalog.size());
+        assertTrue(catalog.stream().allMatch(item -> item.getPoints() == 425 && item.getDurationDays() == 30));
         ChatBubbleVO catPaw = catalog.stream().filter(item -> STYLE.equals(item.getId())).findFirst().get();
         assertFalse(catPaw.isEquipped());
         assertNotNull(catPaw.getExpiresAt());
         assertNull(service.activeStyle(ACCOUNT));
-        assertThrows(BusinessException.class, () -> service.exchange(ACCOUNT, "unknown-bubble"));
+        assertThrows(BusinessException.class, () -> service.exchange(ACCOUNT, "/invalid", 425));
         verify(transactions, never()).getTransaction(any());
     }
 }

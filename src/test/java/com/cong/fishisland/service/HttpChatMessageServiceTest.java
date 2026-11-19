@@ -8,6 +8,7 @@ import com.cong.fishisland.common.exception.BusinessException;
 import com.cong.fishisland.model.dto.chat.SendMessageRequest;
 import com.cong.fishisland.model.entity.chat.RoomMessage;
 import com.cong.fishisland.model.entity.user.User;
+import com.cong.fishisland.model.entity.user.ChatBubbleProduct;
 import com.cong.fishisland.model.entity.user.UserPoints;
 import com.cong.fishisland.model.vo.IpLocationVO;
 import com.cong.fishisland.model.vo.user.UserMuteVO;
@@ -106,13 +107,16 @@ class HttpChatMessageServiceTest {
         SendMessageRequest input=new SendMessageRequest(); input.setContent("合成正文");input.setClientMessageId("synthetic-client-id-123");return input;
     }
     @Test void outgoingBubbleSnapshotIsSavedAndRetryKeepsOriginalStyle() {
-        when(chatBubbles.activeStyle(123L)).thenReturn("berry-cat-paw");
-        assertEquals("berry-cat-paw", service.send(input(), "").getMessage().getBubbleId());
+        ChatBubbleProduct product = new ChatBubbleProduct("kite", "风筝", 425,
+                "https://assets.test/kite.svg", "https://assets.test/kite-dark.svg", "theme");
+        when(chatBubbles.activeStyle(123L)).thenReturn(product);
+        assertEquals("kite", service.send(input(), "").getMessage().getBubbleId());
         Message saved = JSON.parseObject(stored.getMessageJson(), MessageWrapper.class).getMessage();
-        assertEquals("berry-cat-paw", saved.getBubbleId());
+        assertEquals("kite", saved.getBubbleId());
+        assertEquals(product.artwork(), saved.getBubbleArtwork());
         when(chatBubbles.activeStyle(123L)).thenReturn(null);
         when(messages.getOne(any(LambdaQueryWrapper.class))).thenReturn(stored);
-        assertEquals("berry-cat-paw", service.send(input(), "").getMessage().getBubbleId());
+        assertEquals(saved, service.send(input(), "").getMessage());
         verify(chatBubbles, times(1)).activeStyle(123L);
     }
     SendMessageRequest poke(String suffix) {

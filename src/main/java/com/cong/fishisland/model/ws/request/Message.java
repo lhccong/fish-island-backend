@@ -1,5 +1,7 @@
 package com.cong.fishisland.model.ws.request;
 
+import com.cong.fishisland.model.entity.user.ChatBubbleProduct;
+import com.cong.fishisland.model.vo.user.ChatBubbleArtwork;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import lombok.Data;
@@ -21,6 +23,9 @@ public class Message {
     @JsonInclude(JsonInclude.Include.NON_NULL)
     private String bubbleId;
 
+    @JsonInclude(JsonInclude.Include.NON_NULL)
+    private ChatBubbleArtwork bubbleArtwork;
+
     @JsonProperty("roomId")
     private String roomId;
 
@@ -39,4 +44,8 @@ public class Message {
     @JsonProperty("mentionedUsers")
     private List<Sender> mentionedUsers;
 
+    public void applyBubble(ChatBubbleProduct product) {
+        bubbleId = product == null ? null : product.getId();
+        bubbleArtwork = product == null ? null : product.artwork();
+    }
 }
