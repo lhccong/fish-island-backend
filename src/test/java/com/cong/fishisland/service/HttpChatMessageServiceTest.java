@@ -16,6 +16,7 @@ import com.cong.fishisland.model.ws.request.MessageWrapper;
 import com.cong.fishisland.model.ws.response.WSBaseResp;
 import com.cong.fishisland.service.impl.chat.HttpChatMessageService;
 import com.cong.fishisland.service.impl.chat.ChatSenderLocationResolver;
+import com.cong.fishisland.service.impl.user.ChatBubbleService;
 import com.cong.fishisland.websocket.service.WebSocketService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -45,6 +46,7 @@ class HttpChatMessageServiceTest {
     IpLocationService ips;
     WebSocketService socket;
     HttpChatMessageService service;
+    ChatBubbleService chatBubbles;
     User user;
     UserMuteVO mute;
     Map<String, String> cache;
@@ -97,10 +99,21 @@ class HttpChatMessageServiceTest {
         ChatSenderLocationResolver resolver=mock(ChatSenderLocationResolver.class);
         when(resolver.cachedOrSchedule("192.0.2.1")).thenReturn(location);
         publisher=mock(ApplicationEventPublisher.class);
-        service=new HttpChatMessageService(users,points,messages,mutes,vips,resolver,socket,publisher,words,redis);
+        chatBubbles=mock(ChatBubbleService.class);
+        service=new HttpChatMessageService(users,points,messages,mutes,vips,resolver,socket,publisher,words,redis,chatBubbles);
     }
     SendMessageRequest input() {
         SendMessageRequest input=new SendMessageRequest(); input.setContent("合成正文");input.setClientMessageId("synthetic-client-id-123");return input;
+    }
+    @Test void outgoingBubbleSnapshotIsSavedAndRetryKeepsOriginalStyle() {
+        when(chatBubbles.activeStyle(123L)).thenReturn("berry-cat-paw");
+        assertEquals("berry-cat-paw", service.send(input(), "").getMessage().getBubbleId());
+        Message saved = JSON.parseObject(stored.getMessageJson(), MessageWrapper.class).getMessage();
+        assertEquals("berry-cat-paw", saved.getBubbleId());
+        when(chatBubbles.activeStyle(123L)).thenReturn(null);
+        when(messages.getOne(any(LambdaQueryWrapper.class))).thenReturn(stored);
+        assertEquals("berry-cat-paw", service.send(input(), "").getMessage().getBubbleId());
+        verify(chatBubbles, times(1)).activeStyle(123L);
     }
     SendMessageRequest poke(String suffix) {
         User target=new User();target.setId(456L);target.setUserName("被戳岛友");target.setPokeSuffix(suffix);

@@ -1,5 +1,6 @@
 package com.cong.fishisland.model.ws.request;
 
+import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import lombok.Data;
 
@@ -16,6 +17,9 @@ public class Message {
     private String clientMessageId;
 
     private Poke poke;
+
+    @JsonInclude(JsonInclude.Include.NON_NULL)
+    private String bubbleId;
 
     @JsonProperty("roomId")
     private String roomId;

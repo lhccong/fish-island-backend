@@ -17,6 +17,7 @@ import com.cong.fishisland.model.ws.request.MessageWrapper;
 import com.cong.fishisland.model.ws.request.Sender;
 import com.cong.fishisland.model.ws.response.WSBaseResp;
 import com.cong.fishisland.service.*;
+import com.cong.fishisland.service.impl.user.ChatBubbleService;
 import com.cong.fishisland.websocket.event.AddSpeakPointEvent;
 import com.cong.fishisland.websocket.event.AIAnswerEvent;
 import com.cong.fishisland.websocket.service.WebSocketService;
@@ -57,6 +58,7 @@ public class HttpChatMessageService {
     private final ApplicationEventPublisher publisher;
     private final StringSearch wordsUtil;
     private final RedissonClient redisson;
+    private final ChatBubbleService chatBubbles;
     // Keep the existing sequence and reservation keys; all numeric IDs remain below 2^53.
     private static final String RESERVE_ID =
             "local id = redis.call('GET', KEYS[1]); " +
@@ -136,6 +138,9 @@ public class HttpChatMessageService {
             message.setRoomId("-1");
             message.setTimestamp(Instant.now().toString());
             message.setSender(sender(user, ip));
+            if (message.getPoke() == null) {
+                message.setBubbleId(chatBubbles.activeStyle(user.getId()));
+            }
             if (input.getQuotedMessageId() != null) {
                 RoomMessage original = find(input.getQuotedMessageId());
                 if (original == null) throw new BusinessException(ErrorCode.PARAMS_ERROR, "引用消息不存在或已撤回");
