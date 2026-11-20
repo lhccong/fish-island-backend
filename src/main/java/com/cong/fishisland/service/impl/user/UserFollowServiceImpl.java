@@ -90,29 +90,38 @@ public class UserFollowServiceImpl extends ServiceImpl<UserFollowMapper, UserFol
     @Override
     public Page<UserFollowVO> listMyFollowing(int current, int pageSize) {
         Long loginUserId = Long.parseLong(StpUtil.getLoginId().toString());
-
-        Page<UserFollow> followPage = this.page(
-                new Page<>(current, pageSize),
-                new LambdaQueryWrapper<UserFollow>()
-                        .eq(UserFollow::getUserId, loginUserId)
-                        .orderByDesc(UserFollow::getCreateTime)
-        );
-
-        return convertToUserFollowVOPage(followPage, loginUserId, true);
+        return listFollows(loginUserId, true, current, pageSize, true);
     }
 
     @Override
     public Page<UserFollowVO> listMyFollowers(int current, int pageSize) {
         Long loginUserId = Long.parseLong(StpUtil.getLoginId().toString());
+        return listFollows(loginUserId, false, current, pageSize, true);
+    }
 
+    @Override
+    public Page<UserFollowVO> listUserFollows(long ownerId, boolean following, int current, int pageSize) {
+        long viewerId = Long.parseLong(StpUtil.getLoginId().toString());
+        ThrowUtils.throwIf(ownerId <= 0 || current < 1 || pageSize < 1 || pageSize > 50,
+                ErrorCode.PARAMS_ERROR, "用户或分页参数不合法");
+        if (ownerId != viewerId) {
+            long ownerCount = userMapper.selectCount(new LambdaQueryWrapper<User>().eq(User::getId, ownerId));
+            ThrowUtils.throwIf(ownerCount == 0, ErrorCode.NOT_FOUND_ERROR, "用户不存在");
+        }
+        return listFollows(ownerId, following, current, pageSize, ownerId == viewerId);
+    }
+
+    private Page<UserFollowVO> listFollows(long ownerId, boolean following, int current,
+                                           int pageSize, boolean includeFollowTime) {
         Page<UserFollow> followPage = this.page(
                 new Page<>(current, pageSize),
                 new LambdaQueryWrapper<UserFollow>()
-                        .eq(UserFollow::getFollowUserId, loginUserId)
-                        .orderByDesc(UserFollow::getCreateTime)
+                        .eq(following ? UserFollow::getUserId : UserFollow::getFollowUserId, ownerId)
+                        .inSql(following ? UserFollow::getFollowUserId : UserFollow::getUserId,
+                                "SELECT id FROM `user` WHERE isDelete = 0")
+                        .orderByDesc(UserFollow::getCreateTime, UserFollow::getId)
         );
-
-        return convertToUserFollowVOPage(followPage, loginUserId, false);
+        return convertToUserFollowVOPage(followPage, ownerId, following, includeFollowTime);
     }
 
     @Override
@@ -203,11 +212,12 @@ public class UserFollowServiceImpl extends ServiceImpl<UserFollowMapper, UserFol
      * 将关注记录分页转换为 VO 分页
      *
      * @param followPage  关注记录分页
-     * @param loginUserId 当前登录用户 ID
+     * @param ownerId 名单所属用户 ID
      * @param isFollowing true=查关注列表（取 followUserId），false=查粉丝列表（取 userId）
+     * @param includeFollowTime 是否为本人名单
      */
     private Page<UserFollowVO> convertToUserFollowVOPage(
-            Page<UserFollow> followPage, Long loginUserId, boolean isFollowing) {
+            Page<UserFollow> followPage, long ownerId, boolean isFollowing, boolean includeFollowTime) {
 
         Page<UserFollowVO> voPage = new Page<>(followPage.getCurrent(), followPage.getSize(), followPage.getTotal());
 
@@ -227,21 +237,19 @@ public class UserFollowServiceImpl extends ServiceImpl<UserFollowMapper, UserFol
         Map<Long, User> userMap = users.stream().collect(Collectors.toMap(User::getId, u -> u));
 
         // 判断互粉：两个场景方向不同
-        // 关注列表：userIds 是我关注的人，互粉 = 对方也关注了我（对方 userId in userIds，followUserId = loginUserId）
-        // 粉丝列表：userIds 是关注我的粉丝，互粉 = 我也关注了对方（我 userId = loginUserId，followUserId in userIds）
+        // 关注列表：查询哪些用户也关注了名单所属用户。
+        // 粉丝列表：查询名单所属用户已经回关了哪些粉丝。
         Set<Long> mutualIds;
         if (isFollowing) {
-            // 查"我关注的人"中谁也关注了我
             mutualIds = this.list(
                     new LambdaQueryWrapper<UserFollow>()
-                            .eq(UserFollow::getFollowUserId, loginUserId)
+                            .eq(UserFollow::getFollowUserId, ownerId)
                             .in(UserFollow::getUserId, userIds)
             ).stream().map(UserFollow::getUserId).collect(Collectors.toSet());
         } else {
-            // 查"我的粉丝"中我有没有回关
             mutualIds = this.list(
                     new LambdaQueryWrapper<UserFollow>()
-                            .eq(UserFollow::getUserId, loginUserId)
+                            .eq(UserFollow::getUserId, ownerId)
                             .in(UserFollow::getFollowUserId, userIds)
             ).stream().map(UserFollow::getFollowUserId).collect(Collectors.toSet());
         }
@@ -260,7 +268,9 @@ public class UserFollowServiceImpl extends ServiceImpl<UserFollowMapper, UserFol
                     vo.setUserAvatar(user.getUserAvatar());
                     vo.setUserProfile(user.getUserProfile());
                     vo.setAvatarFramerUrl(user.getAvatarFramerUrl());
-                    vo.setFollowTime(f.getCreateTime());
+                    if (includeFollowTime) {
+                        vo.setFollowTime(f.getCreateTime());
+                    }
                     vo.setIsMutual(mutualIds.contains(targetUserId));
                     return vo;
                 })

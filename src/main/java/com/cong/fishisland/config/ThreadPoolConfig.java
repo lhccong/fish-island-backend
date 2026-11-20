@@ -30,6 +30,7 @@ public class ThreadPoolConfig implements AsyncConfigurer {
 
 
     public static final String AI_CHAT_EXECUTOR = "aiChatExecutor";
+    public static final String BIG_FISH_EXECUTOR = "bigFishExecutor";
 
     @Override
     public Executor getAsyncExecutor() {
@@ -80,6 +81,16 @@ public class ThreadPoolConfig implements AsyncConfigurer {
         //满了直接丢弃，默认为不重要消息推送
         executor.setRejectedExecutionHandler(new ThreadPoolExecutor.DiscardPolicy());
         executor.setThreadFactory(new MyThreadFactory(executor));
+        return executor;
+    }
+
+    @Bean(BIG_FISH_EXECUTOR)
+    public ThreadPoolTaskExecutor bigFishExecutor() {
+        ThreadPoolTaskExecutor executor = new ThreadPoolTaskExecutor();
+        executor.setCorePoolSize(2);
+        executor.setMaxPoolSize(2);
+        executor.setQueueCapacity(8);
+        executor.setThreadNamePrefix("big-fish-");
         return executor;
     }
 }

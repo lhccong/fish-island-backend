@@ -302,8 +302,15 @@ public class WebSocketServiceImpl implements WebSocketService {
                     publishAiAvatarAnswerEvents(result.message, result.messageDto, mentionedUsers);
                 }
 
-                saveMessage(loginUserId, result);
+                if (saveMessage(loginUserId, result)) {
+                    applicationEventPublisher.publishEvent(new BigFishChatEvent(
+                            result.message.getId(), loginUserId,
+                            loginUser == null ? null : loginUser.getUserName(), messageContent, null));
+                }
 
+                break;
+            case BIG_FISH:
+                // Server-only event.
                 break;
             case USER_MESSAGE_REVOKE:
                 //撤回消息
@@ -396,13 +403,13 @@ public class WebSocketServiceImpl implements WebSocketService {
         }
     }
 
-    private void saveMessage(long loginUserId, SendMessageDto result) {
+    private boolean saveMessage(long loginUserId, SendMessageDto result) {
         RoomMessage roomMessage = new RoomMessage();
         roomMessage.setUserId(loginUserId);
         roomMessage.setRoomId(-1L);
         roomMessage.setMessageJson(JSON.toJSONString(result.messageDto));
         roomMessage.setMessageId(result.messageDto.getMessage().getId());
-        roomMessageService.save(roomMessage);
+        return roomMessageService.save(roomMessage);
     }
 
     private void publishAiAvatarAnswerEvents(Message message, MessageWrapper messageDto, List<Sender> mentionedUsers) {
@@ -439,6 +446,8 @@ public class WebSocketServiceImpl implements WebSocketService {
         Message message = messageDto.getMessage();
         // Poke snapshots are issued exclusively by the authenticated HTTP command path.
         message.setPoke(null);
+        message.setBigFish(null);
+        message.setBigFishEmoticonUrl(null);
         message.applyBubble(null);
         if (!message.getSender().getId().equals(loginIdObj)) {
             log.info("非法消息发送者：{}，消息内容：{}", message.getSender().getId(), message.getContent());

@@ -20,6 +20,7 @@ import com.cong.fishisland.service.*;
 import com.cong.fishisland.service.impl.user.ChatBubbleService;
 import com.cong.fishisland.websocket.event.AddSpeakPointEvent;
 import com.cong.fishisland.websocket.event.AIAnswerEvent;
+import com.cong.fishisland.websocket.event.BigFishChatEvent;
 import com.cong.fishisland.websocket.service.WebSocketService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -166,6 +167,8 @@ public class HttpChatMessageService {
                 if (message.getPoke() == null) {
                     publisher.publishEvent(new AddSpeakPointEvent(this, user.getId().toString()));
                     if (message.getContent().contains("@摸鱼助手")) publisher.publishEvent(new AIAnswerEvent(this, wrapper));
+                    publisher.publishEvent(new BigFishChatEvent(messageId, user.getId(), user.getUserName(), message.getContent(),
+                            message.getQuotedMessage() == null ? null : message.getQuotedMessage().getContent()));
                 }
             } catch (RuntimeException ignored) {
                 log.warn("Chat side effect failed after message persistence");

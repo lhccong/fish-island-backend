@@ -19,6 +19,10 @@ public class Message {
     private String clientMessageId;
 
     private Poke poke;
+    @JsonInclude(JsonInclude.Include.NON_NULL)
+    private Boolean bigFish;
+    @JsonInclude(JsonInclude.Include.NON_NULL)
+    private String bigFishEmoticonUrl;
 
     @JsonInclude(JsonInclude.Include.NON_NULL)
     private String bubbleId;

@@ -18,6 +18,7 @@ import com.cong.fishisland.model.ws.response.WSBaseResp;
 import com.cong.fishisland.service.impl.chat.HttpChatMessageService;
 import com.cong.fishisland.service.impl.chat.ChatSenderLocationResolver;
 import com.cong.fishisland.service.impl.user.ChatBubbleService;
+import com.cong.fishisland.websocket.event.BigFishChatEvent;
 import com.cong.fishisland.websocket.service.WebSocketService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -182,6 +183,9 @@ class HttpChatMessageServiceTest {
         verify(socket).sendToAllOnline(capture.capture());
         assertSame(result,capture.getValue().getData());
         verify(socket,never()).sendToAllOnline(any(),any());
+        ArgumentCaptor<BigFishChatEvent> bigFish = ArgumentCaptor.forClass(BigFishChatEvent.class);
+        verify(publisher).publishEvent(bigFish.capture());
+        assertEquals(user.getUserName(), bigFish.getValue().getUserName());
         org.mockito.InOrder order=inOrder(messages,socket);order.verify(messages).save(any());order.verify(socket).sendToAllOnline(any());
         when(messages.getOne(any(LambdaQueryWrapper.class))).thenReturn(stored);
         assertEquals(result.getMessage().getId(),service.send(input(),"192.0.2.1").getMessage().getId());

@@ -17,4 +17,6 @@ public interface EmoticonFavourService extends IService<EmoticonFavour> {
     Boolean addEmoticonFavour(String emoticonSrc, User loginUser);
 
     Page<EmoticonFavour> listForUser(Long userId, EmoticonFavourQueryRequest request);
+
+    String pickRandomSourceForUser(long userId);
 }

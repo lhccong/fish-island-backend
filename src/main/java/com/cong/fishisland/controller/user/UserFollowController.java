@@ -13,6 +13,7 @@ import io.swagger.annotations.ApiOperation;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import javax.annotation.Resource;
@@ -73,6 +74,20 @@ public class UserFollowController {
             throw new BusinessException(ErrorCode.PARAMS_ERROR, "每页大小不能超过50");
         }
         return ResultUtils.success(userFollowService.listMyFollowers(request.getCurrent(), request.getPageSize()));
+    }
+
+    @GetMapping("/user/following")
+    @ApiOperation("查询指定用户的关注列表")
+    public BaseResponse<Page<UserFollowVO>> listUserFollowing(@RequestParam("userId") long userId,
+                                                             UserFollowPageRequest request) {
+        return ResultUtils.success(userFollowService.listUserFollows(userId, true, request.getCurrent(), request.getPageSize()));
+    }
+
+    @GetMapping("/user/followers")
+    @ApiOperation("查询指定用户的粉丝列表")
+    public BaseResponse<Page<UserFollowVO>> listUserFollowers(@RequestParam("userId") long userId,
+                                                             UserFollowPageRequest request) {
+        return ResultUtils.success(userFollowService.listUserFollows(userId, false, request.getCurrent(), request.getPageSize()));
     }
 
     /**

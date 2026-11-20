@@ -32,6 +32,7 @@ public interface UserConstant {
      * 机器人 ID
      */
     String ROBOT_ID = "-1";
+    String BIG_FISH_ID = "-2";
 
     // endregion
 }

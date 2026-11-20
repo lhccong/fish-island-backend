@@ -26,6 +26,7 @@ public enum MessageTypeEnum {
     MOVE_CHESS("moveChess", "对方落子"),
     JOIN_SUCCESS("joinSuccess", "成功加入房间"),
     CHAT("chat", "群聊天消息"),
+    BIG_FISH("bigFish", "大肥鱼台词"),
     UNDERCOVER("undercover", "谁是卧底消息"),
     DRAW("draw", "你画我猜消息"),
     CLEAR_DRAW("clearDraw", "清空画板"),

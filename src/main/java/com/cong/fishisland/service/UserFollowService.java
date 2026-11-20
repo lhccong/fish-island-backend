@@ -41,6 +41,9 @@ public interface UserFollowService extends IService<UserFollow> {
      */
     Page<UserFollowVO> listMyFollowers(int current, int pageSize);
 
+    /** 按指定用户查询关注或粉丝列表，仅登录后可读。 */
+    Page<UserFollowVO> listUserFollows(long ownerId, boolean following, int current, int pageSize);
+
     /**
      * 判断当前登录用户是否已关注指定用户
      *
