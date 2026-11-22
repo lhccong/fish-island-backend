@@ -4,7 +4,6 @@ import com.alibaba.fastjson.JSON;
 import com.cong.fishisland.model.entity.chat.RoomMessage;
 import com.cong.fishisland.model.ws.request.Message;
 import com.cong.fishisland.model.ws.request.MessageWrapper;
-import com.cong.fishisland.service.EmoticonFavourService;
 import com.cong.fishisland.service.RoomMessageService;
 import com.cong.fishisland.websocket.service.WebSocketService;
 import org.junit.jupiter.api.BeforeEach;
@@ -15,10 +14,9 @@ import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.Mockito.*;
 
 class RobotChatMessageServiceTest {
-    private final EmoticonFavourService emoticons = mock(EmoticonFavourService.class);
     private final RoomMessageService history = mock(RoomMessageService.class);
     private final RobotChatMessageService service = new RobotChatMessageService(
-            mock(WebSocketService.class), history, emoticons);
+            mock(WebSocketService.class), history);
 
     @BeforeEach
     void setUp() {
@@ -26,36 +24,22 @@ class RobotChatMessageServiceTest {
     }
 
     @Test
-    void samplesOnlyUserOneAndSavesTheImageWithTheDialogue() {
-        String url = "https://example.test/sample.gif";
-        when(emoticons.pickRandomSourceForUser(1L)).thenReturn(url);
+    void savesSearchKeywordWithTheDialogue() {
+        Message reply = service.saveBigFishReply("来啦。", "开心", true);
 
-        Message reply = service.saveBigFishReply("来啦。", true);
-
-        verify(emoticons).pickRandomSourceForUser(1L);
         ArgumentCaptor<RoomMessage> saved = ArgumentCaptor.forClass(RoomMessage.class);
         verify(history).save(saved.capture());
         Message restored = JSON.parseObject(saved.getValue().getMessageJson(), MessageWrapper.class).getMessage();
-        assertEquals(url, reply.getBigFishEmoticonUrl());
+        assertEquals("开心", reply.getBigFishEmoticonKeyword());
+        assertNull(reply.getBigFishEmoticonUrl());
         assertEquals(reply, restored);
     }
 
     @Test
-    void unsampledReplySkipsTheFavoritesQuery() {
-        assertNull(service.saveBigFishReply("来啦。", false).getBigFishEmoticonUrl());
-        verifyNoInteractions(emoticons);
-    }
-
-    @Test
-    void missingInvalidOrUnavailableImageDoesNotPreventSavingText() {
-        when(emoticons.pickRandomSourceForUser(1L)).thenReturn(null, "https://user:pass@example.test/image.gif")
-                .thenThrow(new IllegalStateException());
-
-        for (int count = 0; count < 3; count++) {
-            Message reply = service.saveBigFishReply("来啦。", true);
-            assertEquals("来啦。", reply.getContent());
-            assertNull(reply.getBigFishEmoticonUrl());
-        }
-        verify(history, times(3)).save(any(RoomMessage.class));
+    void unsampledReplyStillSavesTheDialogue() {
+        Message reply = service.saveBigFishReply("来啦。", "开心", false);
+        assertEquals("来啦。", reply.getContent());
+        assertNull(reply.getBigFishEmoticonKeyword());
+        verify(history).save(any(RoomMessage.class));
     }
 }

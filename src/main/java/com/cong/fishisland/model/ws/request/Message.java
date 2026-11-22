@@ -23,6 +23,7 @@ public class Message {
     private Boolean bigFish;
     @JsonInclude(JsonInclude.Include.NON_NULL)
     private String bigFishEmoticonUrl;
+    private String bigFishEmoticonKeyword;
 
     @JsonInclude(JsonInclude.Include.NON_NULL)
     private String bubbleId;

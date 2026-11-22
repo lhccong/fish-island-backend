@@ -145,6 +145,27 @@ class HttpChatMessageServiceTest {
         assertThrows(BusinessException.class,()->service.send(input,""));
         verify(messages,times(1)).save(any());
     }
+    @Test void bigFishPokePersistsCanonicalActorWithoutLookingUpAUser() {
+        SendMessageRequest input = input();
+        input.setContent("");
+        input.setPokeTargetId("-2");
+        Message message = service.send(input, "").getMessage();
+        assertEquals("123", message.getSender().getId());
+        assertEquals("-2", message.getPoke().getTargetId());
+        assertEquals("大肥鱼", message.getPoke().getTargetName());
+        assertEquals("", message.getPoke().getSuffix());
+        assertEquals("合成昵称拍了拍「大肥鱼」", message.getContent());
+        when(messages.getOne(any(LambdaQueryWrapper.class))).thenReturn(stored);
+        assertEquals(message, service.send(input, "").getMessage());
+        input.setClientMessageId("another-synthetic-id-123");
+        assertThrows(BusinessException.class, () -> service.send(input, ""));
+        input.setPokeTargetId("-1");
+        assertThrows(BusinessException.class, () -> service.send(input, ""));
+        verify(users, never()).getById(any());
+        verify(messages, times(1)).save(any());
+        verify(socket, times(2)).sendToAllOnline(any());
+        verifyNoInteractions(publisher);
+    }
     @Test void pokeValidatesTargetMuteAndRejectsClientContentOrQuote() {
         SendMessageRequest input=poke("");input.setContent("forged");
         assertThrows(BusinessException.class,()->service.send(input,""));

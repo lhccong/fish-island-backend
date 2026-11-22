@@ -61,15 +61,6 @@ public class EmoticonFavourServiceImpl extends ServiceImpl<EmoticonFavourMapper,
         return page(new Page<>(request.getCurrent(), request.getPageSize()), query);
     }
 
-    @Override
-    public String pickRandomSourceForUser(long userId) {
-        EmoticonFavour selected = getOne(new QueryWrapper<EmoticonFavour>()
-                .select("emoticonSrc").eq("userId", userId)
-                .and(picture -> picture.likeRight("emoticonSrc", "https://").or().likeRight("emoticonSrc", "http://"))
-                .last("ORDER BY RAND() LIMIT 1"));
-        return selected == null ? null : selected.getEmoticonSrc();
-    }
-
     /**
      * 判断是否已收藏
      * @param emoticonSrc 收藏表情包路径

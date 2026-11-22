@@ -75,7 +75,7 @@ public class AIQuestionAnswerListener {
             setContent(SYSTEM_PROMPT);
         }});
 
-        AiResponse aiResponse = siliconFlowDataSource.getAiResponse(requestMessages, "Qwen/Qwen2.5-14B-Instruct");
+        AiResponse aiResponse = siliconFlowDataSource.getAiResponse(requestMessages, SiliconFlowDataSource.MOYU_ASSISTANT_MODEL);
 
         SiliconFlowRequest.Message assistantMessage = new SiliconFlowRequest.Message() {{
             setRole("assistant");

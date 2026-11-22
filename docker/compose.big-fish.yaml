@@ -1,0 +1,11 @@
+services:
+  reme:
+    environment:
+      REME_CONFIG: /app/reme-big-fish.yaml
+    volumes:
+      - type: bind
+        source: ./reme-big-fish.yaml
+        target: /app/reme-big-fish.yaml
+        read_only: true
+        bind:
+          create_host_path: false

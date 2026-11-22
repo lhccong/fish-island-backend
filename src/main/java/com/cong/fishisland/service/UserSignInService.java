@@ -46,6 +46,8 @@ public interface UserSignInService extends IService<UserSignIn> {
      */
     SignInStatusVO getSignInStatus();
 
+    boolean hasSignedOn(Long userId, LocalDate date);
+
     /**
      * 获取指定月份的签到日历数据
      *

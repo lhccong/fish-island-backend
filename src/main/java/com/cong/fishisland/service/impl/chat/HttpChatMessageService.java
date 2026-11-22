@@ -122,13 +122,19 @@ public class HttpChatMessageService {
             if (input.getPokeTargetId() != null) {
                 RBucket<String> cooldown = redisson.getBucket("chat:poke:" + user.getId() + ":cooldown");
                 if (cooldown.isExists()) throw new BusinessException(ErrorCode.OPERATION_ERROR, "戳得太快啦，请稍后再试");
-                User target = userService.getById(Long.valueOf(input.getPokeTargetId()));
-                if (target == null || UserConstant.BAN_ROLE.equals(target.getUserRole()))
-                    throw new BusinessException(ErrorCode.PARAMS_ERROR, "该用户暂不可戳");
                 Poke poke = new Poke();
-                poke.setTargetId(target.getId().toString());
-                poke.setTargetName(StringUtils.hasText(target.getUserName()) ? target.getUserName() : "岛友");
-                poke.setSuffix(wordsUtil.Replace(target.getPokeSuffix() == null ? "" : target.getPokeSuffix()));
+                String targetId = input.getPokeTargetId();
+                poke.setTargetId(targetId);
+                if (UserConstant.BIG_FISH_ID.equals(targetId)) {
+                    poke.setTargetName(UserConstant.BIG_FISH_NAME);
+                    poke.setSuffix("");
+                } else {
+                    User target = userService.getById(Long.valueOf(targetId));
+                    if (target == null || UserConstant.BAN_ROLE.equals(target.getUserRole()))
+                        throw new BusinessException(ErrorCode.PARAMS_ERROR, "该用户暂不可戳");
+                    poke.setTargetName(StringUtils.hasText(target.getUserName()) ? target.getUserName() : "岛友");
+                    poke.setSuffix(wordsUtil.Replace(target.getPokeSuffix() == null ? "" : target.getPokeSuffix()));
+                }
                 message.setPoke(poke);
                 message.setContent(user.getUserName() + "拍了拍「" + poke.getTargetName() + "」" + poke.getSuffix());
             } else {
@@ -203,9 +209,11 @@ public class HttpChatMessageService {
 
     private void validate(SendMessageRequest input) {
         if (input != null && input.getPokeTargetId() != null) {
-            if (!input.getPokeTargetId().matches("[1-9][0-9]{0,18}")
-                    || (input.getPokeTargetId().length() == 19 && input.getPokeTargetId().compareTo(Long.toString(Long.MAX_VALUE)) > 0)
-                    || input.getQuotedMessageId() != null || StringUtils.hasText(input.getContent())
+            String targetId = input.getPokeTargetId();
+            boolean validTarget = UserConstant.BIG_FISH_ID.equals(targetId)
+                    || (targetId.matches("[1-9][0-9]{0,18}")
+                    && (targetId.length() < 19 || targetId.compareTo(Long.toString(Long.MAX_VALUE)) <= 0));
+            if (!validTarget || input.getQuotedMessageId() != null || StringUtils.hasText(input.getContent())
                     || input.getClientMessageId() == null || !input.getClientMessageId().matches("[a-zA-Z0-9-]{16,64}"))
                 throw new BusinessException(ErrorCode.PARAMS_ERROR, "戳一戳参数不合法");
             return;

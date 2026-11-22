@@ -81,6 +81,7 @@ public class WebSocketServiceImpl implements WebSocketService {
     private final ChatBubbleService chatBubbles;
     private final LandlordsGameMessageHandler gameMessageHandler;
     private final GameWebSocketHandler gameWebSocketHandler;
+    private final GomokuRooms gomokuRooms = new GomokuRooms(this::sendMsg);
 
 
     /**
@@ -155,6 +156,7 @@ public class WebSocketServiceImpl implements WebSocketService {
 
     @Override
     public void removed(Channel channel) {
+        gomokuRooms.disconnected(channel);
         // handlerRemoved 和 channelInactive 都可能触发，清理必须对同一 channel 幂等。
         WSChannelExtraDTO wsChannelExtraDTO = ONLINE_WS_MAP.remove(channel);
         if (wsChannelExtraDTO == null) {
@@ -267,6 +269,9 @@ public class WebSocketServiceImpl implements WebSocketService {
         long loginUserId = Long.parseLong(loginIdObj.toString());
         User loginUser = userService.getLoginUser(token);
         MessageTypeEnum messageTypeEnum = MessageTypeEnum.of(chatMessageVo.getType());
+        if (messageTypeEnum == null) {
+            return;
+        }
         //发送消息
         switch (messageTypeEnum) {
             case UNDERCOVER:
@@ -346,36 +351,41 @@ public class WebSocketServiceImpl implements WebSocketService {
 
                 break;
             case CREATE_CHESS_ROOM:
-                //创建棋局房间
-                try {
-                    // 尝试解析内容
-                    String gameType = "normal";
-                    String content = chatMessageVo.getContent();
-
-                    if (content != null && !content.isEmpty()) {
-                        JSONObject chessRoomMessage = JSON.parseObject(content);
-                        if (chessRoomMessage != null && chessRoomMessage.containsKey("gameType")) {
-                            String typeValue = chessRoomMessage.getString("gameType");
-                            if (typeValue != null && !typeValue.isEmpty()) {
-                                gameType = typeValue;
-                            }
-                        }
-                    }
-
+                JSONObject options = GomokuRooms.parse(chatMessageVo.getContent());
+                String gameType = options == null ? null : options.getString("gameType");
+                if (CharSequenceUtil.isEmpty(gameType)) gameType = "normal";
+                if ("normal".equals(gameType) && options != null
+                        && Boolean.TRUE.equals(options.get("spectatable"))) {
+                    gomokuRooms.create(channel, loginUserId, loginUser);
+                } else if (channel != null) {
                     createRoom(channel, gameType);
-                } catch (Exception e) {
-                    log.error("创建棋局房间失败", e);
-                    // 出错时使用默认模式创建
-                    createRoom(channel);
                 }
                 break;
             case JOIN_ROOM:
                 //加入棋局房间
-                joinRoom(chatMessageVo, channel, loginUserId);
+                if (GomokuRooms.manages(chatMessageVo.getContent())) {
+                    gomokuRooms.join(channel, loginUserId, loginUser,
+                            chatMessageVo.getContent(), chatMessageVo.getWatchRequestId());
+                } else {
+                    joinRoom(chatMessageVo, channel, loginUserId);
+                }
                 break;
             case MOVE_CHESS:
                 //移动棋子
-                moveChess(chatMessageVo, uid);
+                JSONObject move = GomokuRooms.parse(chatMessageVo.getContent());
+                if (move != null) {
+                    if (GomokuRooms.manages(move.getString(ROOM_ID))) {
+                        gomokuRooms.move(channel, loginUserId, move);
+                    } else {
+                        moveChess(move, uid);
+                    }
+                }
+                break;
+            case CHESS_WATCH:
+                gomokuRooms.watch(channel, loginUserId, GomokuRooms.parse(chatMessageVo.getContent()));
+                break;
+            case CHESS_LEAVE:
+                gomokuRooms.leave(channel, chatMessageVo.getContent());
                 break;
             case CREATE_DRAW_ROOM:
                 createDrawRoom(channel, loginUser);
@@ -448,6 +458,7 @@ public class WebSocketServiceImpl implements WebSocketService {
         message.setPoke(null);
         message.setBigFish(null);
         message.setBigFishEmoticonUrl(null);
+        message.setBigFishEmoticonKeyword(null);
         message.applyBubble(null);
         if (!message.getSender().getId().equals(loginIdObj)) {
             log.info("非法消息发送者：{}，消息内容：{}", message.getSender().getId(), message.getContent());
@@ -508,21 +519,15 @@ public class WebSocketServiceImpl implements WebSocketService {
         sendMsg(channel, createUserListResp);
     }
 
-    private void moveChess(ChatMessageVo chatMessageVo, Long uid) {
+    private void moveChess(JSONObject message, Long uid) {
         CopyOnWriteArrayList<Channel> channels = ONLINE_UID_MAP.get(uid);
         if (CollUtil.isNotEmpty(channels)) {
-            JSONObject message = JSON.parseObject(chatMessageVo.getContent());
-            message.put(ROOM_ID, message.get(ROOM_ID));
             WSBaseResp<Object> wsBaseResp = WSBaseResp.builder()
                     .type(MessageTypeEnum.MOVE_CHESS.getType()).data(message).build();
             channels.forEach(item -> threadPoolTaskExecutor.execute(() -> sendMsg(item, wsBaseResp)));
         } else {
             log.warn("用户 {} 没有可用的WebSocket连接", uid);
         }
-    }
-
-    private void createRoom(Channel channel) {
-        createRoom(channel, "normal");
     }
 
     private void createRoom(Channel channel, String gameType) {

@@ -320,7 +320,8 @@ public class UserSignInServiceImpl extends ServiceImpl<UserSignInMapper, UserSig
     /**
      * 判断某天是否已签到
      */
-    private boolean hasSignedOn(Long userId, LocalDate date) {
+    @Override
+    public boolean hasSignedOn(Long userId, LocalDate date) {
         return getRecordByDate(userId, date) != null;
     }
 

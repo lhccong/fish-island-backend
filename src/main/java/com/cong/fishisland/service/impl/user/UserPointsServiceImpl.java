@@ -7,6 +7,7 @@ import com.cong.fishisland.common.ErrorCode;
 import com.cong.fishisland.common.exception.BusinessException;
 import com.cong.fishisland.common.exception.ThrowUtils;
 import com.cong.fishisland.constant.ActionTypeConstant;
+import com.cong.fishisland.constant.DailyPointCounter;
 import com.cong.fishisland.constant.PointConstant;
 import com.cong.fishisland.constant.SourceTypeConstant;
 import com.cong.fishisland.constant.VipTypeConstant;
@@ -56,9 +57,7 @@ public class UserPointsServiceImpl extends ServiceImpl<UserPointsMapper, UserPoi
     private UserSignInService userSignInService;
 
     private static final String SIGN_IN_KEY_PREFIX = "user:signin:";
-    private static final String SPEAK_KEY_PREFIX = "user:speak:";
     private static final String USER_POINTS_LOCK_PREFIX = "user:points:lock:";
-    private static final int MAX_DAILY_SPEAK_POINTS = 10;
     private static final long POINTS_LOCK_WAIT_SECONDS = 5;
     private static final long POINTS_LOCK_LEASE_SECONDS = 10;
     /** 大额积分变动通知接收人（管理员） */
@@ -185,14 +184,14 @@ public class UserPointsServiceImpl extends ServiceImpl<UserPointsMapper, UserPoi
     @Override
     public void addSpeakPoint(Long userId) {
         // **发言积分**
-        String speakKey = SPEAK_KEY_PREFIX + userId + ":" + LocalDate.now();
+        String speakKey = DailyPointCounter.SPEAK.key(userId, LocalDate.now());
 
         // 获取当前用户今日的发言积分总数
         Integer currentSpeakPoints = Optional.ofNullable(RedisUtils.get(speakKey))
                 .map(Integer::parseInt)
                 .orElse(0);
 
-        if (currentSpeakPoints >= MAX_DAILY_SPEAK_POINTS) {
+        if (currentSpeakPoints >= DailyPointCounter.SPEAK.limit) {
             // 超过每日上限
             return;
         }

@@ -23,6 +23,7 @@ import java.util.List;
  */
 @Component
 public class SiliconFlowDataSource implements AIChatDataSource {
+    public static final String MOYU_ASSISTANT_MODEL = "Qwen/Qwen2.5-14B-Instruct";
 
     @Resource
     private AIModelConfig aiModelConfig;
@@ -33,28 +34,39 @@ public class SiliconFlowDataSource implements AIChatDataSource {
         SiliconFlowRequest request = new SiliconFlowRequest();
         request.setModel(model);
         request.setMessages(messages);
+        return complete(request, -1);
+    }
 
-        // 发送 HTTP 请求
-        HttpResponse response = HttpRequest.post("https://api.siliconflow.cn/v1/chat/completions")
+    String classifyForMoyuAssistant(List<SiliconFlowRequest.Message> messages) {
+        SiliconFlowRequest request = new SiliconFlowRequest();
+        request.setModel(MOYU_ASSISTANT_MODEL);
+        request.setMessages(messages);
+        request.setTemperature(0.1);
+        request.setTools(null);
+        return complete(request, 5000).getAnswer();
+    }
+
+    private AiResponse complete(SiliconFlowRequest request, int timeout) {
+        try (HttpResponse response = HttpRequest.post("https://api.siliconflow.cn/v1/chat/completions")
                 .header("Authorization", "Bearer " + aiModelConfig.getSiliconFlow())
                 .header("Content-Type", "application/json")
+                .timeout(timeout)
                 .body(JSONUtil.toJsonStr(request))
-                .execute();
+                .execute()) {
+            if (!response.isOk()) throw new IllegalStateException("SiliconFlow HTTP " + response.getStatus());
 
-        SiliconFlowResponse siliconFlowResponse = JSON.parseObject(response.body(), SiliconFlowResponse.class);
-        //将所有消息合并成一个字符串
-        StringBuilder allMessage = new StringBuilder();
-        for (SiliconFlowResponse.Choice choice : siliconFlowResponse.getChoices()) {
-            allMessage.append(choice.getMessage().getContent());
+            SiliconFlowResponse result = JSON.parseObject(response.body(), SiliconFlowResponse.class);
+            StringBuilder answer = new StringBuilder();
+            for (SiliconFlowResponse.Choice choice : result.getChoices()) {
+                answer.append(choice.getMessage().getContent());
+            }
+            String[] parts = answer.toString().split("</think>");
+            return AiResponse.builder()
+                    .id(String.valueOf(result.getCreated()))
+                    .aiName(result.getModel())
+                    .answer(parts.length > 1 ? parts[1].trim() : parts[0].trim())
+                    .build();
         }
-
-        String[] result = allMessage.toString().split("</think>");
-        return AiResponse
-                .builder()
-                .id(String.valueOf(siliconFlowResponse.getCreated()))
-                .aiName(siliconFlowResponse.getModel())
-                .answer(result.length > 1 ? result[1].trim() : result[0].trim())
-                .build();
     }
 
     @Override
@@ -86,6 +98,6 @@ public class SiliconFlowDataSource implements AIChatDataSource {
 
     @Override
     public AiResponse getAiResponse(String prompt) {
-        return getAiResponse(prompt, "Qwen/Qwen2.5-14B-Instruct");
+        return getAiResponse(prompt, MOYU_ASSISTANT_MODEL);
     }
 }

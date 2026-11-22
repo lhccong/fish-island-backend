@@ -16,4 +16,8 @@ public class ChatMessageVo {
     private String type;
     private String content;
 
+    /**
+     * 邀请链接在房间已开局时用于匹配观战响应。
+     */
+    private String watchRequestId;
 }

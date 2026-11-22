@@ -363,7 +363,15 @@ public class TowerClimbServiceImpl implements TowerClimbService {
 
     // ---- 工具方法 ----
 
-    private int getRemainingDailyChallenges(Long userId) {
+    @Override
+    public boolean hasOpenFloor(Long userId) {
+        return towerClimbProgressMapper.selectCount(new LambdaQueryWrapper<TowerClimbProgress>()
+                .eq(TowerClimbProgress::getUserId, userId)
+                .ge(TowerClimbProgress::getMaxFloor, MAX_OPEN_FLOOR)) == 0;
+    }
+
+    @Override
+    public int getRemainingDailyChallenges(Long userId) {
         try {
             String dateStr = LocalDate.now().toString();
             String key = RedisKey.getKey(RedisKey.TOWER_CLIMB_USER_DAILY_KEY, userId, dateStr);

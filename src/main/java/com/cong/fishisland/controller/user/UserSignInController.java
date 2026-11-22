@@ -1,15 +1,18 @@
 package com.cong.fishisland.controller.user;
 
+import cn.dev33.satoken.stp.StpUtil;
 import com.cong.fishisland.annotation.NoRepeatSubmit;
 import com.cong.fishisland.common.BaseResponse;
 import com.cong.fishisland.common.ErrorCode;
 import com.cong.fishisland.common.ResultUtils;
 import com.cong.fishisland.common.exception.BusinessException;
 import com.cong.fishisland.model.dto.user.MakeUpSignInRequest;
+import com.cong.fishisland.model.vo.user.DailyPointTasksVO;
 import com.cong.fishisland.model.vo.user.MonthSignInVO;
 import com.cong.fishisland.model.vo.user.SignInStatusVO;
 import com.cong.fishisland.model.vo.user.SignInVO;
 import com.cong.fishisland.service.UserSignInService;
+import com.cong.fishisland.service.impl.user.DailyPointTasksService;
 import io.swagger.annotations.Api;
 import io.swagger.annotations.ApiOperation;
 import lombok.extern.slf4j.Slf4j;
@@ -17,6 +20,7 @@ import org.apache.commons.lang3.StringUtils;
 import org.springframework.web.bind.annotation.*;
 
 import javax.annotation.Resource;
+import javax.servlet.http.HttpServletResponse;
 
 /**
  * 连续签到接口
@@ -31,6 +35,15 @@ public class UserSignInController {
 
     @Resource
     private UserSignInService userSignInService;
+
+    @Resource
+    private DailyPointTasksService dailyPointTasksService;
+
+    @GetMapping("/tasks")
+    public BaseResponse<DailyPointTasksVO> getDailyPointTasks(HttpServletResponse response) {
+        response.setHeader("Cache-Control", "no-store");
+        return ResultUtils.success(dailyPointTasksService.snapshot(StpUtil.getLoginIdAsLong()));
+    }
 
     /**
      * 补签

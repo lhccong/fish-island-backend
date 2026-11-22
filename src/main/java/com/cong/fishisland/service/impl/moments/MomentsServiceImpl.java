@@ -9,6 +9,7 @@ import com.cong.fishisland.common.ErrorCode;
 import com.cong.fishisland.common.exception.BusinessException;
 import com.cong.fishisland.common.exception.ThrowUtils;
 import com.cong.fishisland.constant.PointConstant;
+import com.cong.fishisland.constant.DailyPointCounter;
 import com.cong.fishisland.mapper.moments.MomentsCommentMapper;
 import com.cong.fishisland.mapper.moments.MomentsLikeMapper;
 import com.cong.fishisland.mapper.moments.MomentsMapper;
@@ -74,8 +75,6 @@ public class MomentsServiceImpl extends ServiceImpl<MomentsMapper, Moments>
     private final UserPointsRecordService userPointsRecordService;
     private final UserVipService userVipService;
 
-    private static final String MOMENTS_PUBLISH_KEY_PREFIX = "user:moments:publish:";
-    private static final String MOMENTS_LIKE_KEY_PREFIX = "user:moments:like:";
     // 打赏限流：每人每天对同一动态只能打赏一次
     private static final String MOMENTS_REWARD_USER_KEY_PREFIX = "user:moments:reward:";
     // 每日打赏次数：user:moments:reward:times:{userId}:{date}
@@ -103,7 +102,7 @@ public class MomentsServiceImpl extends ServiceImpl<MomentsMapper, Moments>
         save(moments);
 
         // 发布朋友圈积分奖励（每天一次）
-        String publishKey = MOMENTS_PUBLISH_KEY_PREFIX + userId + ":" + LocalDate.now();
+        String publishKey = DailyPointCounter.MOMENTS_PUBLISH.key(userId, LocalDate.now());
         if (RedisUtils.get(publishKey) == null) {
             userPointsService.updatePoints(userId, PointConstant.MOMENTS_PUBLISH_POINT, false);
             UserPoints publishUserPoints = userPointsService.getById(userId);
@@ -302,7 +301,7 @@ public class MomentsServiceImpl extends ServiceImpl<MomentsMapper, Moments>
                 eventRemindHandler.handleMomentsLike(momentId, userId, moments.getUserId());
             }
             // 点赞积分奖励（每天上限5）
-            String likeKey = MOMENTS_LIKE_KEY_PREFIX + userId + ":" + LocalDate.now();
+            String likeKey = DailyPointCounter.MOMENTS_LIKE.key(userId, LocalDate.now());
             int todayLikePoints = Optional.ofNullable(RedisUtils.get(likeKey))
                     .map(Integer::parseInt).orElse(0);
             if (todayLikePoints < PointConstant.MAX_DAILY_MOMENTS_LIKE_POINTS) {

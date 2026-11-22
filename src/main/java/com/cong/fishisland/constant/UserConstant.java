@@ -33,6 +33,7 @@ public interface UserConstant {
      */
     String ROBOT_ID = "-1";
     String BIG_FISH_ID = "-2";
+    String BIG_FISH_NAME = "大肥鱼";
 
     // endregion
 }

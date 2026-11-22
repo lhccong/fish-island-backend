@@ -23,6 +23,7 @@ import static com.cong.fishisland.model.enums.user.PointsRecordSourceEnum.PET_TR
 public class PetTreasureService {
     public static final long DURATION = 5000;
     public static final long REFRESH = 3600000;
+    public static final int DAILY_LIMIT = 5;
     private static final ZoneId ZONE = ZoneId.of("Asia/Shanghai");
     private final PetTreasureMapper mapper;
     private final UserPointsService points;
@@ -62,7 +63,7 @@ public class PetTreasureService {
             PetTreasureVO state = snapshot(userId, now);
             // A lost response or a second tab resumes the same operation.
             if (state.getActive() != null) return state;
-            if (state.getUsed() >= 5) {
+            if (state.getUsed() >= DAILY_LIMIT) {
                 throw new BusinessException(ErrorCode.OPERATION_ERROR, "今天已挖宝五次，明天再来吧");
             }
             if (state.getNextAvailableAt() > now) {
@@ -116,7 +117,7 @@ public class PetTreasureService {
         state.setResetAt(day(now).plusDays(1).atStartOfDay(ZONE).toInstant().toEpochMilli());
         state.setUsed(mapper.countDay(userId, day(now)));
         long next = last == null ? 0 : last.getReadyAt() + REFRESH;
-        state.setNextAvailableAt(state.getUsed() >= 5 ? Math.max(next, state.getResetAt()) : next);
+        state.setNextAvailableAt(state.getUsed() >= DAILY_LIMIT ? Math.max(next, state.getResetAt()) : next);
         if (last != null && last.getCompletedAt() == null) {
             PetTreasureVO.Active active = new PetTreasureVO.Active();
             active.setId(last.getId());

@@ -19,6 +19,10 @@ public interface TowerClimbService {
      */
     TowerProgressVO getProgress();
 
+    int getRemainingDailyChallenges(Long userId);
+
+    boolean hasOpenFloor(Long userId);
+
     /**
      * 获取指定层的怪物信息
      *

@@ -1,0 +1,33 @@
+extends: default
+log_to_console: false
+log_to_file: false
+
+jobs:
+  dream_cron:
+    enabled: false
+  proactive_refresh_cron:
+    enabled: false
+  big_fish_search:
+    backend: base
+    description: Find memory passages within one Big Fish session
+    parameters:
+      type: object
+      properties:
+        query: { type: string, minLength: 1 }
+        limit: { type: integer, minimum: 1, maximum: 3, default: 3 }
+        search_filter:
+          type: object
+          properties:
+            session_id: { type: string, pattern: '^fish-[0-9a-f]{64}$' }
+          required: [session_id]
+          additionalProperties: false
+      required: [query, search_filter]
+    steps:
+      - backend: search_step
+        expand_links: false
+
+components:
+  file_chunker:
+    markdown:
+      include_frontmatter_in_metadata: true
+      include_frontmatter_keys_in_metadata: [session_id]

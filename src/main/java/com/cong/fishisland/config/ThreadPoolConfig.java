@@ -31,6 +31,7 @@ public class ThreadPoolConfig implements AsyncConfigurer {
 
     public static final String AI_CHAT_EXECUTOR = "aiChatExecutor";
     public static final String BIG_FISH_EXECUTOR = "bigFishExecutor";
+    public static final String BIG_FISH_MEMORY_EXECUTOR = "bigFishMemoryExecutor";
 
     @Override
     public Executor getAsyncExecutor() {
@@ -91,6 +92,16 @@ public class ThreadPoolConfig implements AsyncConfigurer {
         executor.setMaxPoolSize(2);
         executor.setQueueCapacity(8);
         executor.setThreadNamePrefix("big-fish-");
+        return executor;
+    }
+
+    @Bean(BIG_FISH_MEMORY_EXECUTOR)
+    public ThreadPoolTaskExecutor bigFishMemoryExecutor() {
+        ThreadPoolTaskExecutor executor = new ThreadPoolTaskExecutor();
+        executor.setCorePoolSize(1);
+        executor.setMaxPoolSize(1);
+        executor.setQueueCapacity(32);
+        executor.setThreadNamePrefix("big-fish-memory-");
         return executor;
     }
 }
