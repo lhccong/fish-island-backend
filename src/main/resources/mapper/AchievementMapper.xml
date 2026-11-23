@@ -1,0 +1,31 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.cong.fishisland.mapper.AchievementMapper">
+    <select id="lockPoints" resultType="long">
+        SELECT userId FROM user_points WHERE userId = #{userId} FOR UPDATE
+    </select>
+    <select id="farmLevel" resultType="int">
+        SELECT level FROM farm_user WHERE userId = #{userId}
+    </select>
+    <select id="openedPacks" resultType="long">
+        SELECT opened FROM pet_card_player WHERE user_id = #{userId}
+    </select>
+    <select id="petLevel" resultType="int">
+        SELECT MAX(level) FROM fish_pet WHERE userId = #{userId} AND isDelete = 0
+    </select>
+    <select id="equipmentLevels" resultType="com.cong.fishisland.mapper.AchievementMapper$Equipment">
+        SELECT f.equipSlot AS slot, COALESCE(MAX(f.equipLevel), 0) AS level
+        FROM pet_equip_forge f JOIN fish_pet p ON p.petId = f.petId
+        WHERE p.userId = #{userId} AND p.isDelete = 0
+        GROUP BY f.equipSlot
+    </select>
+    <select id="rewards" resultType="com.cong.fishisland.mapper.AchievementMapper$Reward">
+        SELECT achievement_id AS achievementId, subject_id AS subjectId, claimed_tiers AS claimedTiers
+        FROM user_achievement_reward WHERE user_id = #{userId}
+    </select>
+    <insert id="saveReward">
+        INSERT INTO user_achievement_reward (user_id, achievement_id, subject_id, claimed_tiers)
+        VALUES (#{userId}, #{achievementId}, #{subjectId}, #{claimedTiers})
+        ON DUPLICATE KEY UPDATE claimed_tiers = #{claimedTiers}
+    </insert>
+</mapper>

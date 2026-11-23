@@ -38,6 +38,8 @@ import java.util.*;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
+import static com.cong.fishisland.constant.PetForgeConstant.MAX_EQUIP_LEVEL;
+
 /**
  * 宠物装备锻造服务实现
  *
@@ -67,8 +69,6 @@ public class PetEquipForgeServiceImpl extends ServiceImpl<PetEquipForgeMapper, P
     private static final int BASE_UPGRADE_COST = 50;
     /** 升级积分递增系数（等级 * 系数） */
     private static final int UPGRADE_COST_FACTOR = 20;
-    /** 最大装备等级 */
-    private static final int MAX_EQUIP_LEVEL = 20;
 
     /**
      * 词条属性列表，用于随机

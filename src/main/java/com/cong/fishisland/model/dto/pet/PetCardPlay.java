@@ -1,6 +1,8 @@
 package com.cong.fishisland.model.dto.pet;
 
 import lombok.Data;
+import lombok.AllArgsConstructor;
+import lombok.NoArgsConstructor;
 import lombok.Value;
 
 import java.util.List;
@@ -66,6 +68,18 @@ public final class PetCardPlay {
         String nextCursor;
     }
 
+    @Data
+    @NoArgsConstructor
+    @AllArgsConstructor
+    public static class BatchResult {
+        private int openedPacks;
+        private int newCards;
+        private int duplicateCards;
+        private int upgradedCards;
+        private int addedStars;
+        private long spentDuplicates;
+    }
+
     @Value
     public static class State {
         String day;
@@ -77,5 +91,6 @@ public final class PetCardPlay {
         List<Stock> stock;
         List<Owned> collection;
         Opening pending;
+        BatchResult batch;
     }
 }

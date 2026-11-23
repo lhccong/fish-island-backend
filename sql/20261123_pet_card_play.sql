@@ -46,6 +46,6 @@ CREATE TABLE IF NOT EXISTS pet_card_opening (
 CREATE TABLE IF NOT EXISTS pet_card_operation (
     user_id BIGINT NOT NULL COMMENT '提交操作的账号编号',
     request_id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin NOT NULL COMMENT '客户端生成的操作 UUID，同一操作重试时复用',
-    command JSON NOT NULL COMMENT '已成功提交的操作参数，用于校验重试是否对应同一操作',
+    command JSON NOT NULL COMMENT '成功操作的参数及批量结算汇总，用于校验重试并回传结果',
     PRIMARY KEY (user_id, request_id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='卡包成功操作的幂等记录，与业务结果一并提交';

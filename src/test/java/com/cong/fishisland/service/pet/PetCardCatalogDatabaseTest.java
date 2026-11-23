@@ -4,6 +4,7 @@ import com.cong.fishisland.common.exception.BusinessException;
 import com.cong.fishisland.config.MinioConfig;
 import com.cong.fishisland.controller.pet.PetCardCatalogController;
 import com.cong.fishisland.manager.MinioManager;
+import com.cong.fishisland.mapper.PetCardCatalogMapper;
 import com.cong.fishisland.model.dto.pet.PetCardCatalog.Atlas;
 import com.cong.fishisland.model.dto.pet.PetCardCatalog.Card;
 import com.cong.fishisland.model.dto.pet.PetCardCatalog.Pool;
@@ -12,13 +13,9 @@ import io.minio.MakeBucketArgs;
 import io.minio.MinioClient;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.condition.EnabledIfEnvironmentVariable;
-import org.springframework.core.io.FileSystemResource;
-import org.springframework.jdbc.core.JdbcTemplate;
-import org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate;
-import org.springframework.jdbc.datasource.DataSourceTransactionManager;
-import org.springframework.jdbc.datasource.DriverManagerDataSource;
-import org.springframework.jdbc.datasource.init.ResourceDatabasePopulator;
+import org.springframework.context.annotation.AnnotationConfigApplicationContext;
 import org.springframework.test.util.ReflectionTestUtils;
+import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.support.TransactionTemplate;
 import org.springframework.util.StreamUtils;
 import org.springframework.util.ReflectionUtils;
@@ -38,13 +35,16 @@ import static org.junit.jupiter.api.Assertions.*;
 class PetCardCatalogDatabaseTest {
     @Test
     void importsAndReadsCatalogAndSavesVersionedConfiguration() throws Exception {
-        DriverManagerDataSource source = new DriverManagerDataSource(System.getenv("PET_CARD_VERIFY_JDBC"), "root", "");
-        new ResourceDatabasePopulator(new FileSystemResource("sql/20261122_pet_card_catalog.sql"),
-                new FileSystemResource("sql/20261123_pet_card_play.sql")).execute(source);
-        JdbcTemplate jdbc = new JdbcTemplate(source);
+        try (AnnotationConfigApplicationContext context = PetCardDatabaseContext.open(System.getenv("PET_CARD_VERIFY_JDBC"),
+                "file:sql/20261122_pet_card_catalog.sql", "file:sql/20261123_pet_card_play.sql")) {
+            verifyCatalog(context);
+        }
+    }
+
+    private void verifyCatalog(AnnotationConfigApplicationContext context) throws Exception {
         ObjectMapper json = new ObjectMapper();
-        PetCardCatalogStore store = new PetCardCatalogStore(jdbc, new NamedParameterJdbcTemplate(source), json);
-        TransactionTemplate transactions = new TransactionTemplate(new DataSourceTransactionManager(source));
+        PetCardCatalogStore store = new PetCardCatalogStore(context.getBean(PetCardCatalogMapper.class), json);
+        TransactionTemplate transactions = new TransactionTemplate(context.getBean(PlatformTransactionManager.class));
         PetCardAtlasStore images = new PetCardAtlasStore(objectStorage());
         PetCardCatalogSeed seed = new PetCardCatalogSeed(store, images, json);
         ReflectionTestUtils.setField(seed, "directory", System.getenv("PET_CARD_VERIFY_ASSETS"));
@@ -55,7 +55,7 @@ class PetCardCatalogDatabaseTest {
         assertEquals(100, publicApi.catalog().getData().getCards().size());
         assertEquals(2, publicApi.catalog().getData().getPools().size());
         assertEquals(10, service.atlases().size());
-        assertEquals(100, jdbc.queryForObject("SELECT COUNT(*) FROM pet_card_pool_entry", Integer.class).intValue());
+        assertEquals(100, PetCardDatabaseFixtures.from(context).countMemberships());
         assertEquals(50, service.cards("island", "", 1).getTotal());
         assertEquals(20, service.cards("kingdoms", "", 2).getItems().size());
         for (Atlas atlas : service.atlases()) {

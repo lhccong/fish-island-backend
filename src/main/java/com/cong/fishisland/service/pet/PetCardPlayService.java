@@ -2,6 +2,7 @@ package com.cong.fishisland.service.pet;
 
 import com.cong.fishisland.common.ErrorCode;
 import com.cong.fishisland.common.exception.BusinessException;
+import com.cong.fishisland.mapper.PetCardPlayMapper.Player;
 import com.cong.fishisland.model.dto.pet.PetCardCatalog.Card;
 import com.cong.fishisland.model.dto.pet.PetCardCatalog.Pool;
 import com.cong.fishisland.model.dto.pet.PetCardPlay.*;
@@ -10,6 +11,7 @@ import com.cong.fishisland.model.enums.user.PointsRecordSourceEnum;
 import com.cong.fishisland.service.UserPointsService;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.node.ObjectNode;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.annotation.Transactional;
@@ -54,7 +56,7 @@ public class PetCardPlayService {
 
     @Transactional(readOnly = true)
     public State state(long userId) {
-        return readState(userId, LocalDate.now(BEIJING));
+        return readState(userId, LocalDate.now(BEIJING), null);
     }
 
     @Transactional(readOnly = true)
@@ -84,10 +86,12 @@ public class PetCardPlayService {
         JsonNode submitted = json.valueToTree(command);
         JsonNode receipt = store.receipt(userId, command.getRequestId());
         if (receipt != null) {
-            require(receipt.equals(submitted), "操作编号已经使用");
-            return readState(userId, day);
+            boolean hasBatch = receipt.has("batch");
+            require((hasBatch ? receipt.get("request") : receipt).equals(submitted), "操作编号已经使用");
+            return readState(userId, day, hasBatch ? json.convertValue(receipt.get("batch"), BatchResult.class) : null);
         }
-        PetCardPlayStore.Player player = store.player(userId);
+        Player player = store.player(userId);
+        BatchResult batch = null;
         switch (command.getType()) {
             case "claim":
                 claim(userId, command.getPoolId(), player, day);
@@ -96,7 +100,12 @@ public class PetCardPlayService {
                 buy(userId, command, player);
                 break;
             case "open":
-                open(userId, command.getPoolId(), player, now);
+                open(userId, command.getPoolId(), player, now, 1);
+                break;
+            case "openBatch":
+                Integer quantity = command.getQuantity();
+                require(quantity != null && quantity >= 2 && quantity <= 10, "一次可批量拆开 2–10 包");
+                batch = open(userId, command.getPoolId(), player, now, quantity);
                 break;
             case "finish":
                 long id = parseId(command.getOpeningId());
@@ -106,6 +115,9 @@ public class PetCardPlayService {
             case "upgrade":
                 upgrade(userId, command);
                 break;
+            case "upgradeAll":
+                batch = upgradeAll(userId);
+                break;
             case "display":
             case "remove":
                 display(userId, command.getCardId(), "display".equals(command.getType()));
@@ -113,11 +125,17 @@ public class PetCardPlayService {
             default:
                 throw new BusinessException(ErrorCode.PARAMS_ERROR, "不支持的卡包操作");
         }
+        if (batch != null) {
+            ObjectNode completed = json.createObjectNode();
+            completed.set("request", submitted);
+            completed.set("batch", json.valueToTree(batch));
+            submitted = completed;
+        }
         store.receipt(userId, command.getRequestId(), submitted);
-        return readState(userId, day);
+        return readState(userId, day, batch);
     }
 
-    private void claim(long userId, String id, PetCardPlayStore.Player player, LocalDate day) {
+    private void claim(long userId, String id, Player player, LocalDate day) {
         require(ISLAND_POOL.equals(id), "只有海岛卡包可免费领取");
         int claims = day.equals(player.getClaimDay()) ? player.getClaims() : 0;
         require(claims < DAILY_FREE, "今日的免费卡包已领完");
@@ -126,7 +144,7 @@ public class PetCardPlayService {
         store.addStock(userId, id, 1);
     }
 
-    private void buy(long userId, Command command, PetCardPlayStore.Player player) {
+    private void buy(long userId, Command command, Player player) {
         Pool pool = availablePool(command.getPoolId(), player);
         require(Objects.equals(command.getUnitPrice(), pool.getUnitPrice()), "卡包价格已更新，请重新打开卡包页面确认");
         require(command.getQuantity() != null, "请选择购买数量");
@@ -137,23 +155,32 @@ public class PetCardPlayService {
         store.addStock(userId, pool.getId(), command.getQuantity());
     }
 
-    private void open(long userId, String id, PetCardPlayStore.Player player, Instant now) {
+    private BatchResult open(long userId, String id, Player player, Instant now, int quantity) {
         require(player.getPending() == null, "请先完成当前卡包");
         Pool pool = availablePool(id, player);
         Stock stock = store.stock(userId, id);
-        require(stock.getQuantity() > 0, "没有待拆卡包");
-        List<Card> drawn = draw(pool, catalog.poolCards(id), stock.getOpened() == 0, RANDOM::nextInt);
+        require(stock.getQuantity() >= quantity, quantity == 1 ? "没有待拆卡包" : "待拆库存不足，请确认拆包数量");
+        List<Card> cards = catalog.poolCards(id);
         Set<String> owned = store.collection(userId).stream().map(Owned::getCardId).collect(Collectors.toCollection(HashSet::new));
-        List<Pull> pulls = new ArrayList<>();
-        for (Card card : drawn) {
-            boolean duplicate = !owned.add(card.getId());
-            store.collect(userId, card.getId(), duplicate);
-            pulls.add(new Pull(card.getId(), card.getName(), duplicate));
+        int previousSize = owned.size();
+        LocalDateTime openedAt = LocalDateTime.ofInstant(now, ZoneOffset.UTC);
+        long openingId = 0;
+        for (int pack = 0; pack < quantity; pack++) {
+            List<Card> drawn = draw(pool, cards, stock.getOpened() == 0 && pack == 0, RANDOM::nextInt);
+            List<Pull> pulls = new ArrayList<>(PACK_SIZE);
+            for (Card card : drawn) {
+                boolean duplicate = !owned.add(card.getId());
+                store.collect(userId, card.getId(), duplicate);
+                pulls.add(new Pull(card.getId(), card.getName(), duplicate));
+            }
+            openingId = store.recordOpening(userId, id, pool.getName(), openedAt, pulls);
         }
-        store.open(userId, id, pool.getName(), LocalDateTime.ofInstant(now, ZoneOffset.UTC), pulls);
+        store.consumeStock(userId, id, quantity, quantity == 1 ? openingId : null);
+        int newCards = owned.size() - previousSize;
+        return quantity == 1 ? null : new BatchResult(quantity, newCards, quantity * PACK_SIZE - newCards, 0, 0, 0);
     }
 
-    private Pool availablePool(String id, PetCardPlayStore.Player player) {
+    private Pool availablePool(String id, Player player) {
         validateId(id);
         int minimum = requiredLevel(id);
         require(level(player.getOpened()) >= minimum, "抽卡等级达到 " + minimum + " 级后解锁");
@@ -171,7 +198,30 @@ public class PetCardPlayService {
         Integer cost = card.getUpgradeCost();
         require(cost != null, "卡片已达最高星级");
         require(card.getDuplicates() >= cost, "同名重复卡数量不足");
-        store.upgrade(userId, card.getCardId(), cost);
+        store.upgrade(userId, card.getCardId(), card.getStars() + 1, cost);
+    }
+
+    private BatchResult upgradeAll(long userId) {
+        int upgraded = 0;
+        int addedStars = 0;
+        long spentDuplicates = 0;
+        for (Owned card : store.collection(userId)) {
+            int target = card.getStars();
+            int spent = 0;
+            Integer cost = card.getUpgradeCost();
+            while (cost != null && card.getDuplicates() - spent >= cost) {
+                spent += cost;
+                cost = upgradeCost(++target);
+            }
+            if (target > card.getStars()) {
+                store.upgrade(userId, card.getCardId(), target, spent);
+                upgraded++;
+                addedStars += target - card.getStars();
+                spentDuplicates += spent;
+            }
+        }
+        require(upgraded > 0, "当前没有可升星的卡片");
+        return new BatchResult(0, 0, 0, upgraded, addedStars, spentDuplicates);
     }
 
     private void display(long userId, String id, boolean displayed) {
@@ -189,8 +239,8 @@ public class PetCardPlayService {
         return card;
     }
 
-    private State readState(long userId, LocalDate day) {
-        PetCardPlayStore.Player player = store.player(userId);
+    private State readState(long userId, LocalDate day, BatchResult batch) {
+        Player player = store.player(userId);
         int remaining = day.equals(player.getClaimDay()) ? DAILY_FREE - player.getClaims() : DAILY_FREE;
         UserPoints wallet = points.getById(userId);
         long balance = wallet == null ? 0 : (long) zero(wallet.getPoints()) - zero(wallet.getUsedPoints());
@@ -198,7 +248,7 @@ public class PetCardPlayService {
         return new State(day.toString(), remaining, player.getOpened(), level,
                 openingsToNextLevel(player.getOpened(), level), balance,
                 store.stock(userId), store.collection(userId),
-                player.getPending() == null ? null : store.opening(userId, player.getPending()));
+                player.getPending() == null ? null : store.opening(userId, player.getPending()), batch);
     }
 
     private static int zero(Integer amount) {

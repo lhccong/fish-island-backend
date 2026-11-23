@@ -1,0 +1,129 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.cong.fishisland.mapper.PetCardPlayMapper">
+    <resultMap id="player" type="com.cong.fishisland.mapper.PetCardPlayMapper$Player">
+        <constructor>
+            <arg column="claim_day" javaType="java.time.LocalDate"/>
+            <arg column="claims" javaType="_int"/>
+            <arg column="opened" javaType="_long"/>
+            <arg column="pending_open" javaType="long"/>
+        </constructor>
+    </resultMap>
+
+    <resultMap id="stock" type="com.cong.fishisland.model.dto.pet.PetCardPlay$Stock">
+        <constructor>
+            <idArg column="pool_id" javaType="string"/>
+            <arg column="quantity" javaType="_int"/>
+            <arg column="opened" javaType="_long"/>
+        </constructor>
+    </resultMap>
+
+    <resultMap id="owned" type="com.cong.fishisland.mapper.PetCardPlayMapper$OwnedRow">
+        <constructor>
+            <idArg column="card_id" javaType="string"/>
+            <arg column="stars" javaType="_int"/>
+            <arg column="duplicates" javaType="_long"/>
+            <arg column="showcased" javaType="_boolean"/>
+        </constructor>
+    </resultMap>
+
+    <resultMap id="opening" type="com.cong.fishisland.mapper.PetCardPlayMapper$OpeningRow">
+        <constructor>
+            <idArg column="id" javaType="long"/>
+            <arg column="pool_id" javaType="string"/>
+            <arg column="pool_name" javaType="string"/>
+            <arg column="opened_at" javaType="java.time.LocalDateTime"/>
+            <arg column="cards" javaType="string"/>
+        </constructor>
+    </resultMap>
+
+    <sql id="collectionColumns">card_id, stars, duplicates, showcased</sql>
+    <sql id="openingColumns">id, pool_id, pool_name, opened_at, cards</sql>
+
+    <insert id="lockPlayer">
+        INSERT INTO pet_card_player (user_id) VALUES (#{userId})
+        ON DUPLICATE KEY UPDATE user_id = user_id
+    </insert>
+
+    <select id="player" resultMap="player">
+        SELECT claim_day, claims, opened, pending_open FROM pet_card_player WHERE user_id = #{userId}
+    </select>
+
+    <select id="receipt" resultType="string">
+        SELECT command FROM pet_card_operation WHERE user_id = #{userId} AND request_id = #{requestId}
+    </select>
+
+    <insert id="saveReceipt">
+        INSERT INTO pet_card_operation (user_id, request_id, command) VALUES (#{userId}, #{requestId}, #{command})
+    </insert>
+
+    <select id="stocks" resultMap="stock">
+        SELECT pool_id, quantity, opened FROM pet_card_stock WHERE user_id = #{userId} ORDER BY pool_id
+    </select>
+
+    <select id="stock" resultMap="stock">
+        SELECT pool_id, quantity, opened FROM pet_card_stock WHERE user_id = #{userId} AND pool_id = #{pool}
+    </select>
+
+    <insert id="addStock">
+        INSERT INTO pet_card_stock (user_id, pool_id, quantity) VALUES (#{userId}, #{pool}, #{quantity})
+        ON DUPLICATE KEY UPDATE quantity = quantity + #{quantity}
+    </insert>
+
+    <update id="claim">
+        UPDATE pet_card_player SET claim_day = #{day}, claims = #{claims} WHERE user_id = #{userId}
+    </update>
+
+    <insert id="insertOpening" useGeneratedKeys="true" keyProperty="opening.id" keyColumn="id">
+        INSERT INTO pet_card_opening (user_id, pool_id, pool_name, opened_at, cards)
+        VALUES (#{userId}, #{opening.poolId}, #{opening.poolName}, #{opening.openedAt}, #{opening.cards})
+    </insert>
+
+    <update id="consumeStock">
+        UPDATE pet_card_stock SET quantity = quantity - #{quantity}, opened = opened + #{quantity}
+        WHERE user_id = #{userId} AND pool_id = #{pool}
+    </update>
+
+    <update id="recordProgress">
+        UPDATE pet_card_player SET pending_open = #{pending}, opened = opened + #{quantity} WHERE user_id = #{userId}
+    </update>
+
+    <update id="finish">
+        UPDATE pet_card_player SET pending_open = NULL WHERE user_id = #{userId}
+    </update>
+
+    <select id="collection" resultMap="owned">
+        SELECT <include refid="collectionColumns"/> FROM pet_card_collection WHERE user_id = #{userId} ORDER BY card_id
+    </select>
+
+    <select id="owned" resultMap="owned">
+        SELECT <include refid="collectionColumns"/> FROM pet_card_collection WHERE user_id = #{userId} AND card_id = #{card}
+    </select>
+
+    <update id="incrementDuplicates">
+        UPDATE pet_card_collection SET duplicates = duplicates + 1 WHERE user_id = #{userId} AND card_id = #{card}
+    </update>
+
+    <insert id="insertOwned">
+        INSERT INTO pet_card_collection (user_id, card_id) VALUES (#{userId}, #{card})
+    </insert>
+
+    <update id="upgrade">
+        UPDATE pet_card_collection SET stars = #{stars}, duplicates = duplicates - #{cost}
+        WHERE user_id = #{userId} AND card_id = #{card}
+    </update>
+
+    <update id="display">
+        UPDATE pet_card_collection SET showcased = #{displayed} WHERE user_id = #{userId} AND card_id = #{card}
+    </update>
+
+    <select id="opening" resultMap="opening">
+        SELECT <include refid="openingColumns"/> FROM pet_card_opening WHERE user_id = #{userId} AND id = #{id}
+    </select>
+
+    <select id="history" resultMap="opening">
+        SELECT <include refid="openingColumns"/> FROM pet_card_opening WHERE user_id = #{userId}
+        <if test="before != null">AND id &lt; #{before}</if>
+        ORDER BY id DESC LIMIT 21
+    </select>
+</mapper>

@@ -28,6 +28,7 @@ public enum PointsRecordSourceEnum {
     PET_DAILY("pet_daily", "宠物每日产出"),
     PET_CARD_PACK("pet_card_pack", "购买宠物卡包"),
     PET_TREASURE("pet_treasure", "营地挖宝"),
+    ACHIEVEMENT("achievement", "成就奖励"),
     PRIZE_CONVERT("prize_convert", "奖品转积分"),
     ADMIN("admin", "管理员操作"),
     AVATAR_FRAME_EXCHANGE("avatar_frame_exchange", "兑换头像框"),

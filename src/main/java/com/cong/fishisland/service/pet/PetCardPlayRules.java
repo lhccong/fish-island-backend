@@ -11,12 +11,12 @@ import java.util.stream.Collectors;
 
 import static com.cong.fishisland.service.pet.PetCardCatalogRules.require;
 
-final class PetCardPlayRules {
+public final class PetCardPlayRules {
     static final String ISLAND_POOL = "island";
     static final int DAILY_FREE = 2;
     static final int PACK_SIZE = 5;
     static final int SHOWCASE_LIMIT = 3;
-    private static final int MAX_LEVEL = 60;
+    public static final int MAX_LEVEL = 60;
     private static final int FIRST_LEVEL_OPENINGS = 3;
     private static final double LEVEL_GROWTH = 1.07;
     private static final int[] OPENINGS_AT_LEVEL = openingsAtLevels();
@@ -32,7 +32,7 @@ final class PetCardPlayRules {
         return thresholds;
     }
 
-    static int level(long opened) {
+    public static int level(long opened) {
         int level = 1;
         while (level < MAX_LEVEL && opened >= OPENINGS_AT_LEVEL[level + 1]) level++;
         return level;

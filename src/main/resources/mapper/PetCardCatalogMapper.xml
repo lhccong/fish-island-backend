@@ -1,0 +1,177 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.cong.fishisland.mapper.PetCardCatalogMapper">
+    <resultMap id="pool" type="com.cong.fishisland.model.dto.pet.PetCardCatalog$Pool">
+        <id property="id" column="id"/>
+        <result property="name" column="name"/>
+        <result property="weights" column="weights"
+                typeHandler="com.baomidou.mybatisplus.extension.handlers.JacksonTypeHandler"/>
+        <result property="coverId" column="cover_id"/>
+        <result property="unitPrice" column="unit_price"/>
+        <result property="sortOrder" column="sort_order"/>
+        <result property="version" column="version"/>
+    </resultMap>
+
+    <resultMap id="card" type="com.cong.fishisland.model.dto.pet.PetCardCatalog$Card">
+        <id property="id" column="id"/>
+        <result property="name" column="name"/>
+        <result property="grade" column="grade"/>
+        <result property="stats" column="stats"
+                typeHandler="com.baomidou.mybatisplus.extension.handlers.JacksonTypeHandler"/>
+        <result property="battle" column="battle"
+                typeHandler="com.baomidou.mybatisplus.extension.handlers.JacksonTypeHandler"/>
+        <result property="artKey" column="art_key"/>
+        <result property="artTile" column="art_tile"/>
+        <result property="artPortrait" column="portrait"/>
+        <result property="sortOrder" column="sort_order"/>
+        <result property="version" column="version"/>
+    </resultMap>
+
+    <resultMap id="atlas" type="com.cong.fishisland.model.dto.pet.PetCardCatalog$Atlas">
+        <constructor>
+            <idArg column="id" javaType="string"/>
+            <arg column="name" javaType="string"/>
+            <arg column="portrait" javaType="_boolean"/>
+        </constructor>
+    </resultMap>
+
+    <resultMap id="membership" type="com.cong.fishisland.mapper.PetCardCatalogMapper$Membership">
+        <constructor>
+            <arg column="card_id" javaType="string"/>
+            <arg column="pool_id" javaType="string"/>
+        </constructor>
+    </resultMap>
+
+    <sql id="poolColumns">id, name, weights, cover_id, unit_price, sort_order, version</sql>
+
+    <sql id="cardSelection">
+        SELECT c.id, c.name, c.grade, c.stats, c.battle, c.art_key, c.art_tile, c.sort_order, c.version, a.portrait
+        FROM pet_card_definition c JOIN pet_card_atlas a ON a.id = c.art_key
+    </sql>
+
+    <sql id="cardFilter">
+        <where>
+            <if test="pool != null">
+                EXISTS (SELECT 1 FROM pet_card_pool_entry e WHERE e.card_id = c.id AND e.pool_id = #{pool})
+            </if>
+            <if test="query != ''">
+                AND (INSTR(c.name, #{query}) > 0 OR INSTR(CONVERT(c.id USING utf8mb4), #{query}) > 0)
+            </if>
+        </where>
+    </sql>
+
+    <select id="pools" resultMap="pool" flushCache="true">
+        SELECT <include refid="poolColumns"/> FROM pet_card_pool ORDER BY sort_order, id
+        <if test="lock">FOR UPDATE</if>
+    </select>
+
+    <select id="pool" resultMap="pool">
+        SELECT <include refid="poolColumns"/> FROM pet_card_pool WHERE id = #{id}
+    </select>
+
+    <select id="poolCards" resultMap="card">
+        <include refid="cardSelection"/>
+        JOIN pet_card_pool_entry e ON e.card_id = c.id WHERE e.pool_id = #{id} ORDER BY c.id
+    </select>
+
+    <select id="cards" resultMap="card">
+        <include refid="cardSelection"/> ORDER BY c.sort_order, c.id
+    </select>
+
+    <select id="countCards" resultType="_long">
+        SELECT COUNT(*) FROM pet_card_definition c <include refid="cardFilter"/>
+    </select>
+
+    <select id="cardPage" resultMap="card">
+        <include refid="cardSelection"/>
+        <include refid="cardFilter"/> ORDER BY c.sort_order, c.id LIMIT 20 OFFSET #{offset}
+    </select>
+
+    <select id="cardMemberships" resultMap="membership">
+        SELECT card_id, pool_id FROM pet_card_pool_entry WHERE card_id IN
+        <foreach collection="ids" item="id" open="(" separator="," close=")">#{id}</foreach>
+        ORDER BY pool_id
+    </select>
+
+    <select id="lockCardVersion" resultType="int" flushCache="true">
+        SELECT version FROM pet_card_definition WHERE id = #{id} FOR UPDATE
+    </select>
+
+    <select id="memberships" resultType="string">
+        SELECT pool_id FROM pet_card_pool_entry WHERE card_id = #{id}
+    </select>
+
+    <select id="containsCard" resultType="_boolean">
+        SELECT EXISTS (SELECT 1 FROM pet_card_pool_entry WHERE pool_id = #{pool} AND card_id = #{card})
+    </select>
+
+    <select id="hasShinyCard" resultType="_boolean">
+        SELECT EXISTS (
+            SELECT 1 FROM pet_card_pool_entry e JOIN pet_card_definition c ON c.id = e.card_id
+            WHERE e.pool_id = #{pool} AND c.grade = 'shiny'
+        )
+    </select>
+
+    <select id="grades" resultType="string">
+        SELECT DISTINCT c.grade FROM pet_card_pool_entry e JOIN pet_card_definition c ON c.id = e.card_id
+        WHERE e.pool_id = #{pool}
+    </select>
+
+    <insert id="insertCard">
+        INSERT INTO pet_card_definition (id, name, grade, stats, battle, art_key, art_tile, sort_order)
+        VALUES (#{card.id}, #{card.name}, #{card.grade}, #{stats}, #{battle},
+                #{card.artKey}, #{card.artTile}, #{card.sortOrder})
+    </insert>
+
+    <update id="updateCard">
+        UPDATE pet_card_definition
+        SET name = #{card.name}, grade = #{card.grade}, stats = #{stats}, battle = #{battle},
+            art_key = #{card.artKey}, art_tile = #{card.artTile}, sort_order = #{card.sortOrder}, version = version + 1
+        WHERE id = #{card.id} AND version = #{card.version}
+    </update>
+
+    <delete id="deleteMembership">
+        DELETE FROM pet_card_pool_entry WHERE pool_id = #{pool} AND card_id = #{card}
+    </delete>
+
+    <update id="clearCover">
+        UPDATE pet_card_pool SET cover_id = NULL, version = version + 1 WHERE id = #{pool} AND cover_id = #{card}
+    </update>
+
+    <insert id="insertMembership">
+        INSERT INTO pet_card_pool_entry (pool_id, card_id) VALUES (#{pool}, #{card})
+    </insert>
+
+    <insert id="insertPool">
+        INSERT INTO pet_card_pool (id, name, weights, cover_id, sort_order, unit_price)
+        VALUES (#{pool.id}, #{pool.name}, #{weights}, #{pool.coverId}, #{pool.sortOrder}, #{price})
+    </insert>
+
+    <update id="updatePool">
+        UPDATE pet_card_pool
+        SET name = #{pool.name}, weights = #{weights}, cover_id = #{pool.coverId}, sort_order = #{pool.sortOrder},
+            unit_price = COALESCE(#{pool.unitPrice}, unit_price), version = version + 1
+        WHERE id = #{pool.id} AND version = #{pool.version}
+    </update>
+
+    <select id="atlases" resultMap="atlas">
+        SELECT id, name, portrait FROM pet_card_atlas ORDER BY name, id
+    </select>
+
+    <select id="hasAtlas" resultType="_boolean">
+        SELECT EXISTS (SELECT 1 FROM pet_card_atlas WHERE id = #{id})
+    </select>
+
+    <insert id="insertAtlas">
+        INSERT INTO pet_card_atlas (id, name, portrait) VALUES (#{id}, #{name}, #{portrait})
+        ON DUPLICATE KEY UPDATE id = id
+    </insert>
+
+    <select id="atlas" resultMap="atlas">
+        SELECT id, name, portrait FROM pet_card_atlas WHERE id = #{id}
+    </select>
+
+    <insert id="insertSeed">
+        INSERT IGNORE INTO pet_card_catalog_migration (id) VALUES (#{id})
+    </insert>
+</mapper>

@@ -20,6 +20,8 @@ package com.cong.fishisland.constant;
  */
 public interface PetForgeConstant {
 
+    int MAX_EQUIP_LEVEL = 20;
+
     // ==================== 非线性成长指数 ====================
 
     /**
