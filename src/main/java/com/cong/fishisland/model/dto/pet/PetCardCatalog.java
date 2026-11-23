@@ -31,6 +31,7 @@ public final class PetCardCatalog {
         private String name;
         private Map<String, Integer> weights;
         private String coverId;
+        private Integer unitPrice;
         private int sortOrder;
         private Integer version;
     }

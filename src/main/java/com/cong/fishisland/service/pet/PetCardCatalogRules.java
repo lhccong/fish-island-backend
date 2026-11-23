@@ -27,6 +27,8 @@ final class PetCardCatalogRules {
         require(pool.getWeights() != null && pool.getWeights().keySet().equals(GRADES), "请填写全部品质权重");
         require(pool.getWeights().values().stream().allMatch(n -> n != null && n >= 0 && n <= 10000)
                 && pool.getWeights().values().stream().anyMatch(n -> n > 0), "品质权重须在 0–10000 之间且至少一项大于 0");
+        require(pool.getUnitPrice() == null || (pool.getUnitPrice() >= 1 && pool.getUnitPrice() <= 1000000),
+                "卡包单价须在 1–1000000 积分之间");
         if (pool.getCoverId() != null) validateId(pool.getCoverId());
     }
 

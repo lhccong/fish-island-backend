@@ -39,7 +39,8 @@ class PetCardCatalogDatabaseTest {
     @Test
     void importsAndReadsCatalogAndSavesVersionedConfiguration() throws Exception {
         DriverManagerDataSource source = new DriverManagerDataSource(System.getenv("PET_CARD_VERIFY_JDBC"), "root", "");
-        new ResourceDatabasePopulator(new FileSystemResource("sql/20261122_pet_card_catalog.sql")).execute(source);
+        new ResourceDatabasePopulator(new FileSystemResource("sql/20261122_pet_card_catalog.sql"),
+                new FileSystemResource("sql/20261123_pet_card_play.sql")).execute(source);
         JdbcTemplate jdbc = new JdbcTemplate(source);
         ObjectMapper json = new ObjectMapper();
         PetCardCatalogStore store = new PetCardCatalogStore(jdbc, new NamedParameterJdbcTemplate(source), json);

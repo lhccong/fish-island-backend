@@ -35,16 +35,29 @@ public class PetCardCatalogStore {
 
     List<Pool> pools(boolean lock) {
         return jdbc.query("SELECT * FROM pet_card_pool ORDER BY sort_order, id" + (lock ? " FOR UPDATE" : ""),
-                (rs, row) -> {
-                    Pool pool = new Pool();
-                    pool.setId(rs.getString("id"));
-                    pool.setName(rs.getString("name"));
-                    pool.setSortOrder(rs.getInt("sort_order"));
-                    pool.setCoverId(rs.getString("cover_id"));
-                    pool.setWeights(json.convertValue(readJson(rs.getString("weights")), WEIGHTS));
-                    pool.setVersion(rs.getInt("version"));
-                    return pool;
-                });
+                this::readPool);
+    }
+
+    Pool pool(String id) {
+        return jdbc.query("SELECT * FROM pet_card_pool WHERE id=?", this::readPool, id)
+                .stream().findFirst().orElse(null);
+    }
+
+    List<Card> poolCards(String id) {
+        return jdbc.query(CARDS + "JOIN pet_card_pool_entry e ON e.card_id=c.id WHERE e.pool_id=? ORDER BY c.id",
+                this::readCard, id);
+    }
+
+    private Pool readPool(ResultSet rs, int row) throws SQLException {
+        Pool pool = new Pool();
+        pool.setId(rs.getString("id"));
+        pool.setName(rs.getString("name"));
+        pool.setSortOrder(rs.getInt("sort_order"));
+        pool.setCoverId(rs.getString("cover_id"));
+        pool.setWeights(json.convertValue(readJson(rs.getString("weights")), WEIGHTS));
+        pool.setVersion(rs.getInt("version"));
+        pool.setUnitPrice(rs.getInt("unit_price"));
+        return pool;
     }
 
     List<Card> cards() {
@@ -125,12 +138,13 @@ public class PetCardCatalogStore {
     void savePool(Pool pool) {
         String weights = json.valueToTree(pool.getWeights()).toString();
         if (pool.getVersion() == null) {
-            jdbc.update("INSERT INTO pet_card_pool (id, name, weights, cover_id, sort_order) VALUES (?, ?, ?, ?, ?)",
-                    pool.getId(), pool.getName(), weights, pool.getCoverId(), pool.getSortOrder());
+            int price = pool.getUnitPrice() == null ? ("island".equals(pool.getId()) ? 50 : 100) : pool.getUnitPrice();
+            jdbc.update("INSERT INTO pet_card_pool (id, name, weights, cover_id, sort_order, unit_price) VALUES (?, ?, ?, ?, ?, ?)",
+                    pool.getId(), pool.getName(), weights, pool.getCoverId(), pool.getSortOrder(), price);
         } else {
             jdbc.update("UPDATE pet_card_pool SET name=?, weights=?, cover_id=?, sort_order=?,"
-                            + " version=version+1 WHERE id=? AND version=?",
-                    pool.getName(), weights, pool.getCoverId(), pool.getSortOrder(), pool.getId(), pool.getVersion());
+                            + " unit_price=COALESCE(?, unit_price), version=version+1 WHERE id=? AND version=?",
+                    pool.getName(), weights, pool.getCoverId(), pool.getSortOrder(), pool.getUnitPrice(), pool.getId(), pool.getVersion());
         }
     }
 
