@@ -4,6 +4,7 @@ import com.cong.fishisland.game.common.constant.GameRedisKey;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.boot.ApplicationArguments;
 import org.springframework.boot.ApplicationRunner;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Component;
 
@@ -18,6 +19,7 @@ import java.util.Set;
  */
 @Slf4j
 @Component
+@ConditionalOnProperty(name = "fish.game.redis.startup-cleanup", havingValue = "true", matchIfMissing = true)
 public class GameRedisCleanupRunner implements ApplicationRunner {
 
     @Resource
