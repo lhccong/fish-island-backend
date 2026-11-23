@@ -17,7 +17,7 @@ CREATE TABLE IF NOT EXISTS pet_card_stock (
     user_id BIGINT NOT NULL COMMENT '库存所属账号编号',
     pool_id VARCHAR(48) CHARACTER SET ascii COLLATE ascii_bin NOT NULL COMMENT '库存所属卡池的稳定编号',
     quantity INT NOT NULL DEFAULT 0 COMMENT '领取和购买后尚未拆开的卡包数量，跨日保留',
-    opened BIGINT NOT NULL DEFAULT 0 COMMENT '该账号在此卡池的累计开包数，用于判断首包保底',
+    opened BIGINT NOT NULL DEFAULT 0 COMMENT '该账号在此卡池的累计开包数，海岛初遇用此值判断首包保底',
     PRIMARY KEY (user_id, pool_id),
     CONSTRAINT fk_pet_card_stock_pool FOREIGN KEY (pool_id) REFERENCES pet_card_pool (id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='账号按卡池统计的待拆卡包库存与已开包数';

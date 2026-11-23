@@ -18,6 +18,7 @@ import java.util.function.Function;
 import java.util.stream.Collectors;
 
 import static com.cong.fishisland.service.pet.PetCardCatalogRules.*;
+import static com.cong.fishisland.service.pet.PetCardPlayRules.ISLAND_POOL;
 
 @Service
 @RequiredArgsConstructor
@@ -71,9 +72,13 @@ public class PetCardCatalogService {
         require(pools.keySet().containsAll(card.getPoolIds()), "卡池不存在");
         Set<String> affected = new HashSet<>(before);
         affected.addAll(card.getPoolIds());
+        boolean islandHadShiny = affected.contains(ISLAND_POOL) && store.hasShinyCard(ISLAND_POOL);
         card.setName(card.getName().trim());
         store.saveCard(card);
         store.setMemberships(card, before);
+        if (islandHadShiny) {
+            require(store.hasShinyCard(ISLAND_POOL), "海岛初遇至少需保留一张闪耀卡用于首包保底");
+        }
         for (String id : affected) {
             require(store.drawable(pools.get(id)), "「" + pools.get(id).getName() + "」至少需保留一张可抽取的卡");
         }

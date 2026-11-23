@@ -12,7 +12,7 @@ import java.util.stream.Collectors;
 import static com.cong.fishisland.service.pet.PetCardCatalogRules.require;
 
 final class PetCardPlayRules {
-    static final String FREE_POOL = "island";
+    static final String ISLAND_POOL = "island";
     static final int DAILY_FREE = 2;
     static final int PACK_SIZE = 5;
     static final int SHOWCASE_LIMIT = 3;
@@ -62,11 +62,11 @@ final class PetCardPlayRules {
                 .collect(Collectors.toList());
         int total = grades.stream().mapToInt(Map.Entry::getValue).sum();
         require(total > 0, "这个卡池暂未开放");
-        List<Card> shiny = byGrade.get("shiny");
+        List<Card> guaranteed = first && ISLAND_POOL.equals(pool.getId()) ? byGrade.get("shiny") : null;
         List<Card> result = new ArrayList<>(PACK_SIZE);
         for (int position = 0; position < PACK_SIZE; position++) {
-            if (first && position == PACK_SIZE - 1 && shiny != null) {
-                result.add(shiny.get(random.applyAsInt(shiny.size())));
+            if (position == PACK_SIZE - 1 && guaranteed != null) {
+                result.add(guaranteed.get(random.applyAsInt(guaranteed.size())));
                 continue;
             }
             int roll = random.applyAsInt(total);

@@ -103,6 +103,11 @@ public class PetCardCatalogStore {
         return count("SELECT COUNT(*) FROM pet_card_pool_entry WHERE pool_id = ? AND card_id = ?", pool, card) > 0;
     }
 
+    boolean hasShinyCard(String pool) {
+        return count("SELECT COUNT(*) FROM pet_card_pool_entry e JOIN pet_card_definition c ON c.id = e.card_id"
+                + " WHERE e.pool_id = ? AND c.grade = 'shiny'", pool) > 0;
+    }
+
     boolean drawable(Pool pool) {
         return jdbc.queryForList("SELECT DISTINCT c.grade FROM pet_card_pool_entry e "
                         + "JOIN pet_card_definition c ON c.id = e.card_id WHERE e.pool_id = ?", String.class, pool.getId())

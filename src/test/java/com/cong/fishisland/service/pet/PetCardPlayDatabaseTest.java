@@ -1,6 +1,7 @@
 package com.cong.fishisland.service.pet;
 
 import com.cong.fishisland.common.exception.BusinessException;
+import com.cong.fishisland.model.dto.pet.PetCardCatalog.Card;
 import com.cong.fishisland.model.dto.pet.PetCardPlay.Command;
 import com.cong.fishisland.model.dto.pet.PetCardPlay.Opening;
 import com.cong.fishisland.model.dto.pet.PetCardPlay.State;
@@ -16,8 +17,10 @@ import org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate;
 import org.springframework.jdbc.datasource.DataSourceTransactionManager;
 import org.springframework.jdbc.datasource.DriverManagerDataSource;
 import org.springframework.jdbc.datasource.init.ResourceDatabasePopulator;
+import org.springframework.transaction.support.TransactionTemplate;
 
 import java.time.Instant;
+import java.util.Collections;
 import java.util.UUID;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -31,7 +34,9 @@ import static org.mockito.Mockito.*;
 @EnabledIfEnvironmentVariable(named = "PET_CARD_PLAY_VERIFY_JDBC", matches = "jdbc:mysql://127\\.0\\.0\\.1:[0-9]+/pet_catalog_play.*")
 class PetCardPlayDatabaseTest {
     private static JdbcTemplate jdbc;
+    private static PetCardCatalogStore catalog;
     private static PetCardPlayService service;
+    private static DataSourceTransactionManager transactions;
 
     @BeforeAll
     static void prepare() {
@@ -42,11 +47,15 @@ class PetCardPlayDatabaseTest {
         jdbc.update("INSERT INTO pet_card_pool (id,name,weights) VALUES ('island','海岛初遇',JSON_OBJECT('common',1)),"
                 + "('kingdoms','三国群英',JSON_OBJECT('common',1))");
         new ResourceDatabasePopulator(new FileSystemResource("sql/20261123_pet_card_play.sql")).execute(dataSource);
-        jdbc.update("INSERT INTO pet_card_atlas (id,name,portrait) VALUES ('sample','图集',0)");
+        String atlas = String.format("%064d.jpg", 0);
+        jdbc.update("INSERT INTO pet_card_atlas (id,name,portrait) VALUES (?,'图集',0)", atlas);
         jdbc.update("INSERT INTO pet_card_definition (id,name,grade,stats,battle,art_key,art_tile) VALUES "
-                + "('commonCard','普通卡','common',JSON_OBJECT('health',5),JSON_OBJECT(),'sample',0),"
-                + "('shinyCard','闪耀卡','shiny',JSON_OBJECT('health',10),JSON_OBJECT(),'sample',1)");
-        jdbc.update("INSERT INTO pet_card_pool_entry VALUES ('island','commonCard'),('island','shinyCard'),('kingdoms','commonCard')");
+                + "('commonCard','普通卡','common',JSON_OBJECT('health',5),JSON_OBJECT(),?,0),"
+                + "('shinyCard','闪耀卡','shiny',JSON_OBJECT('health',10),?,?,1)", atlas,
+                "{\"kind\":\"effect\",\"name\":\"暴击\",\"turnOffset\":1,\"trigger\":{\"kind\":\"firstHit\"},"
+                        + "\"outcome\":{\"kind\":\"guaranteedCriticalHit\"}}", atlas);
+        jdbc.update("INSERT INTO pet_card_pool_entry VALUES ('island','commonCard'),('island','shinyCard'),"
+                + "('kingdoms','commonCard'),('kingdoms','shinyCard')");
         jdbc.execute("CREATE TABLE test_card_wallet (user_id BIGINT PRIMARY KEY, spent INT NOT NULL) ENGINE=InnoDB");
         jdbc.update("INSERT INTO test_card_wallet VALUES (8,0),(9,0)");
         UserPointsService points = mock(UserPointsService.class);
@@ -68,9 +77,9 @@ class PetCardPlayDatabaseTest {
             return null;
         }).when(points).updateUsedPoints(anyLong(), anyInt(), eq("pet_card_pack"), anyString(), anyString());
         ObjectMapper json = new ObjectMapper();
-        PetCardCatalogStore catalog = new PetCardCatalogStore(jdbc, new NamedParameterJdbcTemplate(dataSource), json);
-        service = new PetCardPlayService(new PetCardPlayStore(jdbc, json), catalog, points,
-                new DataSourceTransactionManager(dataSource), json);
+        catalog = new PetCardCatalogStore(jdbc, new NamedParameterJdbcTemplate(dataSource), json);
+        transactions = new DataSourceTransactionManager(dataSource);
+        service = new PetCardPlayService(new PetCardPlayStore(jdbc, json), catalog, points, transactions, json);
     }
 
     @Test
@@ -142,6 +151,10 @@ class PetCardPlayDatabaseTest {
         assertTrue(service.history(9, null).getItems().isEmpty());
         assertTrue(service.state(9).getCollection().isEmpty());
 
+        Opening kingdoms = service.submit(8, action("open", "kingdoms")).getPending();
+        assertTrue(kingdoms.getCards().stream().allMatch(card -> "commonCard".equals(card.getCardId())));
+        finish(8, kingdoms);
+
         jdbc.update("UPDATE pet_card_player SET opened=2306 WHERE user_id=8");
         assertEquals(59, service.state(8).getLevel());
         assertEquals(1, service.state(8).getXpToNext());
@@ -153,6 +166,17 @@ class PetCardPlayDatabaseTest {
         assertEquals(2308, afterCap.getOpened());
         assertEquals(60, afterCap.getLevel());
         assertEquals(0, afterCap.getXpToNext());
+    }
+
+    @Test
+    void keepsTheLastShinyCardInTheIslandPool() {
+        Card shiny = catalog.poolCards("island").stream().filter(card -> "shiny".equals(card.getGrade())).findFirst().get();
+        shiny.setPoolIds(Collections.singletonList("kingdoms"));
+        PetCardCatalogService administrator = new PetCardCatalogService(catalog, null);
+        BusinessException error = assertThrows(BusinessException.class, () -> new TransactionTemplate(transactions)
+                .executeWithoutResult(status -> administrator.saveCard(shiny)));
+        assertTrue(error.getMessage().contains("首包保底"));
+        assertTrue(catalog.hasShinyCard("island"));
     }
 
     @Test

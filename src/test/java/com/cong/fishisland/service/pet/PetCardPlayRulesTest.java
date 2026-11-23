@@ -1,13 +1,40 @@
 package com.cong.fishisland.service.pet;
 
+import com.cong.fishisland.model.dto.pet.PetCardCatalog.Card;
+import com.cong.fishisland.model.dto.pet.PetCardCatalog.Pool;
 import org.junit.jupiter.api.Test;
 
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.List;
+
+import static com.cong.fishisland.service.pet.PetCardPlayRules.draw;
 import static com.cong.fishisland.service.pet.PetCardPlayRules.level;
 import static com.cong.fishisland.service.pet.PetCardPlayRules.openingsToNextLevel;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class PetCardPlayRulesTest {
+    @Test
+    void reservesTheFifthDrawForShinyOnlyOnTheFirstIslandPack() {
+        Card common = new Card();
+        common.setGrade("common");
+        Card shiny = new Card();
+        shiny.setGrade("shiny");
+        List<Card> cards = Arrays.asList(common, shiny);
+        Pool pool = new Pool();
+        pool.setId("island");
+        pool.setWeights(Collections.singletonMap("common", 1));
+        assertEquals(Arrays.asList(common, common, common, common, shiny), draw(pool, cards, true, bound -> 0));
+        assertEquals(Collections.nCopies(5, common), draw(pool, cards, false, bound -> 0));
+        for (String poolId : Arrays.asList("kingdoms", "expansion")) {
+            pool.setId(poolId);
+            assertEquals(Collections.nCopies(5, common), draw(pool, cards, true, bound -> 0));
+        }
+        pool.setWeights(Collections.singletonMap("shiny", 1));
+        assertEquals(Collections.nCopies(5, shiny), draw(pool, cards, true, bound -> 0));
+    }
+
     @Test
     void increasesUpgradeCostsAndStopsAtSixty() {
         long opened = 0;

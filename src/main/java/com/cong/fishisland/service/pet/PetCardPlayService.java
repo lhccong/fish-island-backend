@@ -118,7 +118,7 @@ public class PetCardPlayService {
     }
 
     private void claim(long userId, String id, PetCardPlayStore.Player player, LocalDate day) {
-        require(FREE_POOL.equals(id), "只有海岛卡包可免费领取");
+        require(ISLAND_POOL.equals(id), "只有海岛卡包可免费领取");
         int claims = day.equals(player.getClaimDay()) ? player.getClaims() : 0;
         require(claims < DAILY_FREE, "今日的免费卡包已领完");
         availablePool(id, player);
@@ -159,6 +159,9 @@ public class PetCardPlayService {
         require(level(player.getOpened()) >= minimum, "抽卡等级达到 " + minimum + " 级后解锁");
         Pool pool = catalog.pool(id);
         require(pool != null && catalog.drawable(pool), "这个卡池暂未开放");
+        if (ISLAND_POOL.equals(id)) {
+            require(catalog.hasShinyCard(id), "海岛初遇的闪耀卡尚未配置，请联系管理员");
+        }
         return pool;
     }
 
