@@ -20,7 +20,10 @@ public class FarmCropServiceImpl extends ServiceImpl<FarmCropMapper, FarmCrop> i
 
     @Override
     public List<FarmCrop> getAllCrops() {
-        return list();
+        // 按解锁等级、生长时间排序：新作物按门槛自然归位（如草莓位于葡萄与向日葵之间）
+        return list(new LambdaQueryWrapper<FarmCrop>()
+                .orderByAsc(FarmCrop::getUnlockLevel)
+                .orderByAsc(FarmCrop::getGrowthTime));
     }
 
     @Override

@@ -36,9 +36,14 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import java.util.concurrent.ThreadLocalRandom;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
+import com.cong.fishisland.model.enums.farm.FarmBuffTypeEnum;
+import lombok.extern.slf4j.Slf4j;
+
+@Slf4j
 @Service
 public class FarmStealServiceImpl implements FarmStealService {
 
@@ -74,6 +79,9 @@ public class FarmStealServiceImpl implements FarmStealService {
 
     @Autowired
     private ScriptBehaviorDetectService scriptBehaviorDetectService;
+
+    @Autowired
+    private FarmUserBuffService farmUserBuffService;
 
     @Override
     @Transactional(rollbackFor = Exception.class)
@@ -174,6 +182,25 @@ public class FarmStealServiceImpl implements FarmStealService {
         int currentStolenPoints = plantRecord.getStolenPoints() != null ? plantRecord.getStolenPoints() : 0;
         int stealPoints = calcStealPoints(crop, baseReward, currentStolenPoints);
         int minReward = FarmConstants.minHarvestPoints(crop.getPrice());
+
+        // 守护光环（农场主）：单次偷菜固定 1 积分，百分比减免无法取整生效，
+        // 等价实现为格挡判定——按减免概率直接挡下本次偷取（期望减免相等，保留社交博弈）。
+        int guardPercent = farmUserBuffService.getBuffPercent(ownerId, FarmBuffTypeEnum.GUARD);
+        if (guardPercent > 0 && ThreadLocalRandom.current().nextInt(100) < guardPercent) {
+            FarmStealRecord blockedRecord = new FarmStealRecord();
+            blockedRecord.setStealerId(stealerId);
+            blockedRecord.setOwnerId(ownerId);
+            blockedRecord.setLandId(landId);
+            blockedRecord.setPlantRecordId(plantRecord.getId());
+            blockedRecord.setCropId(crop.getId());
+            blockedRecord.setStolenTime(LocalDateTime.now());
+            blockedRecord.setCoinGained(0);
+            stealRecordMapper.insert(blockedRecord);
+            farmUserService.incrementTotalDefense(ownerId);
+            log.info("守护光环格挡 ownerId={}, stealerId={}, landId={}, guard={}%", ownerId, stealerId, landId, guardPercent);
+            return new StealOutcome(blockedRecord, landId, ownerId,
+                    crop.getName() != null ? crop.getName() : "作物", 0);
+        }
 
         int updated = plantRecordMapper.incrementStolenPointsIfAllowed(
                 plantRecord.getId(), stealPoints, baseReward, minReward);

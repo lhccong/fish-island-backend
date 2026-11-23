@@ -6,8 +6,11 @@ import com.cong.fishisland.mapper.farm.FarmUserMapper;
 import com.cong.fishisland.model.dto.farm.FarmUserVO;
 import com.cong.fishisland.model.entity.farm.FarmUser;
 import com.cong.fishisland.model.entity.user.User;
+import com.cong.fishisland.model.enums.farm.FarmAchievementTypeEnum;
 import com.cong.fishisland.model.enums.farm.FarmConstants;
 import com.cong.fishisland.model.enums.farm.FarmUserStatusEnum;
+import com.cong.fishisland.service.FarmAchievementService;
+import com.cong.fishisland.service.FarmLevelRewardService;
 import com.cong.fishisland.service.FarmUserService;
 import com.cong.fishisland.service.UserService;
 import org.springframework.stereotype.Service;
@@ -27,6 +30,12 @@ public class FarmUserServiceImpl extends ServiceImpl<FarmUserMapper, FarmUser> i
 
     @Resource
     private UserService userService;
+
+    @Resource
+    private FarmLevelRewardService farmLevelRewardService;
+
+    @Resource
+    private FarmAchievementService farmAchievementService;
 
     @Override
     public FarmUser getFarmUserByUserId(Long systemUserId) {
@@ -145,6 +154,11 @@ public class FarmUserServiceImpl extends ServiceImpl<FarmUserMapper, FarmUser> i
         if (newLevel > farmUser.getLevel()) {
             baseMapper.updateLevel(farmUser.getUserId(), newLevel);
             farmUser.setLevel(newLevel);
+            // 持续任务：每升 5 级发放递增积分奖励（防重复领取）
+            farmLevelRewardService.grantRewards(farmUser.getUserId(), newLevel);
+            // 成就事件：农场等级里程碑
+            farmAchievementService.onProgress(farmUser.getUserId(),
+                    FarmAchievementTypeEnum.FARM_LEVEL, null, newLevel);
         }
     }
 

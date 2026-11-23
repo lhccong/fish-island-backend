@@ -1,5 +1,6 @@
 package com.cong.fishisland.service;
 
+import com.cong.fishisland.model.dto.farm.HarvestResultVO;
 import com.cong.fishisland.model.dto.farm.LandDTO;
 import com.cong.fishisland.model.dto.farm.WaterLandResult;
 import com.cong.fishisland.model.dto.farm.PlantItem;
@@ -69,7 +70,7 @@ public interface FarmLandService {
      * @return 清空种植状态后的地块列表（顺序与入参一致）
      * @throws com.cong.fishisland.common.exception.BusinessException 地块不存在、无权操作、未种植或未成熟时
      */
-    List<FarmLand> harvestBatch(List<Long> landIds);
+    HarvestResultVO harvestBatch(List<Long> landIds);
 
     /**
      * 将地块实体转换为 DTO。

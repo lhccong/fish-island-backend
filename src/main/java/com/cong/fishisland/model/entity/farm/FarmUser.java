@@ -45,6 +45,9 @@ public class FarmUser {
     @ApiModelProperty(value = "被访问次数")
     private Integer visitedCount = 0;
 
+    @ApiModelProperty(value = "已领取等级奖励的最高档位（每5级一档）")
+    private Integer lastLevelRewardLevel = 0;
+
     @ApiModelProperty(value = "状态（0-禁用，1-正常）")
     private Integer status = 1;
 

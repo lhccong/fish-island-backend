@@ -29,4 +29,7 @@ public interface FarmUserMapper extends BaseMapper<FarmUser> {
 
     @Update("UPDATE farm_user SET visitedCount = visitedCount + 1, updateTime = NOW() WHERE userId = #{userId}")
     int incrementVisitedCount(@Param("userId") Long userId);
+
+    @Update("UPDATE farm_user SET lastLevelRewardLevel = #{level}, updateTime = NOW() WHERE userId = #{userId}")
+    int updateLastLevelRewardLevel(@Param("userId") Long userId, @Param("level") Integer level);
 }
