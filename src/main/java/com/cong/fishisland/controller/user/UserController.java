@@ -395,10 +395,14 @@ public class UserController {
      */
     @GetMapping("/get/vo")
     @ApiOperation(value = "根据 id 获取包装类")
-    public BaseResponse<UserVO> getUserVoById(long id) {
+    public BaseResponse<UserCardVO> getUserVoById(long id) {
         BaseResponse<User> response = getUserById(id);
         User user = response.getData();
-        return ResultUtils.success(userService.getUserVO(user));
+        UserCardVO card = new UserCardVO();
+        BeanUtils.copyProperties(userService.getUserVO(user), card);
+        card.setTitleId(user.getTitleId() == null ? 0L : user.getTitleId());
+        card.setTitleIdList(StringUtils.defaultIfBlank(user.getTitleIdList(), "[]"));
+        return ResultUtils.success(card);
     }
 
     /**
