@@ -45,7 +45,7 @@ import java.util.stream.Collectors;
 /**
  * 爬塔服务实现类
  * <p>
- * 当前开放至 54 层，44 层起血量和攻击按原成长公式的 64% 计算。
+ * 当前开放至 66 层，44 层起血量和攻击按原成长公式的 64% 计算。
  * 概率属性随层数缓慢增长，上限 2.0。
  *
  * @author cong
@@ -70,7 +70,7 @@ public class TowerClimbServiceImpl implements TowerClimbService {
     // 属性成长指数（floor^scale）
     private static final double HP_SCALE = 1.4;
     private static final double ATK_SCALE = 1.3;
-    private static final int MAX_OPEN_FLOOR = 54;
+    private static final int MAX_OPEN_FLOOR = 66;
     private static final int REDUCED_STATS_AFTER_FLOOR = 43;
     // 44 层起血量和攻击分别按原始成长值的 64% 计算
     private static final double HIGH_FLOOR_HP_MULTIPLIER = 0.64;

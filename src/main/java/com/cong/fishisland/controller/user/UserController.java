@@ -129,7 +129,8 @@ public class UserController {
         if (StringUtils.isAnyBlank(email, userPassword, checkPassword)) {
             return null;
         }
-        long result = userService.userEmilRegister(userAccount, email, userPassword, checkPassword, code);
+        long result = userService.userEmilRegister(userAccount, email, userPassword, checkPassword, code,
+                userRegisterRequest.getUserName());
         return ResultUtils.success(result);
     }
 

@@ -10,6 +10,7 @@ import com.cong.fishisland.model.vo.pet.PetEquipStatsVO;
 import org.springframework.data.redis.core.ValueOperations;
 import com.cong.fishisland.model.vo.game.BattleStatsVO;
 import com.cong.fishisland.model.vo.game.BattleResultVO;
+import com.cong.fishisland.model.vo.game.TowerClimbResultVO;
 import com.cong.fishisland.model.vo.game.TowerFloorMonsterVO;
 import com.cong.fishisland.model.vo.game.TowerProgressVO;
 import com.cong.fishisland.service.impl.game.TowerClimbServiceImpl;
@@ -47,7 +48,7 @@ class TowerClimbServiceTest {
     void rewardsAreFixedAfterFloor43() {
         assertEquals(100, service.getFloorMonster(44).getRewardPoints());
         assertEquals(100, service.getFloorMonster(45).getRewardPoints());
-        assertEquals(100, service.getFloorMonster(54).getRewardPoints());
+        assertEquals(100, service.getFloorMonster(66).getRewardPoints());
     }
 
     @Test
@@ -64,7 +65,7 @@ class TowerClimbServiceTest {
 
     @Test
     void highFloorStatsAreReducedWithoutChangingSpecialAttributesOrRewards() {
-        for (int floor = 44; floor <= 54; floor++) {
+        for (int floor = 44; floor <= 66; floor++) {
             TowerFloorMonsterVO monster = service.getFloorMonster(floor);
             assertEquals((int) (200 * Math.pow(floor, 1.4) * 0.64), monster.getHealth());
             assertEquals((int) (15 * Math.pow(floor, 1.3) * 0.64), monster.getAttack());
@@ -80,8 +81,8 @@ class TowerClimbServiceTest {
     }
 
     @Test
-    void advancedStatsGrowFromFloor44Through54() {
-        for (int floor = 44; floor <= 54; floor++) {
+    void advancedStatsGrowFromFloor44Through66() {
+        for (int floor = 44; floor <= 66; floor++) {
             TowerFloorMonsterVO monster = service.getFloorMonster(floor);
             assertEquals(50 + (floor - 44) * 5, monster.getDefense());
             assertEquals(5 + (floor - 44), monster.getSpeed());
@@ -91,7 +92,7 @@ class TowerClimbServiceTest {
 
     @Test
     void battleUsesAllDisplayedMonsterStats() {
-        for (int floor = 1; floor <= 54; floor++) {
+        for (int floor = 1; floor <= 66; floor++) {
             TowerFloorMonsterVO monster = service.getFloorMonster(floor);
             BattleStatsVO stats = ReflectionTestUtils.invokeMethod(service, "buildMonsterStats", monster);
             assertNotNull(stats);
@@ -156,26 +157,37 @@ class TowerClimbServiceTest {
     @Test
     void rejectsFloorsOutsideOpenRange() {
         assertThrows(BusinessException.class, () -> service.getFloorMonster(0));
-        assertThrows(BusinessException.class, () -> service.getFloorMonster(55));
+        assertThrows(BusinessException.class, () -> service.getFloorMonster(67));
+    }
+
+    @Test
+    void progressContinuesFromPreviousCap() {
+        mockProgress(54);
+        TowerProgressVO progress = service.getProgress();
+        assertEquals(54, progress.getMaxFloor());
+        assertEquals(66, progress.getMaxOpenFloor());
+        assertFalse(progress.getCompleted());
+        assertEquals(55, progress.getNextFloor());
+        assertEquals(100, progress.getNextMonster().getRewardPoints());
     }
 
     @Test
     void progressOffersLastOpenFloor() {
-        mockProgress(53);
+        mockProgress(65);
         TowerProgressVO progress = service.getProgress();
-        assertEquals(54, progress.getMaxOpenFloor());
+        assertEquals(66, progress.getMaxOpenFloor());
         assertFalse(progress.getCompleted());
-        assertEquals(54, progress.getNextFloor());
-        assertEquals(54, progress.getNextMonster().getFloor());
+        assertEquals(66, progress.getNextFloor());
+        assertEquals(66, progress.getNextMonster().getFloor());
     }
 
     @Test
     void completedProgressHasNoNextFloorIncludingLegacyHigherProgress() {
-        for (int floor : new int[]{54, 55}) {
+        for (int floor : new int[]{66, 67}) {
             mockProgress(floor);
             TowerProgressVO progress = service.getProgress();
             assertEquals(floor, progress.getMaxFloor());
-            assertEquals(54, progress.getMaxOpenFloor());
+            assertEquals(66, progress.getMaxOpenFloor());
             assertTrue(progress.getCompleted());
             assertNull(progress.getNextFloor());
             assertNull(progress.getNextMonster());
@@ -184,10 +196,10 @@ class TowerClimbServiceTest {
 
     @Test
     void completedTowerCannotBeChallengedOrConsumeAttempts() {
-        for (int floor : new int[]{54, 55}) {
+        for (int floor : new int[]{66, 67}) {
             mockProgress(floor);
             BusinessException exception = assertThrows(BusinessException.class, service::challenge);
-            assertTrue(exception.getMessage().contains("54"));
+            assertTrue(exception.getMessage().contains("66"));
         }
         verifyNoInteractions(redisTemplate, petService, pointsService, recordMapper);
         verify(progressMapper, never()).updateById(any());
@@ -215,13 +227,17 @@ class TowerClimbServiceTest {
         when(petService.getPetEquipStats()).thenReturn(stats);
         when(progressMapper.updateById(any())).thenReturn(1);
         when(recordMapper.insert(any())).thenReturn(1);
-        mockProgress(30);
-        assertTrue(service.challenge().getWin());
-        verify(broadcasts).towerCleared(1L, 31);
+        mockProgress(54);
+        TowerClimbResultVO result = service.challenge();
+        assertTrue(result.getWin());
+        assertEquals(55, result.getMaxFloor());
+        assertEquals(100, result.getRewardPoints());
+        verify(pointsService).updateUsedPoints(1L, -100, "tower_climb", "55", "爬塔第 55 层奖励");
+        verify(broadcasts).towerCleared(1L, 55);
         clearInvocations(broadcasts);
 
         stats.setTotalBaseHp(0); stats.setTotalBaseAttack(0); stats.setSpeed(0);
-        mockProgress(31);
+        mockProgress(55);
         assertFalse(service.challenge().getWin());
         verifyNoInteractions(broadcasts);
 

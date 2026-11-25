@@ -66,6 +66,7 @@ import java.time.ZonedDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ThreadLocalRandom;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.locks.ReentrantLock;
 import java.util.stream.Collectors;
@@ -191,10 +192,12 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements Us
      * @param email         邮箱
      * @param userPassword  用户密码
      * @param checkPassword 校验密码
+     * @param userName      昵称，选填
      * @return 用户id
      */
     @Override
-    public long userEmilRegister(String userAccount, String email, String userPassword, String checkPassword, String code) {
+    public long userEmilRegister(String userAccount, String email, String userPassword, String checkPassword, String code,
+                                 String userName) {
 
         String EMAIL_REGISTER_LOCK = "email:register:lock:";
 
@@ -210,6 +213,9 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements Us
         if (!userPassword.equals(checkPassword)) {
             throw new BusinessException(ErrorCode.PARAMS_ERROR, "两次密码输入不一致");
         }
+
+        String name = StringUtils.stripToEmpty(userName);
+        ThrowUtils.throwIf(name.length() > 10, ErrorCode.PARAMS_ERROR, "用户名不能超过10个字符");
 
         // 注册时，邮箱不能重复
         boolean emailExists = this.baseMapper.selectCount(new QueryWrapper<User>().eq("email", email)) > 0;
@@ -259,6 +265,7 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements Us
             User user = new User();
             user.setEmail(email);
             user.setUserAccount(StringUtils.isNotBlank(userAccount) ? userAccount : "邮箱用户" + email);
+            user.setUserName(name.isEmpty() ? "岛民" + ThreadLocalRandom.current().nextInt(1000, 10000) : name);
             user.setUserPassword(encryptPassword);
             boolean saveResult = this.save(user);
             if (!saveResult) {
