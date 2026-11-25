@@ -19,6 +19,7 @@
         <result property="userAvatar" column="userAvatar" />
         <result property="userProfile" column="userProfile" />
         <result property="pokeSuffix" column="pokeSuffix" />
+        <result property="mbti" column="mbti" />
         <result property="userRole" column="userRole" />
         <result property="createTime" column="createTime" />
         <result property="updateTime" column="updateTime" />
@@ -28,7 +29,7 @@
     <sql id="Base_Column_List">
         id,userAccount,userPassword,unionId,mpOpenId,email,avatarFramerList,avatarFramerUrl,
         titleIdList,titleId,
-        userName,userAvatar,userProfile,pokeSuffix,userRole,createTime,
+        userName,userAvatar,userProfile,pokeSuffix,mbti,userRole,createTime,
         updateTime,isDelete
     </sql>
     <select id="getUserDataWebVO" resultType="com.cong.fishisland.model.vo.user.UserDataWebVO">

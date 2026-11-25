@@ -46,6 +46,8 @@ public class LoginUserVO implements Serializable {
 
     private String pokeSuffix;
 
+    private String mbti;
+
     /**
      * 邮箱
      */

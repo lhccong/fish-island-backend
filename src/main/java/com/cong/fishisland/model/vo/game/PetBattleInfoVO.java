@@ -1,9 +1,11 @@
 package com.cong.fishisland.model.vo.game;
 
+import com.cong.fishisland.model.dto.pet.PetCardPlay.ShowcaseCard;
 import com.cong.fishisland.model.vo.pet.ItemInstanceVO;
 import lombok.Data;
 
 import java.io.Serializable;
+import java.util.List;
 import java.util.Map;
 
 /**
@@ -71,6 +73,8 @@ public class PetBattleInfoVO implements Serializable {
          * 宠物已穿戴的装备列表（槽位 -> 装备VO）
          */
         private Map<String, ItemInstanceVO> equippedItems;
+
+        private List<ShowcaseCard> showcaseCards;
 
         private static final long serialVersionUID = 1L;
     }

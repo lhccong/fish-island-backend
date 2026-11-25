@@ -74,10 +74,12 @@ public class AchievementService {
             equipped.add(new Progress(id, slot.getLabel(), level, forge.includeForgeStatsForSlot(id)));
         }
         List<Achievement> achievements = new ArrayList<>();
+        achievements.add(group(userId, USER, single(mapper.userLevel(userId)), claimed, claim));
+        achievements.add(group(userId, TURNTABLE, single(mapper.turntableDrawCount(userId)), claimed, claim));
         achievements.add(group(userId, FARM, single(mapper.farmLevel(userId)), claimed, claim));
         achievements.add(group(userId, CARDS, single(PetCardPlayRules.level(opened == null ? 0 : opened)), claimed, claim));
-        achievements.add(group(userId, EQUIPMENT, equipped, claimed, claim));
         achievements.add(group(userId, PET, single(mapper.petLevel(userId)), claimed, claim));
+        achievements.add(group(userId, EQUIPMENT, equipped, claimed, claim));
         int awarded = claim ? achievements.stream().flatMap(item -> item.tracks.stream())
                 .mapToInt(Track::getAwardedPoints).sum() : 0;
         return new Summary(achievements, awarded);
@@ -100,22 +102,22 @@ public class AchievementService {
             int unclaimed = Math.max(currentTiers - paidTiers, 0) * rule.points;
             int awarded = 0;
             if (claim && unclaimed > 0) {
-                int first = rule.levelAt(paidTiers + 1);
-                int last = rule.levelAt(currentTiers);
-                String levels = first == last ? first + " 级" : first + "–" + last + " 级";
+                int first = rule.milestoneAt(paidTiers + 1);
+                int last = rule.milestoneAt(currentTiers);
+                String milestones = (first == last ? String.valueOf(first) : first + "–" + last) + " " + rule.unit;
                 mapper.saveReward(userId, rule.id, entry.id, currentTiers);
                 points.updateUsedPoints(userId, -unclaimed, PointsRecordSourceEnum.ACHIEVEMENT.getValue(),
                         rule.id + ":" + entry.id + ":" + currentTiers,
-                        rule.name + (entry.label == null ? "" : " · " + entry.label) + " · " + levels);
+                        rule.name + (entry.label == null ? "" : " · " + entry.label) + " · " + milestones);
                 paidTiers = currentTiers;
                 awarded = unclaimed;
                 unclaimed = 0;
             }
             int reachedTier = Math.max(currentTiers, paidTiers);
-            Integer next = reachedTier >= rule.tiersAt(rule.maxLevel) ? null : rule.levelAt(reachedTier + 1);
+            Integer next = reachedTier >= rule.tiersAt(rule.maxMilestone) ? null : rule.milestoneAt(reachedTier + 1);
             tracks.add(new Track(entry.id, entry.label, entry.level, entry.enabled, next, paidTiers, unclaimed, awarded));
         }
-        return new Achievement(rule.id, rule.name, rule.label, rule.icon, rule.interval, rule.points, tracks);
+        return new Achievement(rule.id, rule.name, rule.label, rule.icon, rule.unit, rule.interval, rule.points, tracks);
     }
 
     @Value
@@ -144,6 +146,7 @@ public class AchievementService {
         String name;
         String label;
         String icon;
+        String unit;
         int interval;
         int points;
         List<Track> tracks;

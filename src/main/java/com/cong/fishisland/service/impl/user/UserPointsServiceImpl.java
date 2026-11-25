@@ -21,6 +21,7 @@ import com.cong.fishisland.service.UserPointsRecordService;
 import com.cong.fishisland.service.UserPointsService;
 import com.cong.fishisland.mapper.user.UserPointsMapper;
 import com.cong.fishisland.service.UserSignInService;
+import com.cong.fishisland.service.user.UserLevelRules;
 import com.cong.fishisland.utils.RedisUtils;
 import org.redisson.api.RLock;
 import org.redisson.api.RedissonClient;
@@ -168,17 +169,7 @@ public class UserPointsServiceImpl extends ServiceImpl<UserPointsMapper, UserPoi
     }
 
     public int calculateLevel(int points) {
-        // 等级对应的积分范围 (起始积分)
-        int[] thresholds = {0, 125, 300, 600, 1100, 2100, 4100, 6000, 8000, 10000, 12000, 14000, 16000, 18000};
-
-        for (int i = thresholds.length - 1; i >= 0; i--) {
-            if (points >= thresholds[i]) {
-                // 级别从 1 开始
-                return i + 1;
-            }
-        }
-        // 默认返回 1 级（防止异常情况）
-        return 1;
+        return UserLevelRules.levelAtPoints(points);
     }
 
     @Override

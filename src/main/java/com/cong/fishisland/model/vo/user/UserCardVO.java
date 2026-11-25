@@ -14,4 +14,6 @@ public class UserCardVO extends UserVO {
 
     /** 已获称号 ID 的 JSON 列表，与聊天快照使用同一格式。 */
     private String titleIdList;
+
+    private String mbti;
 }

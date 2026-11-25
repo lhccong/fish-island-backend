@@ -8,11 +8,15 @@ import java.util.List;
 public interface AchievementMapper {
     Long lockPoints(@Param("userId") long userId);
 
+    Integer userLevel(@Param("userId") long userId);
+
     Integer farmLevel(@Param("userId") long userId);
 
     Long openedPacks(@Param("userId") long userId);
 
     Integer petLevel(@Param("userId") long userId);
+
+    int turntableDrawCount(@Param("userId") long userId);
 
     List<Equipment> equipmentLevels(@Param("userId") long userId);
 

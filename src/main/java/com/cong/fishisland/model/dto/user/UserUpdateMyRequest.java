@@ -27,6 +27,9 @@ public class UserUpdateMyRequest implements Serializable {
 
     private String pokeSuffix;
 
+    /** 省略时保留原设置，空串表示清除。 */
+    private String mbti;
+
     /**
      * 朋友圈背景图
      */

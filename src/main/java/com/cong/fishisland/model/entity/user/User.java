@@ -66,6 +66,9 @@ public class User implements Serializable {
     /** 被戳时追加的文字，空串表示无后缀。 */
     private String pokeSuffix;
 
+    /** 用户自行选择的 MBTI 类型，空串表示未填写。 */
+    private String mbti;
+
     /**
      * 用户角色：user/admin/ban
      */

@@ -1,5 +1,6 @@
 package com.cong.fishisland.model.dto.pet;
 
+import com.fasterxml.jackson.databind.JsonNode;
 import lombok.Data;
 import lombok.AllArgsConstructor;
 import lombok.NoArgsConstructor;
@@ -7,6 +8,7 @@ import lombok.Value;
 
 import java.io.Serializable;
 import java.util.List;
+import java.util.Map;
 
 public final class PetCardPlay {
     private PetCardPlay() {}
@@ -59,6 +61,14 @@ public final class PetCardPlay {
         String artKey;
         int artTile;
         boolean portrait;
+    }
+
+    @Value
+    public static class ShowcaseCard implements Serializable {
+        private static final long serialVersionUID = 1L;
+        CollectedCard card;
+        Map<String, Integer> stats;
+        JsonNode effect;
     }
 
     @Value

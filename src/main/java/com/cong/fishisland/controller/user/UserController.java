@@ -402,6 +402,7 @@ public class UserController {
         BeanUtils.copyProperties(userService.getUserVO(user), card);
         card.setTitleId(user.getTitleId() == null ? 0L : user.getTitleId());
         card.setTitleIdList(StringUtils.defaultIfBlank(user.getTitleIdList(), "[]"));
+        card.setMbti(user.getMbti());
         return ResultUtils.success(card);
     }
 
@@ -465,6 +466,9 @@ public class UserController {
         ThrowUtils.throwIf(userName.length() > 10, ErrorCode.PARAMS_ERROR, "用户名不能超过10个字符");
         String userProfile = userUpdateMyRequest.getUserProfile();
         String pokeSuffix = userUpdateMyRequest.getPokeSuffix();
+        String mbti = userUpdateMyRequest.getMbti();
+        ThrowUtils.throwIf(mbti != null && !mbti.isEmpty() && !mbti.matches("[IE][SN][TF][JP]"),
+                ErrorCode.PARAMS_ERROR, "请选择有效的 MBTI 类型");
         ThrowUtils.throwIf(pokeSuffix != null && (pokeSuffix.length() > 30
                 || pokeSuffix.codePoints().anyMatch(Character::isISOControl)),
                 ErrorCode.PARAMS_ERROR, "被戳后缀最多30个字符，不能包含换行或控制字符");
@@ -481,9 +485,11 @@ public class UserController {
         user.setUserAvatar(userUpdateMyRequest.getUserAvatar());
         user.setUserProfile(userProfile);
         if (pokeSuffix != null) user.setPokeSuffix(pokeSuffix.trim());
+        user.setMbti(mbti);
         user.setMomentsBgUrl(userUpdateMyRequest.getMomentsBgUrl());
         user.setId(loginUser.getId());
-        if (pokeSuffix != null || !StringUtils.isAllBlank(user.getUserName(), user.getUserAvatar(), userProfile)) {
+        if (mbti != null || pokeSuffix != null
+                || !StringUtils.isAllBlank(user.getUserName(), user.getUserAvatar(), userProfile)) {
             boolean result = userService.updateById(user);
             ThrowUtils.throwIf(!result, ErrorCode.OPERATION_ERROR);
         }

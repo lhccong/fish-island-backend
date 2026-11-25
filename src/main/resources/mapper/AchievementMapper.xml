@@ -4,6 +4,9 @@
     <select id="lockPoints" resultType="long">
         SELECT userId FROM user_points WHERE userId = #{userId} FOR UPDATE
     </select>
+    <select id="userLevel" resultType="int">
+        SELECT level FROM user_points WHERE userId = #{userId}
+    </select>
     <select id="farmLevel" resultType="int">
         SELECT level FROM farm_user WHERE userId = #{userId}
     </select>
@@ -12,6 +15,9 @@
     </select>
     <select id="petLevel" resultType="int">
         SELECT MAX(level) FROM fish_pet WHERE userId = #{userId} AND isDelete = 0
+    </select>
+    <select id="turntableDrawCount" resultType="int">
+        SELECT COUNT(*) FROM turntable_draw_record WHERE userId = #{userId} AND isDelete = 0
     </select>
     <select id="equipmentLevels" resultType="com.cong.fishisland.mapper.AchievementMapper$Equipment">
         SELECT f.equipSlot AS slot, COALESCE(MAX(f.equipLevel), 0) AS level

@@ -22,6 +22,7 @@ class UserCardControllerTest {
         user.setId(123L);
         user.setTitleId(7L);
         user.setTitleIdList("[\"7\",\"2\"]");
+        user.setMbti("INFP");
         UserVO publicProfile = new UserVO();
         publicProfile.setId(123L);
         publicProfile.setFollowerCount(5L);
@@ -32,6 +33,7 @@ class UserCardControllerTest {
         assertEquals(Long.valueOf(7), card.getTitleId());
         assertEquals("[\"7\",\"2\"]", card.getTitleIdList());
         assertEquals(Long.valueOf(5), card.getFollowerCount());
+        assertEquals("INFP", card.getMbti());
 
         user.setTitleId(null);
         user.setTitleIdList(" ");

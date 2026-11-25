@@ -67,6 +67,12 @@ class PetCardShowcaseBattleTest {
         assertEquals(159, preview.getMyPet().getHealth());
         assertEquals(baseAttack + 5, preview.getOpponentPet().getAttack());
         assertEquals(120, preview.getOpponentPet().getHealth());
+        assertEquals(6, preview.getMyPet().getShowcaseCards().size());
+        assertEquals(1, preview.getOpponentPet().getShowcaseCards().size());
+        assertEquals(Integer.valueOf(18), preview.getMyPet().getShowcaseCards().get(0).getStats().get("health"));
+        assertNull(preview.getMyPet().getShowcaseCards().get(0).getEffect());
+        verify(cards).showcaseStats(1L);
+        verify(cards).showcaseStats(2L);
         assertEquals(7, pets.getPetEquipStatsByPet(me).getTotalBaseDefense());
         assertEquals(9, pets.getPetEquipStatsByPet(me).getSpeed());
 
@@ -82,7 +88,10 @@ class PetCardShowcaseBattleTest {
                 "{\"health\":20,\"speed\":4}",
                 "{\"kind\":\"effect\",\"name\":\"潮月护体\",\"turnOffset\":1,\"trigger\":{\"kind\":\"turnStart\"},"
                         + "\"outcome\":{\"kind\":\"shield\",\"maxHealthPercent\":100}}")));
-        doReturn(me, opponent).when(pets).getOne(any());
+        doReturn(me, opponent, me, opponent).when(pets).getOne(any());
+        PetBattleInfoVO effectPreview = battle.getPetBattleInfo(2L);
+        assertEquals("潮月护体",
+                effectPreview.getOpponentPet().getShowcaseCards().get(0).getEffect().path("name").asText());
         Random draw = mock(Random.class);
         when(draw.nextDouble()).thenReturn(0.1, 0.5);
         ReflectionTestUtils.setField(battle, "random", draw);

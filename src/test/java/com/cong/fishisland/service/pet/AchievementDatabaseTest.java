@@ -4,6 +4,7 @@ import com.cong.fishisland.config.PetForgeProperties;
 import com.cong.fishisland.mapper.AchievementMapper;
 import com.cong.fishisland.service.UserPointsService;
 import com.cong.fishisland.service.achievement.AchievementService;
+import com.cong.fishisland.service.achievement.AchievementService.Achievement;
 import com.cong.fishisland.service.achievement.AchievementService.Summary;
 import com.cong.fishisland.service.achievement.AchievementService.Track;
 import org.apache.ibatis.annotations.Insert;
@@ -32,7 +33,7 @@ class AchievementDatabaseTest {
     void usesSavedProgressAndPaysEachMilestoneOnceEvenWithConcurrentClaims() throws Exception {
         try (AnnotationConfigApplicationContext db = PetCardDatabaseContext.open(System.getenv("ACHIEVEMENT_VERIFY_JDBC"),
                 "file:sql/20261122_pet_card_catalog.sql", "file:sql/20261123_pet_card_play.sql",
-                "file:sql/20261123_achievements.sql", "classpath:achievements/schema.sql")) {
+                "file:sql/20261123_achievements.sql", "file:sql/turntable.sql", "classpath:achievements/schema.sql")) {
             SqlSessionTemplate sessions = db.getBean(SqlSessionTemplate.class);
             sessions.getConfiguration().addMapper(Fixtures.class);
             Fixtures fixtures = sessions.getMapper(Fixtures.class);
@@ -59,18 +60,39 @@ class AchievementDatabaseTest {
             AchievementService service = new AchievementService(mapper, points, forge,
                     db.getBean(PlatformTransactionManager.class));
 
+            for (int i = 0; i < 199; i++) {
+                fixtures.addDraw(1, i % 2 + 1, false);
+            }
+            for (int i = 0; i < 99; i++) {
+                fixtures.addDraw(2, 1, false);
+            }
+            fixtures.addDraw(2, 1, true);
+
             Summary preview = service.list(1);
-            assertEquals(2500, claimable(preview));
+            assertEquals(3600, claimable(preview));
             assertEquals(0, preview.getAwardedPoints());
-            assertEquals(6, preview.getAchievements().get(2).getTracks().size());
-            Track necklace = preview.getAchievements().get(2).getTracks().get(4);
+            Track userLevel = track(preview, "user-level");
+            assertEquals(4, userLevel.getLevel());
+            assertEquals(5, userLevel.getNext().intValue());
+            assertEquals(600, userLevel.getClaimablePoints());
+            Track draws = track(preview, "turntable-draw-count");
+            assertEquals(199, draws.getLevel());
+            assertEquals(200, draws.getNext().intValue());
+            assertEquals(500, draws.getClaimablePoints());
+            Achievement equipment = achievement(preview, "equipment-level");
+            assertEquals(6, equipment.getTracks().size());
+            Track necklace = equipment.getTracks().get(4);
             assertFalse(necklace.isEnabled());
             assertEquals(200, necklace.getClaimablePoints());
             forge.setIncludeNecklaceWingsStats(true);
-            assertTrue(service.list(1).getAchievements().get(2).getTracks().get(5).isEnabled());
+            assertTrue(achievement(service.list(1), "equipment-level").getTracks().get(5).isEnabled());
             assertEquals(0, fixtures.balance(1));
-            assertEquals(0, claimable(service.list(2)));
-            Track introductoryCards = service.list(2).getAchievements().get(1).getTracks().get(0);
+            Summary initial = service.list(2);
+            assertEquals(0, claimable(initial));
+            assertEquals(2, track(initial, "user-level").getNext().intValue());
+            assertEquals(99, track(initial, "turntable-draw-count").getLevel());
+            assertEquals(100, track(initial, "turntable-draw-count").getNext().intValue());
+            Track introductoryCards = track(initial, "card-level");
             assertEquals(1, introductoryCards.getLevel());
             assertEquals(2, introductoryCards.getNext().intValue());
 
@@ -81,17 +103,38 @@ class AchievementDatabaseTest {
                 int firstReward = first.get(10, TimeUnit.SECONDS).getAwardedPoints();
                 int secondReward = second.get(10, TimeUnit.SECONDS).getAwardedPoints();
                 assertTrue(firstReward == 0 || secondReward == 0);
-                assertEquals(2500, firstReward + secondReward);
+                assertEquals(3600, firstReward + secondReward);
             } finally {
                 workers.shutdownNow();
             }
-            assertEquals(2500, fixtures.balance(1));
-            assertEquals(7, fixtures.entries(1));
+            assertEquals(3600, fixtures.balance(1));
+            assertEquals(9, fixtures.entries(1));
             assertEquals(0, service.claim(1).getAwardedPoints());
             fixtures.advanceFarm(1, 30);
             assertEquals(200, service.claim(1).getAwardedPoints());
-            assertEquals(2700, fixtures.balance(1));
+            assertEquals(3800, fixtures.balance(1));
             assertEquals(0, fixtures.balance(2));
+
+            fixtures.advanceUser(2, 2);
+            fixtures.addDraw(2, 2, false);
+            Summary firstMilestones = service.claim(2);
+            assertEquals(700, firstMilestones.getAwardedPoints());
+            assertEquals(1, track(firstMilestones, "user-level").getClaimedTiers());
+            assertEquals(1, track(firstMilestones, "turntable-draw-count").getClaimedTiers());
+
+            fixtures.addDraw(1, 1, false);
+            assertEquals(500, service.claim(1).getAwardedPoints());
+            for (int i = 0; i < 100; i++) {
+                fixtures.addDraw(1, 2, false);
+            }
+            Summary finalDrawMilestone = service.claim(1);
+            assertEquals(500, finalDrawMilestone.getAwardedPoints());
+            assertNull(track(finalDrawMilestone, "turntable-draw-count").getNext());
+            for (int i = 0; i < 100; i++) {
+                fixtures.addDraw(1, 1, false);
+            }
+            assertEquals(400, track(service.list(1), "turntable-draw-count").getLevel());
+            assertEquals(0, service.claim(1).getAwardedPoints());
 
             assertThrows(IllegalStateException.class, () -> service.claim(3));
             assertTrue(mapper.rewards(3).isEmpty());
@@ -105,6 +148,15 @@ class AchievementDatabaseTest {
     private int claimable(Summary summary) {
         return summary.getAchievements().stream().flatMap(item -> item.getTracks().stream())
                 .mapToInt(Track::getClaimablePoints).sum();
+    }
+
+    private Track track(Summary summary, String achievementId) {
+        return achievement(summary, achievementId).getTracks().get(0);
+    }
+
+    private Achievement achievement(Summary summary, String achievementId) {
+        return summary.getAchievements().stream().filter(item -> item.getId().equals(achievementId))
+                .findFirst().orElseThrow(() -> new AssertionError("Missing achievement " + achievementId));
     }
 
     interface Fixtures {
@@ -122,5 +174,12 @@ class AchievementDatabaseTest {
 
         @Update("UPDATE farm_user SET level = #{level} WHERE userId = #{id}")
         void advanceFarm(@Param("id") long id, @Param("level") int level);
+
+        @Update("UPDATE user_points SET level = #{level} WHERE userId = #{id}")
+        void advanceUser(@Param("id") long id, @Param("level") int level);
+
+        @Insert("INSERT INTO turntable_draw_record (userId, turntableId, turntablePrizeId, isDelete) "
+                + "VALUES (#{id}, #{turntable}, 1, #{deleted})")
+        void addDraw(@Param("id") long id, @Param("turntable") long turntable, @Param("deleted") boolean deleted);
     }
 }

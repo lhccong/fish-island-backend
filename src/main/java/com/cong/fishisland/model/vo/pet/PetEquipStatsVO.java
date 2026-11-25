@@ -1,6 +1,7 @@
 package com.cong.fishisland.model.vo.pet;
 
 import com.cong.fishisland.model.dto.pet.PetCardPassive;
+import com.cong.fishisland.model.dto.pet.PetCardPlay.ShowcaseCard;
 import com.fasterxml.jackson.annotation.JsonIgnore;
 import lombok.Data;
 
@@ -18,6 +19,9 @@ public class PetEquipStatsVO implements Serializable {
 
     @JsonIgnore
     private List<PetCardPassive> cardPassives = Collections.emptyList();
+
+    @JsonIgnore
+    private List<ShowcaseCard> showcaseCards = Collections.emptyList();
 
     /**
      * 基础攻击力总和

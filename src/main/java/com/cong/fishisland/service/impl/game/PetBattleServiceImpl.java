@@ -113,6 +113,7 @@ public class PetBattleServiceImpl implements PetBattleService {
         info.setAttack(s.getAttack());
         info.setHealth(s.getHealth());
         info.setEquippedItems(fishPetService.getEquippedItems(pet));
+        info.setShowcaseCards(stats.getShowcaseCards());
         return info;
     }
 
