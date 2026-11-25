@@ -1,5 +1,6 @@
 package com.cong.fishisland.model.vo.pet;
 
+import com.cong.fishisland.model.dto.pet.PetCardPlay.CollectedCard;
 import lombok.Data;
 import java.io.Serializable;
 import java.util.Date;
@@ -70,9 +71,11 @@ public class PetVO implements Serializable {
     private Map<String, ItemInstanceVO> equippedItems;
 
     /**
-     * 宠物装备属性统计（装备基础属性 + 锻造词条 + 锻造等级加成的总和）
+     * 宠物的装备、锻造和展示柜属性汇总
      */
     private PetEquipStatsVO equipStats;
 
+    private List<CollectedCard> showcaseCards;
+
     private static final long serialVersionUID = 1L;
-} 
+}

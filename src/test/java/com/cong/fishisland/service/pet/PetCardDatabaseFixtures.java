@@ -23,7 +23,7 @@ interface PetCardDatabaseFixtures {
     @Update("CREATE TABLE test_card_wallet (user_id BIGINT PRIMARY KEY, spent INT NOT NULL) ENGINE=InnoDB")
     void createWallets();
 
-    @Insert("INSERT INTO test_card_wallet (user_id, spent) VALUES (8, 0), (9, 0), (10, 0)")
+    @Insert("INSERT INTO test_card_wallet (user_id, spent) VALUES (8, 0), (9, 0), (10, 0), (13, 0)")
     void seedWallets();
 
     @Select("SELECT spent FROM test_card_wallet WHERE user_id = #{userId}")

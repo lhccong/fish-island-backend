@@ -132,15 +132,14 @@ public interface FishPetService extends IService<FishPet> {
     int updatePetRankTitles();
 
     /**
-     * 获取宠物装备属性统计
-     * 统计宠物穿戴的所有装备的 baseAttack、baseDefense、baseHp 和 mainAttr 属性
+     * 获取宠物的装备、锻造和展示柜属性汇总
      *
      * @return 装备属性统计VO
      */
     PetEquipStatsVO getPetEquipStats();
 
     /**
-     * 根据用户ID获取宠物装备属性统计
+     * 根据用户ID获取宠物属性汇总
      *
      * @param userId 用户ID
      * @return 装备属性统计VO
@@ -148,7 +147,7 @@ public interface FishPetService extends IService<FishPet> {
     PetEquipStatsVO getPetEquipStatsByUserId(Long userId);
 
     /**
-     * 根据已加载的宠物实体获取装备属性统计（避免重复查库）
+     * 根据已加载的宠物实体获取属性汇总（避免重复查库）
      *
      * @param fishPet 已加载的宠物实体
      * @return 装备属性统计VO
@@ -162,4 +161,4 @@ public interface FishPetService extends IService<FishPet> {
      * @return 槽位 -> 装备VO 的映射
      */
     Map<String, ItemInstanceVO> getEquippedItems(FishPet pet);
-} 
+}

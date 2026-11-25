@@ -6,11 +6,17 @@ import com.cong.fishisland.mapper.PetCardPlayMapper;
 import com.cong.fishisland.model.dto.pet.PetCardCatalog.Atlas;
 import com.cong.fishisland.model.dto.pet.PetCardCatalog.Card;
 import com.cong.fishisland.model.dto.pet.PetCardCatalog.Pool;
+import com.cong.fishisland.model.dto.pet.PetCardPlay.CollectedCard;
+import com.cong.fishisland.model.dto.pet.PetCardPlay.CollectionPage;
 import com.cong.fishisland.model.dto.pet.PetCardPlay.Command;
+import com.cong.fishisland.model.dto.pet.PetCardPlay.LevelProgress;
 import com.cong.fishisland.model.dto.pet.PetCardPlay.Opening;
+import com.cong.fishisland.model.dto.pet.PetCardPlay.Owned;
 import com.cong.fishisland.model.dto.pet.PetCardPlay.State;
 import com.cong.fishisland.model.entity.user.UserPoints;
+import com.cong.fishisland.model.vo.pet.PetEquipStatsVO;
 import com.cong.fishisland.service.UserPointsService;
+import com.cong.fishisland.service.broadcast.AchievementBroadcastService;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import org.junit.jupiter.api.AfterAll;
@@ -25,11 +31,14 @@ import java.time.Instant;
 import java.time.LocalDate;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.List;
+import java.util.Locale;
 import java.util.UUID;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
+import java.util.stream.Collectors;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.*;
@@ -71,7 +80,7 @@ class PetCardPlayDatabaseTest {
         transactions = database.getBean(PlatformTransactionManager.class);
         new TransactionTemplate(transactions).executeWithoutResult(status -> seedCatalog(json));
         service = new PetCardPlayService(new PetCardPlayStore(database.getBean(PetCardPlayMapper.class), json),
-                catalog, points, transactions, json);
+                catalog, points, transactions, json, mock(AchievementBroadcastService.class));
     }
 
     private static void seedCatalog(ObjectMapper json) {
@@ -121,6 +130,110 @@ class PetCardPlayDatabaseTest {
     }
 
     @Test
+    void collectionSortsByGradeBeforePagingAndKeepsIdOrderWithinGrade() {
+        long userId = 12;
+        ObjectMapper json = new ObjectMapper();
+        PetCardPlayMapper play = database.getBean(PetCardPlayMapper.class);
+        List<String> grades = Arrays.asList("fine", "epic", "legendary", "shiny");
+        new TransactionTemplate(transactions).executeWithoutResult(status -> {
+            for (int index = 24; index >= 1; index--) {
+                Card card = new Card();
+                card.setId(String.format(Locale.ROOT, "collection-%02d", index));
+                card.setName(card.getId());
+                card.setGrade(index <= 20 ? "common" : grades.get(index - 21));
+                card.setStats(json.createObjectNode().put("health", 5));
+                card.setBattle(json.createObjectNode());
+                card.setArtKey(String.format(Locale.ROOT, "%064d.jpg", 0));
+                card.setArtTile(0);
+                catalog.saveCard(card);
+                play.insertOwned(userId, card.getId());
+            }
+        });
+
+        CollectionPage first = service.collection(userId, 1);
+        assertEquals(24, first.getTotal());
+        assertEquals(20, first.getItems().size());
+        assertEquals(Arrays.asList("shiny", "legendary", "epic", "fine"),
+                first.getItems().subList(0, 4).stream().map(CollectedCard::getGrade).collect(Collectors.toList()));
+        assertEquals("collection-01", first.getItems().get(4).getId());
+        assertEquals("collection-16", first.getItems().get(19).getId());
+        assertEquals(Arrays.asList("collection-17", "collection-18", "collection-19", "collection-20"),
+                service.collection(userId, 2).getItems().stream().map(CollectedCard::getId).collect(Collectors.toList()));
+    }
+
+    @Test
+    void sixShowcasedCardsContributeAndASeventhCanReplaceOne() {
+        long userId = 13;
+        long otherUserId = 14;
+        ObjectMapper json = new ObjectMapper();
+        PetCardPlayMapper play = database.getBean(PetCardPlayMapper.class);
+        new TransactionTemplate(transactions).executeWithoutResult(status -> {
+            for (int index = 1; index <= 7; index++) {
+                Card card = new Card();
+                card.setId("showcase-" + index);
+                card.setName(card.getId());
+                card.setGrade("common");
+                card.setStats(json.createObjectNode().put("health", index * 10).put("attack", index));
+                card.setBattle(json.createObjectNode());
+                card.setArtKey(String.format(Locale.ROOT, "%064d.jpg", 0));
+                card.setArtTile(0);
+                catalog.saveCard(card);
+                play.insertOwned(userId, card.getId());
+            }
+            play.insertOwned(otherUserId, "showcase-7");
+            play.display(otherUserId, "showcase-7", true);
+            fixtures.setDuplicates(userId, "showcase-1", 1);
+        });
+        for (int index = 1; index <= 6; index++) {
+            service.submit(userId, cardAction("display", "showcase-" + index));
+        }
+        BusinessException full = assertThrows(BusinessException.class,
+                () -> service.submit(userId, cardAction("display", "showcase-7")));
+        assertTrue(full.getMessage().contains("展示柜已满"));
+        List<CollectedCard> cards = assertShowcaseStats(play, json, userId, 210, 21);
+        assertEquals(6, cards.size());
+        assertEquals("showcase-1", cards.get(0).getName());
+        assertEquals(String.format(Locale.ROOT, "%064d.jpg", 0), cards.get(0).getArtKey());
+        assertEquals("showcase-7", assertShowcaseStats(play, json, otherUserId, 70, 7).get(0).getId());
+
+        Command upgrade = cardAction("upgrade", "showcase-1");
+        upgrade.setStars(1);
+        service.submit(userId, upgrade);
+        assertEquals(2, assertShowcaseStats(play, json, userId, 212, 22).get(0).getStars());
+        service.submit(userId, cardAction("remove", "showcase-1"));
+        service.submit(userId, cardAction("display", "showcase-7"));
+        assertShowcaseStats(play, json, userId, 270, 27);
+
+        Command removeAll = action("removeAll", null);
+        List<Owned> kept = service.submit(userId, removeAll).getCollection();
+        assertEquals(7, kept.size());
+        assertTrue(kept.stream().noneMatch(Owned::isShowcased));
+        assertEquals(2, kept.get(0).getStars());
+        assertTrue(assertShowcaseStats(play, json, userId, 0, 0).isEmpty());
+        assertEquals(1, assertShowcaseStats(play, json, otherUserId, 70, 7).size());
+        service.submit(userId, cardAction("display", "showcase-1"));
+        assertTrue(service.submit(userId, removeAll).getCollection().get(0).isShowcased());
+    }
+
+    private static List<CollectedCard> assertShowcaseStats(PetCardPlayMapper play, ObjectMapper json, long userId,
+                                                          int health, int attack) {
+        PetEquipStatsVO stats = new PetEquipStatsVO();
+        stats.setTotalBaseHp(0);
+        stats.setTotalBaseAttack(0);
+        stats.setTotalBaseDefense(0);
+        List<CollectedCard> cards = new PetCardShowcaseStats(play, json).addTo(userId, stats);
+        assertEquals(health, stats.getTotalBaseHp());
+        assertEquals(attack, stats.getTotalBaseAttack());
+        return cards;
+    }
+
+    private static Command cardAction(String type, String cardId) {
+        Command command = action(type, null);
+        command.setCardId(cardId);
+        return command;
+    }
+
+    @Test
     void claimsStocksOpensLevelsUpAndKeepsHistoryAndMaterials() throws Exception {
         assertEquals(2, service.state(8).getFreeRemaining());
         Command free = action("claim", "island");
@@ -151,6 +264,7 @@ class PetCardPlayDatabaseTest {
         Opening pending = opened.getPending();
         assertEquals(5, pending.getCards().size());
         assertEquals("shinyCard", pending.getCards().get(4).getCardId());
+        assertEquals("shiny", pending.getCards().get(4).getGrade());
         assertEquals(3, opened.getCollection().get(0).getDuplicates());
         assertTrue(Instant.parse(pending.getOpenedAt()).isBefore(Instant.now().plusSeconds(1)));
         assertEquals(pending.getId(), service.submit(8, open).getPending().getId());
@@ -165,6 +279,21 @@ class PetCardPlayDatabaseTest {
             assertEquals(stars + 1, service.submit(8, upgrade).getCollection().get(0).getStars());
         }
         assertEquals(0, service.state(8).getCollection().get(0).getDuplicates());
+        CollectionPage collection = service.collection(8, 1);
+        assertEquals(2, collection.getTotal());
+        assertEquals(new LevelProgress(1, 1, 3), collection.getProgress());
+        assertEquals("shinyCard", collection.getItems().get(0).getId());
+        assertEquals("commonCard", collection.getItems().get(1).getId());
+        assertEquals("common", collection.getItems().get(1).getGrade());
+        assertEquals(3, collection.getItems().get(1).getStars());
+        assertEquals(64 + ".jpg".length(), collection.getItems().get(1).getArtKey().length());
+        CollectionPage next = service.collection(8, 2);
+        assertTrue(next.getItems().isEmpty());
+        assertNull(next.getProgress());
+        CollectionPage empty = service.collection(9, 1);
+        assertEquals(0, empty.getTotal());
+        assertEquals(new LevelProgress(1, 0, 3), empty.getProgress());
+        assertThrows(BusinessException.class, () -> service.collection(8, 0));
         assertEquals(4, service.state(8).getCollection().get(0).getUpgradeCost().intValue());
         fixtures.setClaimDay(8, LocalDate.of(2020, 1, 1));
         assertEquals(2, service.state(8).getFreeRemaining());
@@ -185,6 +314,7 @@ class PetCardPlayDatabaseTest {
         assertNotNull(cursor);
         assertEquals(20, service.history(8, null).getItems().size());
         assertEquals(2, service.history(8, cursor).getItems().size());
+        assertEquals("shiny", service.history(8, cursor).getItems().get(1).getCards().get(4).getGrade());
         assertTrue(service.history(9, null).getItems().isEmpty());
         assertTrue(service.state(9).getCollection().isEmpty());
 

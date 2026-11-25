@@ -5,6 +5,7 @@ import lombok.AllArgsConstructor;
 import lombok.NoArgsConstructor;
 import lombok.Value;
 
+import java.io.Serializable;
 import java.util.List;
 
 public final class PetCardPlay {
@@ -39,18 +40,39 @@ public final class PetCardPlay {
     }
 
     @Data
+    @NoArgsConstructor
+    @AllArgsConstructor
     public static class Pull {
         private String cardId;
         private String name;
         private boolean duplicate;
+        private String grade;
+    }
 
-        public Pull() {}
+    @Value
+    public static class CollectedCard implements Serializable {
+        private static final long serialVersionUID = 1L;
+        String id;
+        String name;
+        String grade;
+        int stars;
+        String artKey;
+        int artTile;
+        boolean portrait;
+    }
 
-        public Pull(String cardId, String name, boolean duplicate) {
-            this.cardId = cardId;
-            this.name = name;
-            this.duplicate = duplicate;
-        }
+    @Value
+    public static class CollectionPage {
+        List<CollectedCard> items;
+        long total;
+        LevelProgress progress;
+    }
+
+    @Value
+    public static class LevelProgress {
+        int level;
+        int completed;
+        int required;
     }
 
     @Value

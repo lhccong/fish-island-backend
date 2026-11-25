@@ -27,6 +27,26 @@
         </constructor>
     </resultMap>
 
+    <resultMap id="collectedCard" type="com.cong.fishisland.model.dto.pet.PetCardPlay$CollectedCard">
+        <constructor>
+            <idArg column="id" javaType="string"/>
+            <arg column="name" javaType="string"/>
+            <arg column="grade" javaType="string"/>
+            <arg column="stars" javaType="_int"/>
+            <arg column="art_key" javaType="string"/>
+            <arg column="art_tile" javaType="_int"/>
+            <arg column="portrait" javaType="_boolean"/>
+        </constructor>
+    </resultMap>
+
+    <resultMap id="showcaseStats" type="com.cong.fishisland.mapper.PetCardPlayMapper$ShowcaseStatsRow">
+        <constructor>
+            <idArg resultMap="collectedCard" javaType="com.cong.fishisland.model.dto.pet.PetCardPlay$CollectedCard"/>
+            <arg column="stats" javaType="string"/>
+            <arg column="battle" javaType="string"/>
+        </constructor>
+    </resultMap>
+
     <resultMap id="opening" type="com.cong.fishisland.mapper.PetCardPlayMapper$OpeningRow">
         <constructor>
             <idArg column="id" javaType="long"/>
@@ -96,6 +116,36 @@
         SELECT <include refid="collectionColumns"/> FROM pet_card_collection WHERE user_id = #{userId} ORDER BY card_id
     </select>
 
+    <select id="showcaseStats" resultMap="showcaseStats">
+        SELECT c.id, c.name, c.grade, o.stars, c.art_key, c.art_tile, a.portrait, c.stats, c.battle
+        FROM pet_card_collection o
+        JOIN pet_card_definition c ON c.id = o.card_id
+        JOIN pet_card_atlas a ON a.id = c.art_key
+        WHERE o.user_id = #{userId} AND o.showcased = TRUE
+        ORDER BY o.card_id
+    </select>
+
+    <select id="collectionPage" resultMap="collectedCard">
+        SELECT c.id, c.name, c.grade, o.stars, c.art_key, c.art_tile, a.portrait
+        FROM pet_card_collection o
+        JOIN pet_card_definition c ON c.id = o.card_id
+        JOIN pet_card_atlas a ON a.id = c.art_key
+        WHERE o.user_id = #{userId}
+        ORDER BY CASE c.grade
+            WHEN 'shiny' THEN 1
+            WHEN 'legendary' THEN 2
+            WHEN 'epic' THEN 3
+            WHEN 'fine' THEN 4
+            WHEN 'common' THEN 5
+            ELSE 6
+        END, o.card_id
+        LIMIT 20 OFFSET #{offset}
+    </select>
+
+    <select id="collectionCount" resultType="_long">
+        SELECT COUNT(*) FROM pet_card_collection WHERE user_id = #{userId}
+    </select>
+
     <select id="owned" resultMap="owned">
         SELECT <include refid="collectionColumns"/> FROM pet_card_collection WHERE user_id = #{userId} AND card_id = #{card}
     </select>
@@ -115,6 +165,10 @@
 
     <update id="display">
         UPDATE pet_card_collection SET showcased = #{displayed} WHERE user_id = #{userId} AND card_id = #{card}
+    </update>
+
+    <update id="removeAllFromShowcase">
+        UPDATE pet_card_collection SET showcased = FALSE WHERE user_id = #{userId} AND showcased = TRUE
     </update>
 
     <select id="opening" resultMap="opening">

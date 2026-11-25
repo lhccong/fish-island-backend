@@ -12,7 +12,6 @@ import com.cong.fishisland.model.entity.game.TowerClimbRecord;
 import com.cong.fishisland.model.entity.pet.FishPet;
 import com.cong.fishisland.model.entity.user.User;
 import com.cong.fishisland.model.enums.user.PointsRecordSourceEnum;
-import com.cong.fishisland.model.vo.game.AttackResultVO;
 import com.cong.fishisland.model.vo.game.BattleResultVO;
 import com.cong.fishisland.model.vo.game.BattleStatsVO;
 import com.cong.fishisland.model.vo.game.TowerClimbResultVO;
@@ -24,6 +23,7 @@ import com.cong.fishisland.service.FishPetService;
 import com.cong.fishisland.service.TowerClimbService;
 import com.cong.fishisland.service.UserPointsService;
 import com.cong.fishisland.service.UserService;
+import com.cong.fishisland.service.pet.PetBattleSimulation;
 import com.cong.fishisland.service.broadcast.AchievementBroadcastService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -230,90 +230,12 @@ public class TowerClimbServiceImpl implements TowerClimbService {
     // ---- 战斗逻辑 ----
 
     private List<BattleResultVO> doBattle(BattleStatsVO pet, BattleStatsVO monster) {
+        PetBattleSimulation battle = new PetBattleSimulation(pet, monster, monster.getHealth(), true, random);
         List<BattleResultVO> rounds = new ArrayList<>();
-        int petHp = pet.getHealth();
-        int monsterHp = monster.getHealth();
-        // 速度高的一方先手；相同时随机决定
-        boolean petTurn = BattleStatsVO.aGoesFirst(pet, monster, random);
-
-        for (int i = 0; i < MAX_ROUNDS && petHp > 0 && monsterHp > 0; i++) {
-            BattleResultVO round = new BattleResultVO();
-            if (petTurn) {
-                round.setAttackerType("PET");
-                AttackResultVO atk = performAttack(pet, monster, petHp, monsterHp);
-                monsterHp = Math.max(0, monsterHp - atk.getDamage());
-                petHp = Math.min(pet.getHealth(), petHp + atk.getLifestealHeal());
-                round.setDamage(atk.getDamage());
-                round.setIsCritical(atk.isCritical());
-                round.setIsCombo(atk.isCombo());
-                round.setIsBlock(atk.isBlock());
-                round.setIsDodge(atk.isDodge());
-                round.setIsNormalAttack(!atk.isCritical() && !atk.isCombo() && !atk.isDodge());
-                round.setLifestealHeal(atk.getLifestealHeal());
-                // 连击时宠物继续攻击，否则切换到怪物
-                petTurn = atk.isCombo();
-            } else {
-                round.setAttackerType("BOSS");
-                AttackResultVO atk = performAttack(monster, pet, monsterHp, petHp);
-                petHp = Math.max(0, petHp - atk.getDamage());
-                monsterHp = Math.min(monster.getHealth(), monsterHp + atk.getLifestealHeal());
-                round.setDamage(atk.getDamage());
-                round.setIsCritical(atk.isCritical());
-                round.setIsCombo(atk.isCombo());
-                round.setIsBlock(atk.isBlock());
-                round.setIsDodge(atk.isDodge());
-                round.setIsNormalAttack(!atk.isCritical() && !atk.isCombo() && !atk.isDodge());
-                round.setLifestealHeal(atk.getLifestealHeal());
-                petTurn = !atk.isCombo();
-            }
-            round.setPetRemainingHealth(petHp);
-            round.setBossRemainingHealth(monsterHp);
-            rounds.add(round);
+        while (rounds.size() < MAX_ROUNDS && battle.hasNext()) {
+            rounds.add(battle.next().toChallengeRound(true));
         }
         return rounds;
-    }
-
-    private AttackResultVO performAttack(BattleStatsVO attacker, BattleStatsVO defender,
-                                         int attackerHp, int defenderHp) {
-        AttackResultVO result = new AttackResultVO();
-
-        double effectiveDodge = Math.max(0.0, defender.getDodgeRate() - attacker.getDodgeResistance());
-        if (random.nextDouble() < effectiveDodge) {
-            result.setDodge(true);
-            result.setDamage(0);
-            return result;
-        }
-
-        double effectiveBlock = Math.max(0.0, defender.getBlockRate() - attacker.getBlockResistance());
-        boolean isBlock = random.nextDouble() < effectiveBlock;
-        result.setBlock(isBlock);
-
-        double effectiveCrit = Math.max(0.0, attacker.getCritRate() - defender.getCritResistance());
-        boolean isCrit = random.nextDouble() < effectiveCrit;
-        result.setCritical(isCrit);
-
-        double effectiveCombo = Math.max(0.0, attacker.getComboRate() - defender.getComboResistance());
-        boolean isCombo = random.nextDouble() < effectiveCombo;
-        result.setCombo(isCombo);
-
-        double multiplier = 1.0;
-        if (isCrit) multiplier *= BattleConstant.CRITICAL_DAMAGE_MULTIPLIER;
-        if (isCombo) multiplier *= BattleConstant.COMBO_DAMAGE_MULTIPLIER;
-        if (isBlock) multiplier *= BattleConstant.BLOCK_DAMAGE_REDUCTION;
-
-        int base = (int) (attacker.getAttack() * multiplier);
-        int afterDef = Math.max(1, base - defender.getDefense());
-        double variation = 0.9 + random.nextDouble() * 0.2;
-        int damage = Math.min((int) (afterDef * variation), defenderHp);
-        result.setDamage(damage);
-
-        double effectiveLifesteal = Math.max(0.0, attacker.getLifesteal() - defender.getLifestealResistance());
-        if (effectiveLifesteal > 0 && damage > 0) {
-            int heal = (int) (damage * effectiveLifesteal);
-            int missing = attacker.getHealth() - attackerHp;
-            result.setLifestealHeal(Math.min(heal, missing));
-        }
-        return result;
     }
 
     // ---- 属性计算 ----

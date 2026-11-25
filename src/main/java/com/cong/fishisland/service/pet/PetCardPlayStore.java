@@ -4,6 +4,7 @@ import com.cong.fishisland.mapper.PetCardPlayMapper;
 import com.cong.fishisland.mapper.PetCardPlayMapper.OpeningRow;
 import com.cong.fishisland.mapper.PetCardPlayMapper.OwnedRow;
 import com.cong.fishisland.mapper.PetCardPlayMapper.Player;
+import com.cong.fishisland.model.dto.pet.PetCardPlay.CollectionPage;
 import com.cong.fishisland.model.dto.pet.PetCardPlay.Opening;
 import com.cong.fishisland.model.dto.pet.PetCardPlay.Owned;
 import com.cong.fishisland.model.dto.pet.PetCardPlay.Pull;
@@ -89,6 +90,11 @@ public class PetCardPlayStore {
         return mapper.collection(userId).stream().map(this::toOwned).collect(Collectors.toList());
     }
 
+    CollectionPage collectionPage(long userId, int offset) {
+        return new CollectionPage(mapper.collectionPage(userId, offset), mapper.collectionCount(userId),
+                offset == 0 ? PetCardPlayRules.levelProgress(player(userId).getOpened()) : null);
+    }
+
     Owned owned(long userId, String card) {
         OwnedRow row = mapper.owned(userId, card);
         return row == null ? null : toOwned(row);
@@ -108,6 +114,10 @@ public class PetCardPlayStore {
 
     void display(long userId, String card, boolean displayed) {
         mapper.display(userId, card, displayed);
+    }
+
+    void removeAllFromShowcase(long userId) {
+        mapper.removeAllFromShowcase(userId);
     }
 
     Opening opening(long userId, long id) {

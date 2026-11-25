@@ -4,6 +4,7 @@ import cn.dev33.satoken.stp.StpUtil;
 import com.cong.fishisland.common.BaseResponse;
 import com.cong.fishisland.common.ResultUtils;
 import com.cong.fishisland.model.dto.pet.PetCardPlay.Command;
+import com.cong.fishisland.model.dto.pet.PetCardPlay.CollectionPage;
 import com.cong.fishisland.model.dto.pet.PetCardPlay.History;
 import com.cong.fishisland.model.dto.pet.PetCardPlay.State;
 import com.cong.fishisland.service.pet.PetCardPlayService;
@@ -24,6 +25,13 @@ public class PetCardPlayController {
     @GetMapping("/history")
     public BaseResponse<History> history(@RequestParam(required = false) String before) {
         return ResultUtils.success(service.history(StpUtil.getLoginIdAsLong(), before));
+    }
+
+    @GetMapping("/collection")
+    public BaseResponse<CollectionPage> collection(@RequestParam long userId,
+                                                   @RequestParam(defaultValue = "1") int page) {
+        StpUtil.checkLogin();
+        return ResultUtils.success(service.collection(userId, page));
     }
 
     @PostMapping("/actions")

@@ -1,6 +1,7 @@
 package com.cong.fishisland.mapper;
 
 import com.cong.fishisland.model.dto.pet.PetCardPlay.Stock;
+import com.cong.fishisland.model.dto.pet.PetCardPlay.CollectedCard;
 import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.Value;
@@ -37,6 +38,12 @@ public interface PetCardPlayMapper {
 
     List<OwnedRow> collection(@Param("userId") long userId);
 
+    List<ShowcaseStatsRow> showcaseStats(@Param("userId") long userId);
+
+    List<CollectedCard> collectionPage(@Param("userId") long userId, @Param("offset") int offset);
+
+    long collectionCount(@Param("userId") long userId);
+
     OwnedRow owned(@Param("userId") long userId, @Param("card") String card);
 
     void incrementDuplicates(@Param("userId") long userId, @Param("card") String card);
@@ -47,6 +54,8 @@ public interface PetCardPlayMapper {
                  @Param("stars") int stars, @Param("cost") int cost);
 
     void display(@Param("userId") long userId, @Param("card") String card, @Param("displayed") boolean displayed);
+
+    void removeAllFromShowcase(@Param("userId") long userId);
 
     OpeningRow opening(@Param("userId") long userId, @Param("id") long id);
 
@@ -66,6 +75,13 @@ public interface PetCardPlayMapper {
         int stars;
         long duplicates;
         boolean showcased;
+    }
+
+    @Value
+    class ShowcaseStatsRow {
+        CollectedCard card;
+        String stats;
+        String battle;
     }
 
     @Data

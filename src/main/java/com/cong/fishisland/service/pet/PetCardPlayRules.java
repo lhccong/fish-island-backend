@@ -2,6 +2,7 @@ package com.cong.fishisland.service.pet;
 
 import com.cong.fishisland.model.dto.pet.PetCardCatalog.Card;
 import com.cong.fishisland.model.dto.pet.PetCardCatalog.Pool;
+import com.cong.fishisland.model.dto.pet.PetCardPlay.LevelProgress;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -15,7 +16,7 @@ public final class PetCardPlayRules {
     static final String ISLAND_POOL = "island";
     static final int DAILY_FREE = 2;
     static final int PACK_SIZE = 5;
-    static final int SHOWCASE_LIMIT = 3;
+    static final int SHOWCASE_LIMIT = 6;
     public static final int MAX_LEVEL = 60;
     private static final int FIRST_LEVEL_OPENINGS = 3;
     private static final double LEVEL_GROWTH = 1.07;
@@ -42,6 +43,13 @@ public final class PetCardPlayRules {
         return level == MAX_LEVEL ? 0 : OPENINGS_AT_LEVEL[level + 1] - (int) opened;
     }
 
+    static LevelProgress levelProgress(long opened) {
+        int level = level(opened);
+        int start = OPENINGS_AT_LEVEL[level];
+        return level == MAX_LEVEL ? new LevelProgress(level, 0, 0)
+                : new LevelProgress(level, (int) opened - start, OPENINGS_AT_LEVEL[level + 1] - start);
+    }
+
     static int requiredLevel(String poolId) {
         return "kingdoms".equals(poolId) ? 10 : 1;
     }
@@ -53,6 +61,10 @@ public final class PetCardPlayRules {
 
     static Integer upgradeCost(int stars) {
         return stars < 5 ? 1 << (stars - 1) : null;
+    }
+
+    static int statAtStars(int base, int stars) {
+        return base > 0 ? base + (stars - 1) * Math.max(1, base / 5) : base;
     }
 
     static List<Card> draw(Pool pool, List<Card> cards, boolean first, IntUnaryOperator random) {

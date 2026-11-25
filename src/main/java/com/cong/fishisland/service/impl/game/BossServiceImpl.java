@@ -9,7 +9,6 @@ import com.cong.fishisland.mapper.game.BossMapper;
 import com.cong.fishisland.model.entity.game.Boss;
 import com.cong.fishisland.model.entity.pet.FishPet;
 import com.cong.fishisland.model.entity.user.User;
-import com.cong.fishisland.model.vo.game.AttackResultVO;
 import com.cong.fishisland.model.vo.game.BattleResultVO;
 import com.cong.fishisland.model.vo.game.BossBattleInfoVO;
 import com.cong.fishisland.model.vo.game.BattleStatsVO;
@@ -20,6 +19,7 @@ import com.cong.fishisland.service.BossService;
 import com.cong.fishisland.service.FishPetService;
 import com.cong.fishisland.service.UserPointsService;
 import com.cong.fishisland.service.UserService;
+import com.cong.fishisland.service.pet.PetBattleSimulation;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.redis.core.StringRedisTemplate;
@@ -61,11 +61,6 @@ public class BossServiceImpl implements BossService {
 
     // 每天最大挑战次数
     private static final int MAX_DAILY_CHALLENGES = 2;
-
-    // 暴击伤害倍数
-    private static final double CRITICAL_DAMAGE_MULTIPLIER = BattleConstant.CRITICAL_DAMAGE_MULTIPLIER;
-    // 连击伤害倍数
-    private static final double COMBO_DAMAGE_MULTIPLIER = BattleConstant.COMBO_DAMAGE_MULTIPLIER;
 
     // Boss击败积分分配百分比（按排名）
     // 第1名: 20%, 第2名: 15%, 第3名: 10%, 第4-5名: 各8%, 第6-10名: 各5%
@@ -142,58 +137,20 @@ public class BossServiceImpl implements BossService {
             throw new BusinessException(ErrorCode.OPERATION_ERROR, "该Boss已被击败，请明天再来挑战");
         }
 
-        // 构建宠物和Boss的战斗属性
         BattleStatsVO petStats = BattleStatsVO.fromPet(
                 pet.getLevel() != null ? pet.getLevel() : 1,
                 fishPetService.getPetEquipStats(),
                 BattleConstant.BASE_ATK, BattleConstant.GROWTH_RATE);
         BattleStatsVO bossStats = BattleStatsVO.fromBoss(boss);
-
-        int currentPetHealth = petStats.getHealth();
+        PetBattleSimulation battle = new PetBattleSimulation(petStats, bossStats, currentBossHealth, false, random);
         List<BattleResultVO> battleResults = new ArrayList<>();
-        // 速度高的一方先手；相同时随机决定（Boss 速度默认 0，宠物通常先手）
-        boolean petTurn = BattleStatsVO.aGoesFirst(petStats, bossStats, new java.util.Random());
         int totalDamage = 0;
-        int maxActions = 100;
-
-        while (currentPetHealth > 0 && currentBossHealth > 0 && maxActions-- > 0) {
-
-            BattleResultVO result = new BattleResultVO();
-            String attackerType = petTurn ? "PET" : "BOSS";
-            result.setAttackerType(attackerType);
-
-            AttackResultVO attackResult;
-            if (petTurn) {
-                attackResult = performAttack(petStats, bossStats, currentPetHealth, currentBossHealth);
-                if (!attackResult.isDodge()) {
-                    currentBossHealth = Math.max(0, currentBossHealth - attackResult.getDamage());
-                    currentPetHealth = Math.min(petStats.getHealth(), currentPetHealth + attackResult.getLifestealHeal());
-                    totalDamage += attackResult.getDamage();
-                }
-            } else {
-                attackResult = performAttack(bossStats, petStats, currentBossHealth, currentPetHealth);
-                if (!attackResult.isDodge()) {
-                    currentPetHealth = Math.max(0, currentPetHealth - attackResult.getDamage());
-                }
-            }
-
-            result.setDamage(attackResult.getDamage());
-            result.setIsDodge(attackResult.isDodge());
-            result.setIsCritical(attackResult.isCritical());
-            result.setIsCombo(attackResult.isCombo());
-            result.setIsBlock(attackResult.isBlock());
-            result.setLifestealHeal(attackResult.getLifestealHeal());
-            result.setIsNormalAttack(!attackResult.isDodge() && !attackResult.isCritical() && !attackResult.isCombo() && !attackResult.isBlock());
-            result.setPetRemainingHealth(currentPetHealth);
-            result.setBossRemainingHealth(currentBossHealth);
-            battleResults.add(result);
-
-            if ("PET".equals(attackerType)) {
-                updateBossHealthToRedis(bossId, currentBossHealth);
-            }
-
-            if (!attackResult.isCombo()) {
-                petTurn = !petTurn;
+        while (battleResults.size() < 100 && battle.hasNext()) {
+            PetBattleSimulation.Action action = battle.next();
+            battleResults.add(action.toChallengeRound(false));
+            if (action.isPetAttacks()) {
+                totalDamage += action.getHit().getDamage();
+                updateBossHealthToRedis(bossId, action.getOpponentHealth());
             }
         }
 
@@ -204,59 +161,6 @@ public class BossServiceImpl implements BossService {
         updateBossChallengeRanking(bossId, userId, totalDamage);
 
         return battleResults;
-    }
-
-    /**
-     * 执行一次攻击：attacker 攻击 defender
-     */
-    private AttackResultVO performAttack(BattleStatsVO attacker, BattleStatsVO defender,
-                                          int attackerCurrentHp, int defenderCurrentHp) {
-        AttackResultVO result = new AttackResultVO();
-
-        // 闪避：防守方闪避率 - 攻击方抗闪避率
-        double effectiveDodge = Math.max(0.0, defender.getDodgeRate() - attacker.getDodgeResistance());
-        if (random.nextDouble() < effectiveDodge) {
-            result.setDodge(true);
-            result.setDamage(0);
-            return result;
-        }
-
-        // 格挡：防守方格挡率 - 攻击方抗格挡率（触发后减伤50%）
-        double effectiveBlock = Math.max(0.0, defender.getBlockRate() - attacker.getBlockResistance());
-        boolean isBlock = random.nextDouble() < effectiveBlock;
-        result.setBlock(isBlock);
-
-        // 暴击：攻击方暴击率 - 防守方抗暴击率
-        double effectiveCrit = Math.max(0.0, attacker.getCritRate() - defender.getCritResistance());
-        boolean isCritical = random.nextDouble() < effectiveCrit;
-
-        // 连击：攻击方连击率 - 防守方抗连击率
-        double effectiveCombo = Math.max(0.0, attacker.getComboRate() - defender.getComboResistance());
-        boolean isCombo = random.nextDouble() < effectiveCombo;
-
-        result.setCritical(isCritical);
-        result.setCombo(isCombo);
-
-        double damageMultiplier = 1.0;
-        if (isCritical) damageMultiplier *= CRITICAL_DAMAGE_MULTIPLIER;
-        if (isCombo) damageMultiplier *= COMBO_DAMAGE_MULTIPLIER;
-        if (isBlock) damageMultiplier *= BattleConstant.BLOCK_DAMAGE_REDUCTION;
-
-        int baseDamage = (int) (attacker.getAttack() * damageMultiplier);
-        int damageAfterDefense = Math.max(1, baseDamage - defender.getDefense());
-        double damageVariation = 0.9 + random.nextDouble() * 0.2;
-        int damage = Math.min((int) (damageAfterDefense * damageVariation), defenderCurrentHp);
-        result.setDamage(damage);
-
-        // 吸血：攻击方吸血率 - 防守方抗吸血率，回复量不超过缺失血量
-        double effectiveLifesteal = Math.max(0.0, attacker.getLifesteal() - defender.getLifestealResistance());
-        if (effectiveLifesteal > 0 && damage > 0) {
-            int heal = (int) (damage * effectiveLifesteal);
-            int missing = attacker.getHealth() - attackerCurrentHp;
-            result.setLifestealHeal(Math.min(heal, missing));
-        }
-
-        return result;
     }
 
     /**

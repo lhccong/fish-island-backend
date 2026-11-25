@@ -9,6 +9,7 @@ import com.cong.fishisland.model.dto.pet.PetCardPlay.*;
 import com.cong.fishisland.model.entity.user.UserPoints;
 import com.cong.fishisland.model.enums.user.PointsRecordSourceEnum;
 import com.cong.fishisland.service.UserPointsService;
+import com.cong.fishisland.service.broadcast.AchievementBroadcastService;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
@@ -44,14 +45,17 @@ public class PetCardPlayService {
     private final UserPointsService points;
     private final TransactionTemplate transactions;
     private final ObjectMapper json;
+    private final AchievementBroadcastService broadcasts;
 
     public PetCardPlayService(PetCardPlayStore store, PetCardCatalogStore catalog, UserPointsService points,
-                              PlatformTransactionManager manager, ObjectMapper json) {
+                              PlatformTransactionManager manager, ObjectMapper json,
+                              AchievementBroadcastService broadcasts) {
         this.store = store;
         this.catalog = catalog;
         this.points = points;
         this.transactions = new TransactionTemplate(manager);
         this.json = json;
+        this.broadcasts = broadcasts;
     }
 
     @Transactional(readOnly = true)
@@ -65,6 +69,12 @@ public class PetCardPlayService {
         boolean more = rows.size() > 20;
         return new History(more ? new ArrayList<>(rows.subList(0, 20)) : rows,
                 more ? rows.get(19).getId() : null);
+    }
+
+    @Transactional(readOnly = true)
+    public CollectionPage collection(long userId, int page) {
+        require(userId > 0 && page >= 1 && page <= 100000, "查询参数无效");
+        return store.collectionPage(userId, (page - 1) * 20);
     }
 
     public State submit(long userId, Command command) {
@@ -122,6 +132,9 @@ public class PetCardPlayService {
             case "remove":
                 display(userId, command.getCardId(), "display".equals(command.getType()));
                 break;
+            case "removeAll":
+                store.removeAllFromShowcase(userId);
+                break;
             default:
                 throw new BusinessException(ErrorCode.PARAMS_ERROR, "不支持的卡包操作");
         }
@@ -164,6 +177,7 @@ public class PetCardPlayService {
         Set<String> owned = store.collection(userId).stream().map(Owned::getCardId).collect(Collectors.toCollection(HashSet::new));
         int previousSize = owned.size();
         LocalDateTime openedAt = LocalDateTime.ofInstant(now, ZoneOffset.UTC);
+        List<String> shinyCards = new ArrayList<>();
         long openingId = 0;
         for (int pack = 0; pack < quantity; pack++) {
             List<Card> drawn = draw(pool, cards, stock.getOpened() == 0 && pack == 0, RANDOM::nextInt);
@@ -171,11 +185,15 @@ public class PetCardPlayService {
             for (Card card : drawn) {
                 boolean duplicate = !owned.add(card.getId());
                 store.collect(userId, card.getId(), duplicate);
-                pulls.add(new Pull(card.getId(), card.getName(), duplicate));
+                pulls.add(new Pull(card.getId(), card.getName(), duplicate, card.getGrade()));
+                if ("shiny".equals(card.getGrade())) {
+                    shinyCards.add(card.getName());
+                }
             }
             openingId = store.recordOpening(userId, id, pool.getName(), openedAt, pulls);
         }
         store.consumeStock(userId, id, quantity, quantity == 1 ? openingId : null);
+        broadcasts.shinyCardsDrawn(userId, shinyCards);
         int newCards = owned.size() - previousSize;
         return quantity == 1 ? null : new BatchResult(quantity, newCards, quantity * PACK_SIZE - newCards, 0, 0, 0);
     }

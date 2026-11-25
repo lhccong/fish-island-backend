@@ -11,6 +11,7 @@ import org.springframework.transaction.support.TransactionSynchronization;
 import org.springframework.transaction.support.TransactionSynchronizationManager;
 
 import java.math.BigDecimal;
+import java.util.List;
 import java.util.function.Supplier;
 
 /** 在线成就播报：业务提交后尽力发送，不影响已完成的结算。 */
@@ -35,6 +36,14 @@ public class AchievementBroadcastService {
         if (floor > 30) {
             publishAfterCommit(() -> "恭喜「" + name(userId) + "」通关爬塔第 " + floor + " 层！");
         }
+    }
+
+    public void shinyCardsDrawn(Long userId, List<String> cardNames) {
+        if (cardNames.isEmpty()) return;
+        String reward = cardNames.size() == 1
+                ? "闪耀卡「" + singleLine(cardNames.get(0)) + "」"
+                : " " + cardNames.size() + " 张闪耀卡";
+        publishAfterCommit(() -> "恭喜「" + name(userId) + "」抽到了" + reward + "！");
     }
 
     public void equipmentUpgraded(Long userId, EquipSlotEnum slot, int level) {
@@ -62,10 +71,14 @@ public class AchievementBroadcastService {
         User user = users.getById(userId);
         String name = user == null ? null : user.getUserName();
         if (name == null) return "岛民";
-        name = name.replaceAll("[\\p{Cntrl}\\p{Z}\\s]+", " ").trim();
+        name = singleLine(name);
         if (name.isEmpty()) return "岛民";
         int length = name.codePointCount(0, name.length());
         return length > 40 ? name.substring(0, name.offsetByCodePoints(0, 40)) : name;
+    }
+
+    private static String singleLine(String value) {
+        return value.replaceAll("[\\p{Cntrl}\\p{Z}\\s]+", " ").trim();
     }
 
     private void publishAfterCommit(Supplier<String> content) {

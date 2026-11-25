@@ -2,8 +2,10 @@ package com.cong.fishisland.model.vo.game;
 
 import io.swagger.annotations.ApiModelProperty;
 import lombok.Data;
+import com.fasterxml.jackson.annotation.JsonInclude;
 
 import java.io.Serializable;
+import java.util.List;
 
 /**
  * 宠物对战结果视图对象
@@ -18,6 +20,8 @@ public class PetBattleResultVO implements Serializable {
      */
     @ApiModelProperty(value = "当前攻击方类型：MY_PET-我的宠物攻击，OPPONENT_PET-对手宠物攻击", example = "MY_PET")
     private String attackerType;
+
+    private Integer roundNumber;
 
     /**
      * 是否暴击
@@ -72,6 +76,9 @@ public class PetBattleResultVO implements Serializable {
      */
     @ApiModelProperty(value = "对手宠物剩余血量", example = "500")
     private Integer opponentPetRemainingHealth;
+
+    @JsonInclude(JsonInclude.Include.NON_EMPTY)
+    private List<PetCardActivationVO> cardActivations;
 
     private static final long serialVersionUID = 1L;
 }

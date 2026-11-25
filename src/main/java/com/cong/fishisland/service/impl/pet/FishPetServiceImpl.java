@@ -26,6 +26,7 @@ import com.cong.fishisland.service.*;
 import static com.cong.fishisland.model.enums.user.PointsRecordSourceEnum.*;
 
 import com.cong.fishisland.service.event.EventRemindHandler;
+import com.cong.fishisland.service.pet.PetCardShowcaseStats;
 import com.cong.fishisland.utils.RedisUtils;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -60,6 +61,7 @@ public class FishPetServiceImpl extends ServiceImpl<FishPetMapper, FishPet> impl
     private final PetEquipForgeMapper petEquipForgeMapper;
     private final PetForgeProperties petForgeProperties;
     private final ScriptBehaviorDetectService scriptBehaviorDetectService;
+    private final PetCardShowcaseStats petCardShowcaseStats;
 
 
     // 每次喂食增加的饥饿度
@@ -171,9 +173,9 @@ public class FishPetServiceImpl extends ServiceImpl<FishPetMapper, FishPet> impl
         Map<String, ItemInstanceVO> equippedItems = getEquippedItems(fishPet);
         petVO.setEquippedItems(equippedItems);
 
-        // 获取宠物装备属性统计（装备基础属性 + 锻造词条 + 锻造等级加成的总和）
-        PetEquipStatsVO equipStats = this.getPetEquipStatsByUserId(userId);
-        petVO.setEquipStats(equipStats);
+        PetEquipStatsVO stats = summarizeEquipmentStats(fishPet, equippedItems);
+        petVO.setShowcaseCards(petCardShowcaseStats.addTo(userId, stats));
+        petVO.setEquipStats(stats);
 
         return petVO;
     }
@@ -584,9 +586,7 @@ public class FishPetServiceImpl extends ServiceImpl<FishPetMapper, FishPet> impl
         Map<String, ItemInstanceVO> equippedItems = getEquippedItems(fishPet);
         otherUserPetVO.setEquippedItems(equippedItems);
 
-        // 获取宠物装备属性统计
-        PetEquipStatsVO equipStats = this.getPetEquipStatsByUserId(otherUserId);
-        otherUserPetVO.setEquipStats(equipStats);
+        otherUserPetVO.setEquipStats(summarizeStats(fishPet, equippedItems));
 
         return otherUserPetVO;
     }
@@ -1153,9 +1153,18 @@ public class FishPetServiceImpl extends ServiceImpl<FishPetMapper, FishPet> impl
         if (fishPet == null) {
             return null;
         }
-        // 获取已穿戴的装备列表
-        Map<String, ItemInstanceVO> equippedItems = getEquippedItems(fishPet);
+        return summarizeStats(fishPet, getEquippedItems(fishPet));
+    }
 
+    private PetEquipStatsVO summarizeStats(FishPet fishPet, Map<String, ItemInstanceVO> equippedItems) {
+        PetEquipStatsVO stats = summarizeEquipmentStats(fishPet, equippedItems);
+        if (fishPet.getUserId() != null) {
+            petCardShowcaseStats.addTo(fishPet.getUserId(), stats);
+        }
+        return stats;
+    }
+
+    private PetEquipStatsVO summarizeEquipmentStats(FishPet fishPet, Map<String, ItemInstanceVO> equippedItems) {
         // 初始化属性统计
         PetEquipStatsVO statsVO = new PetEquipStatsVO();
         statsVO.setTotalBaseAttack(0);
@@ -1197,7 +1206,7 @@ public class FishPetServiceImpl extends ServiceImpl<FishPetMapper, FishPet> impl
             }
         }
 
-        // 叠加锻造词条属性和装备等级加成
+        // 叠加锻造词条和装备等级加成
         mergeForgeStats(fishPet.getPetId(), statsVO);
 
         return statsVO;
@@ -1212,66 +1221,7 @@ public class FishPetServiceImpl extends ServiceImpl<FishPetMapper, FishPet> impl
         // 查询宠物
         QueryWrapper<FishPet> queryWrapper = new QueryWrapper<>();
         queryWrapper.eq("userId", userId);
-        FishPet fishPet = this.getOne(queryWrapper);
-
-        if (fishPet == null) {
-            return null;
-        }
-
-        // 获取已穿戴的装备列表
-        Map<String, ItemInstanceVO> equippedItems = getEquippedItems(fishPet);
-
-        // 初始化属性统计
-        PetEquipStatsVO statsVO = new PetEquipStatsVO();
-        statsVO.setTotalBaseAttack(0);
-        statsVO.setTotalBaseDefense(0);
-        statsVO.setTotalBaseHp(0);
-        statsVO.setSpeed(0);
-        statsVO.setCritRate(0.0);
-        statsVO.setComboRate(0.0);
-        statsVO.setDodgeRate(0.0);
-        statsVO.setBlockRate(0.0);
-        statsVO.setLifesteal(0.0);
-        statsVO.setCritResistance(0.0);
-        statsVO.setComboResistance(0.0);
-        statsVO.setDodgeResistance(0.0);
-        statsVO.setBlockResistance(0.0);
-        statsVO.setLifestealResistance(0.0);
-
-        // 遍历所有装备，累加属性
-        if (equippedItems != null && !equippedItems.isEmpty()) {
-            for (ItemInstanceVO item : equippedItems.values()) {
-                if (item == null || item.getTemplate() == null) {
-                    continue;
-                }
-
-                ItemTemplateVO template = item.getTemplate();
-
-                // 累加基础属性
-                if (template.getBaseAttack() != null) {
-                    statsVO.setTotalBaseAttack(statsVO.getTotalBaseAttack() + template.getBaseAttack());
-                }
-                if (template.getBaseDefense() != null) {
-                    statsVO.setTotalBaseDefense(statsVO.getTotalBaseDefense() + template.getBaseDefense());
-                }
-                if (template.getBaseHp() != null) {
-                    statsVO.setTotalBaseHp(statsVO.getTotalBaseHp() + template.getBaseHp());
-                }
-                if (template.getBaseSpeed() != null) {
-                    statsVO.setSpeed(statsVO.getSpeed() == null ? template.getBaseSpeed() : statsVO.getSpeed() + template.getBaseSpeed());
-                }
-
-                // 解析 mainAttr 属性
-                if (template.getMainAttr() != null) {
-                    parseMainAttr(template.getMainAttr(), statsVO);
-                }
-            }
-        }
-
-        // 叠加锻造词条属性和装备等级加成
-        mergeForgeStats(fishPet.getPetId(), statsVO);
-
-        return statsVO;
+        return getPetEquipStatsByPet(this.getOne(queryWrapper));
     }
 
     /**
@@ -1440,4 +1390,4 @@ public class FishPetServiceImpl extends ServiceImpl<FishPetMapper, FishPet> impl
             log.error("解析装备 mainAttr 属性失败: {}", mainAttr, e);
         }
     }
-} 
+}

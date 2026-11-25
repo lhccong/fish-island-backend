@@ -2,6 +2,7 @@ package com.cong.fishisland.service.pet;
 
 import com.cong.fishisland.model.dto.pet.PetCardCatalog.Card;
 import com.cong.fishisland.model.dto.pet.PetCardCatalog.Pool;
+import com.cong.fishisland.model.dto.pet.PetCardPlay.LevelProgress;
 import org.junit.jupiter.api.Test;
 
 import java.util.Arrays;
@@ -10,6 +11,7 @@ import java.util.List;
 
 import static com.cong.fishisland.service.pet.PetCardPlayRules.draw;
 import static com.cong.fishisland.service.pet.PetCardPlayRules.level;
+import static com.cong.fishisland.service.pet.PetCardPlayRules.levelProgress;
 import static com.cong.fishisland.service.pet.PetCardPlayRules.openingsToNextLevel;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -42,10 +44,12 @@ class PetCardPlayRulesTest {
         for (int current = 1; current < 60; current++) {
             assertEquals(current, level(opened));
             int cost = openingsToNextLevel(opened, current);
+            assertEquals(new LevelProgress(current, 0, cost), levelProgress(opened));
             assertTrue(cost >= previousCost);
             long beforeUpgrade = opened + cost - 1;
             assertEquals(current, level(beforeUpgrade));
             assertEquals(1, openingsToNextLevel(beforeUpgrade, current));
+            assertEquals(new LevelProgress(current, cost - 1, cost), levelProgress(beforeUpgrade));
             opened += cost;
             previousCost = cost;
         }
@@ -53,6 +57,7 @@ class PetCardPlayRulesTest {
         assertEquals(60, level(opened));
         assertEquals(60, level(Long.MAX_VALUE));
         assertEquals(0, openingsToNextLevel(Long.MAX_VALUE, 60));
+        assertEquals(new LevelProgress(60, 0, 0), levelProgress(Long.MAX_VALUE));
     }
 
     @Test

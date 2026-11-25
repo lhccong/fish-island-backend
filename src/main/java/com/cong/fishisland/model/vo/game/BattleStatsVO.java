@@ -1,6 +1,10 @@
 package com.cong.fishisland.model.vo.game;
 
+import com.cong.fishisland.model.dto.pet.PetCardPassive;
 import lombok.Data;
+
+import java.util.Collections;
+import java.util.List;
 
 /**
  * 战斗属性VO
@@ -13,6 +17,8 @@ import lombok.Data;
  */
 @Data
 public class BattleStatsVO {
+
+    private List<PetCardPassive> cardPassives = Collections.emptyList();
 
     // ---- 基础属性 ----
 
@@ -83,6 +89,7 @@ public class BattleStatsVO {
         s.health  = level * 100 + equipHp;
         s.defense = getInt(stats != null ? stats.getTotalBaseDefense() : null);
         s.speed   = getInt(stats != null ? stats.getSpeed()            : null);
+        if (stats != null) s.cardPassives = stats.getCardPassives();
 
         s.critRate            = getDbl(stats != null ? stats.getCritRate()            : null);
         s.comboRate           = getDbl(stats != null ? stats.getComboRate()           : null);
