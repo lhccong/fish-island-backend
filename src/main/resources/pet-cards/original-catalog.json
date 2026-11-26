@@ -1,15 +1,15 @@
 {
   "atlases": [
-    {"file":"card-art.jpg","name":"海岛初遇","portrait":false},
-    {"file":"card-art-coral-reef.jpg","name":"珊瑚礁","portrait":false},
-    {"file":"card-art-mosswood.jpg","name":"苔木林","portrait":false},
-    {"file":"card-art-snowbay.jpg","name":"雪湾","portrait":false},
-    {"file":"card-art-sky-islands.jpg","name":"浮空群岛","portrait":false},
-    {"file":"card-art-three-kingdoms-shu.jpg","name":"三国·蜀","portrait":false},
-    {"file":"card-art-three-kingdoms-wei.jpg","name":"三国·魏","portrait":true},
-    {"file":"card-art-three-kingdoms-wu.jpg","name":"三国·吴","portrait":false},
-    {"file":"card-art-three-kingdoms-warlords.jpg","name":"三国·群雄","portrait":true},
-    {"file":"card-art-three-kingdoms-taoyuan.jpg","name":"三国·桃园","portrait":true}
+    {"file":"card-art.jpg","name":"海岛初遇","portrait":false,"faction":"island"},
+    {"file":"card-art-coral-reef.jpg","name":"珊瑚礁","portrait":false,"faction":"island"},
+    {"file":"card-art-mosswood.jpg","name":"苔木林","portrait":false,"faction":"island"},
+    {"file":"card-art-snowbay.jpg","name":"雪湾","portrait":false,"faction":"island"},
+    {"file":"card-art-sky-islands.jpg","name":"浮空群岛","portrait":false,"faction":"island"},
+    {"file":"card-art-three-kingdoms-shu.jpg","name":"三国·蜀","portrait":false,"faction":"shu"},
+    {"file":"card-art-three-kingdoms-wei.jpg","name":"三国·魏","portrait":true,"faction":"wei"},
+    {"file":"card-art-three-kingdoms-wu.jpg","name":"三国·吴","portrait":false,"faction":"wu"},
+    {"file":"card-art-three-kingdoms-warlords.jpg","name":"三国·群雄","portrait":true,"faction":"warlords"},
+    {"file":"card-art-three-kingdoms-taoyuan.jpg","name":"三国·桃园","portrait":true,"faction":"shu"}
   ],
   "pools": [
     {"id":"island","name":"海岛初遇","weights":{"common":46,"fine":28,"epic":16,"legendary":8,"shiny":2},"coverId":"fox","sortOrder":0},

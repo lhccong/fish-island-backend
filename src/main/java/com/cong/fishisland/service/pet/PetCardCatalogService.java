@@ -28,7 +28,7 @@ public class PetCardCatalogService {
 
     @Transactional(readOnly = true)
     public Catalog catalog() {
-        return new Catalog(store.pools(false), store.cards());
+        return new Catalog(store.pools(false), store.cards(), PetCardBonds.DEFINITIONS);
     }
 
     public List<Pool> pools() {

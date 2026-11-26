@@ -4,6 +4,7 @@ import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.baomidou.mybatisplus.extension.service.IService;
 import com.cong.fishisland.model.entity.user.UserFollow;
 import com.cong.fishisland.model.vo.user.UserFollowVO;
+import com.cong.fishisland.model.vo.user.UserFollowRelationshipVO;
 
 import java.util.List;
 import java.util.Map;
@@ -51,6 +52,10 @@ public interface UserFollowService extends IService<UserFollow> {
      * @return true=已关注
      */
     boolean isFollowing(String followUserId);
+
+    UserFollowRelationshipVO followRelationship(String followUserId);
+
+    void addFollow(String followUserId);
 
     /**
      * 批量统计多个用户各自的关注数

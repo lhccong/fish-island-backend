@@ -10,6 +10,7 @@ import com.cong.fishisland.model.entity.user.User;
 import com.cong.fishisland.service.impl.event.EventRemindServiceImpl;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.mockito.ArgumentCaptor;
 import org.springframework.test.util.ReflectionTestUtils;
 import java.util.Collections;
 import static org.junit.jupiter.api.Assertions.*;
@@ -79,5 +80,20 @@ class EventRemindActionsTest {
             return false;
         }).when(service).remove(any(Wrapper.class));
         assertTrue(service.deleteAll());
+    }
+
+    @Test void scriptDetectionStoresTheDetectedUserAndKeepsTheSystemSender() {
+        long detectedUserId = 90071992547409921L;
+        doReturn(true).when(service).save(any(EventRemind.class));
+        service.sendScriptDetection(123L, detectedUserId, "合成脚本检测");
+        ArgumentCaptor<EventRemind> saved = ArgumentCaptor.forClass(EventRemind.class);
+        verify(service).save(saved.capture());
+        EventRemind notice = saved.getValue();
+        assertEquals("script_detection", notice.getAction());
+        assertEquals(123L, notice.getRecipientId().longValue());
+        assertEquals(detectedUserId, notice.getSourceId().longValue());
+        assertEquals(-1L, notice.getSenderId().longValue());
+        assertEquals(0, notice.getSourceType().intValue());
+        assertEquals(0, notice.getState().intValue());
     }
 }

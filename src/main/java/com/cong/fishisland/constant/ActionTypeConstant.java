@@ -39,6 +39,9 @@ public interface ActionTypeConstant {
      */
     String SYSTEM = "system";
 
+    /** 脚本检测告警，sourceId 是被检测的用户。 */
+    String SCRIPT_DETECTION = "script_detection";
+
     /**
      * 打赏
      */

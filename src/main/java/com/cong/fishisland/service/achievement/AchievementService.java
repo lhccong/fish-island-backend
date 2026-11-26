@@ -6,6 +6,7 @@ import com.cong.fishisland.config.PetForgeProperties;
 import com.cong.fishisland.mapper.AchievementMapper;
 import com.cong.fishisland.mapper.AchievementMapper.Equipment;
 import com.cong.fishisland.mapper.AchievementMapper.Reward;
+import com.cong.fishisland.model.enums.pay.PayOrderTypeEnum;
 import com.cong.fishisland.model.enums.pet.EquipSlotEnum;
 import com.cong.fishisland.model.enums.user.PointsRecordSourceEnum;
 import com.cong.fishisland.service.UserPointsService;
@@ -16,6 +17,7 @@ import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.transaction.support.TransactionTemplate;
 
+import java.math.BigDecimal;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
@@ -28,6 +30,8 @@ import static com.cong.fishisland.service.achievement.AchievementRule.*;
 
 @Service
 public class AchievementService {
+    private static final BigDecimal MAJOR_SPONSOR_MINIMUM = BigDecimal.valueOf(100);
+
     private final AchievementMapper mapper;
     private final UserPointsService points;
     private final PetForgeProperties forge;
@@ -76,6 +80,9 @@ public class AchievementService {
         List<Achievement> achievements = new ArrayList<>();
         achievements.add(group(userId, USER, single(mapper.userLevel(userId)), claimed, claim));
         achievements.add(group(userId, TURNTABLE, single(mapper.turntableDrawCount(userId)), claimed, claim));
+        BigDecimal sponsorship = mapper.maxPaidSponsorship(userId, PayOrderTypeEnum.SPONSOR.getText());
+        achievements.add(group(userId, SPONSOR, sponsorshipProgress(sponsorship, BigDecimal.ONE), claimed, claim));
+        achievements.add(group(userId, MAJOR_SPONSOR, sponsorshipProgress(sponsorship, MAJOR_SPONSOR_MINIMUM), claimed, claim));
         achievements.add(group(userId, FARM, single(mapper.farmLevel(userId)), claimed, claim));
         achievements.add(group(userId, CARDS, single(PetCardPlayRules.level(opened == null ? 0 : opened)), claimed, claim));
         achievements.add(group(userId, PET, single(mapper.petLevel(userId)), claimed, claim));
@@ -87,6 +94,10 @@ public class AchievementService {
 
     private List<Progress> single(Integer level) {
         return Collections.singletonList(new Progress(0, null, level == null ? 0 : level, true));
+    }
+
+    private List<Progress> sponsorshipProgress(BigDecimal amount, BigDecimal minimum) {
+        return single(amount != null && amount.compareTo(minimum) >= 0 ? 1 : 0);
     }
 
     private int claimed(Map<String, Map<Integer, Integer>> rewards, AchievementRule rule, int subject) {

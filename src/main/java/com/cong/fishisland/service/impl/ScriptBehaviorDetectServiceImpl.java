@@ -89,7 +89,7 @@ public class ScriptBehaviorDetectServiceImpl implements ScriptBehaviorDetectServ
         String scriptKey = SCRIPT_USER_KEY_PREFIX + userId;
         redisTemplate.opsForValue().set(scriptKey, "1", SCRIPT_MARK_TTL_SECONDS, TimeUnit.SECONDS);
         log.warn("用户 {} 被标记为脚本用户：{}", userId, reason);
-        eventRemindService.sendSystemNotify(1L, reason);
+        eventRemindService.sendScriptDetection(1L, userId, reason);
     }
 
     @Override

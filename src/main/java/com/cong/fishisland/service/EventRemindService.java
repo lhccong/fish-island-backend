@@ -72,6 +72,8 @@ public interface EventRemindService extends IService<EventRemind> {
      */
     void sendSystemNotify(Long recipientId, String sourceContent, String action);
 
+    void sendScriptDetection(Long recipientId, Long targetUserId, String sourceContent);
+
     /**
      * 福袋中奖通知（同步写入，开奖流程内调用）
      */

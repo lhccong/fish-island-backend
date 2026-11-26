@@ -6,6 +6,7 @@ import com.cong.fishisland.mapper.PetCardPlayMapper.ShowcaseStatsRow;
 import com.cong.fishisland.model.dto.pet.PetCardPlay.CollectedCard;
 import com.cong.fishisland.model.entity.pet.FishPet;
 import com.cong.fishisland.model.entity.user.User;
+import com.cong.fishisland.model.vo.game.BattleStatsVO;
 import com.cong.fishisland.model.vo.game.PetBattleInfoVO;
 import com.cong.fishisland.model.vo.game.PetBattleResultVO;
 import com.cong.fishisland.model.vo.pet.ItemInstanceVO;
@@ -19,7 +20,9 @@ import org.springframework.test.util.ReflectionTestUtils;
 
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.List;
 import java.util.Random;
+import java.util.stream.Collectors;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.any;
@@ -105,8 +108,119 @@ class PetCardShowcaseBattleTest {
         assertEquals("shield", shielded.getCardActivations().get(0).getCard().getId());
     }
 
+    @Test
+    void bondsRequireDistinctShowcasedCardsAndStackAcrossTiersAndGroups() {
+        PetCardPlayMapper cards = mock(PetCardPlayMapper.class);
+        when(cards.showcaseStats(1L)).thenReturn(
+                lineup("jianYong", "jianYong", "feiYi", "radish", "radish", "penguin"),
+                lineup("jianYong", "feiYi", "maLiang"),
+                lineup("jianYong", "feiYi", "maLiang", "weiYan", "jiangWan", "liaoHua"),
+                lineup("jianYong", "feiYi", "maLiang", "liDian", "yuJin", "yueJin"),
+                lineup("feiYi", "maLiang", "liDian", "yuJin", "yueJin"));
+        when(cards.showcaseStats(2L)).thenReturn(Collections.emptyList());
+        FishPetServiceImpl pets = withShowcase(cards);
+
+        assertEquals(0.0, fighter(pets, 1L).getComboRate());
+        BattleStatsVO three = fighter(pets, 1L);
+        assertEquals(0.05, three.getComboRate(), 0.00001);
+        assertEquals(0.04, three.getCritRate(), 0.00001);
+        assertEquals(0.0, three.getComboResistance());
+        BattleStatsVO six = fighter(pets, 1L);
+        assertEquals(three.getComboRate(), six.getComboRate());
+        assertEquals(three.getCritRate(), six.getCritRate());
+        assertEquals(0.06, six.getComboResistance(), 0.00001);
+        assertEquals(0.06, six.getCritResistance(), 0.00001);
+        assertEquals(three.getAttack(), six.getAttack());
+        assertEquals(three.getHealth(), six.getHealth());
+        assertEquals(0.0, fighter(pets, 2L).getComboRate());
+        BattleStatsVO mixed = fighter(pets, 1L);
+        assertEquals(0.05, mixed.getComboRate(), 0.00001);
+        assertEquals(0.05, mixed.getLifesteal(), 0.00001);
+        assertEquals(0.08, mixed.getCritRate(), 0.00001);
+        BattleStatsVO removed = fighter(pets, 1L);
+        assertEquals(0.0, removed.getComboRate());
+        assertEquals(0.05, removed.getLifesteal(), 0.00001);
+    }
+
+    @Test
+    void islandBondCountsDifferentIslandSeriesAndAllowsSameFactionReplacement() {
+        PetCardPlayMapper cards = mock(PetCardPlayMapper.class);
+        when(cards.showcaseStats(1L)).thenReturn(
+                lineup("radish", "seahorse", "frog", "penguin", "cloudbird", "manta"),
+                lineup("radish", "shellTurtle", "frog", "penguin", "cloudbird", "manta"),
+                lineup("radish", "shellTurtle", "frog", "penguin", "cloudbird", "luBu"));
+        FishPetServiceImpl pets = withShowcase(cards);
+
+        BattleStatsVO six = fighter(pets, 1L);
+        assertEquals(0.04, six.getLifesteal(), 0.00001);
+        assertEquals(0.04, six.getDodgeRate(), 0.00001);
+        assertEquals(0.05, six.getLifestealResistance(), 0.00001);
+        assertEquals(0.05, six.getDodgeResistance(), 0.00001);
+        BattleStatsVO replaced = fighter(pets, 1L);
+        assertEquals(six.getDodgeRate(), replaced.getDodgeRate());
+        assertEquals(six.getDodgeResistance(), replaced.getDodgeResistance());
+        BattleStatsVO mixed = fighter(pets, 1L);
+        assertEquals(six.getDodgeRate(), mixed.getDodgeRate());
+        assertEquals(0.0, mixed.getDodgeResistance());
+        assertEquals(0.0, mixed.getCritRate());
+    }
+
+    @Test
+    void showcaseBonusesReachTheSharedCombatEngine() {
+        PetCardPlayMapper cards = mock(PetCardPlayMapper.class);
+        when(cards.showcaseStats(1L)).thenReturn(lineup("jianYong", "feiYi", "maLiang"));
+        when(cards.showcaseStats(2L)).thenReturn(
+                lineup("ganNing", "luMeng", "xuSheng", "sunQuan", "zhouYu", "luXun"));
+        when(cards.showcaseStats(3L)).thenReturn(
+                lineup("zhangLiao", "xiahouDun", "caoHong", "caoCao", "xuChu", "dianWei"));
+        when(cards.showcaseStats(4L)).thenReturn(Collections.emptyList());
+        FishPetServiceImpl pets = withShowcase(cards);
+        BattleStatsVO shu = fighter(pets, 1L);
+        BattleStatsVO wu = fighter(pets, 2L);
+        BattleStatsVO wei = fighter(pets, 3L);
+        BattleStatsVO plain = fighter(pets, 4L);
+
+        Random draw = mock(Random.class);
+        when(draw.nextBoolean()).thenReturn(true);
+        when(draw.nextDouble()).thenReturn(0.03);
+        PetBattleSimulation.Action attack = new PetBattleSimulation(shu, plain, 100, true, draw).next();
+        assertTrue(attack.getHit().isCritical());
+        assertTrue(attack.getHit().isCombo());
+        assertTrue(new PetBattleSimulation(plain, wu, 100, true, draw).next().getHit().isDodge());
+        assertFalse(new PetBattleSimulation(wu, wu, 100, true, draw).next().getHit().isDodge());
+        assertFalse(new PetBattleSimulation(shu, wei, 100, true, draw).next().getHit().isCritical());
+
+        wei.setSpeed(1);
+        wei.setAttack(100);
+        when(draw.nextDouble()).thenReturn(0.5);
+        assertEquals(5, new PetBattleSimulation(plain, wei, 50, true, draw).next().getHit().getLifestealHeal());
+        BattleStatsVO defender = fighter(pets, 3L);
+        assertEquals(0, new PetBattleSimulation(defender, wei, 50, true, draw).next().getHit().getLifestealHeal());
+    }
+
+    private static FishPetServiceImpl withShowcase(PetCardPlayMapper cards) {
+        return new FishPetServiceImpl(null, null, null, null, null, null, null, null,
+                null, null, new PetCardShowcaseStats(cards, new ObjectMapper()));
+    }
+
+    private static BattleStatsVO fighter(FishPetServiceImpl pets, long userId) {
+        FishPet pet = new FishPet();
+        pet.setUserId(userId);
+        pet.setLevel(1);
+        return BattleStatsVO.fromPet(1, pets.getPetEquipStatsByPet(pet), BattleConstant.BASE_ATK,
+                BattleConstant.GROWTH_RATE);
+    }
+
+    private static List<ShowcaseStatsRow> lineup(String... ids) {
+        return Arrays.stream(ids).map(id -> card(id, 1, "{}")).collect(Collectors.toList());
+    }
+
     private static ShowcaseStatsRow card(int stars, String stats) {
-        return new ShowcaseStatsRow(new CollectedCard("card", "卡片", "common", stars, "atlas", 0, false),
+        return card("card", stars, stats);
+    }
+
+    private static ShowcaseStatsRow card(String id, int stars, String stats) {
+        return new ShowcaseStatsRow(new CollectedCard(id, "卡片", "common", stars, "atlas", 0, false),
                 stats, "{\"kind\":\"action\",\"phase\":\"afterReveal\",\"action\":\"attack\"}");
     }
 }

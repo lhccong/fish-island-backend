@@ -1,5 +1,6 @@
 package com.cong.fishisland.model.vo.pet;
 
+import com.cong.fishisland.model.dto.pet.PetCardPlay.ShowcaseCard;
 import lombok.Data;
 import java.io.Serializable;
 import java.util.Date;
@@ -64,6 +65,8 @@ public class OtherUserPetVO implements Serializable {
      */
     private PetEquipStatsVO equipStats;
 
+    /** 已上架卡片及其计入属性汇总的加成 */
+    private List<ShowcaseCard> showcaseDetails;
 
     /**
      * 当前经验值
@@ -77,4 +80,4 @@ public class OtherUserPetVO implements Serializable {
     private Date createTime;
 
     private static final long serialVersionUID = 1L;
-} 
+}

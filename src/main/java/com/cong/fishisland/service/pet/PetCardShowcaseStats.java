@@ -14,8 +14,10 @@ import org.springframework.stereotype.Service;
 
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 import static com.cong.fishisland.service.pet.PetCardPlayRules.statAtStars;
 
@@ -30,6 +32,7 @@ public class PetCardShowcaseStats {
         List<CollectedCard> showcase = new ArrayList<>(rows.size());
         List<ShowcaseCard> showcaseDetails = new ArrayList<>(rows.size());
         List<PetCardPassive> passives = new ArrayList<>(rows.size());
+        Set<String> cardIds = new HashSet<>();
         for (ShowcaseStatsRow row : rows) {
             CollectedCard card = row.getCard();
             JsonNode stats = readJson(row.getStats());
@@ -44,6 +47,7 @@ public class PetCardShowcaseStats {
             totals.setTotalBaseHp(totals.getTotalBaseHp() + bonuses.get("health"));
             totals.setSpeed(totals.getSpeed() + bonuses.get("speed"));
             showcase.add(card);
+            cardIds.add(card.getId());
             JsonNode battle = readJson(row.getBattle());
             JsonNode effect = "effect".equals(battle.path("kind").asText()) ? battle : null;
             if (effect != null) {
@@ -53,6 +57,7 @@ public class PetCardShowcaseStats {
         }
         totals.setCardPassives(passives);
         totals.setShowcaseCards(showcaseDetails);
+        PetCardBonds.addTo(cardIds, totals);
         return showcase;
     }
 

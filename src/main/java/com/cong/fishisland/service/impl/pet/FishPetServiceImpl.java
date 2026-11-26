@@ -586,7 +586,9 @@ public class FishPetServiceImpl extends ServiceImpl<FishPetMapper, FishPet> impl
         Map<String, ItemInstanceVO> equippedItems = getEquippedItems(fishPet);
         otherUserPetVO.setEquippedItems(equippedItems);
 
-        otherUserPetVO.setEquipStats(summarizeStats(fishPet, equippedItems));
+        PetEquipStatsVO stats = summarizeStats(fishPet, equippedItems);
+        otherUserPetVO.setEquipStats(stats);
+        otherUserPetVO.setShowcaseDetails(stats.getShowcaseCards());
 
         return otherUserPetVO;
     }

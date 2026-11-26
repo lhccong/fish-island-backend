@@ -3,6 +3,7 @@ package com.cong.fishisland.mapper;
 import lombok.Data;
 import org.apache.ibatis.annotations.Param;
 
+import java.math.BigDecimal;
 import java.util.List;
 
 public interface AchievementMapper {
@@ -17,6 +18,8 @@ public interface AchievementMapper {
     Integer petLevel(@Param("userId") long userId);
 
     int turntableDrawCount(@Param("userId") long userId);
+
+    BigDecimal maxPaidSponsorship(@Param("userId") long userId, @Param("title") String title);
 
     List<Equipment> equipmentLevels(@Param("userId") long userId);
 

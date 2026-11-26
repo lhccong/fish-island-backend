@@ -9,16 +9,20 @@ import com.baomidou.mybatisplus.core.metadata.TableInfoHelper;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.cong.fishisland.common.exception.BusinessException;
 import com.cong.fishisland.controller.user.UserFollowController;
+import com.cong.fishisland.mapper.user.UserFollowMapper;
 import com.cong.fishisland.mapper.user.UserMapper;
 import com.cong.fishisland.model.entity.user.User;
 import com.cong.fishisland.model.entity.user.UserFollow;
 import com.cong.fishisland.model.vo.user.UserFollowVO;
+import com.cong.fishisland.model.vo.user.UserFollowRelationshipVO;
 import com.cong.fishisland.service.UserFollowService;
+import com.cong.fishisland.service.event.EventRemindHandler;
 import com.cong.fishisland.service.impl.user.UserFollowServiceImpl;
 import org.apache.ibatis.builder.MapperBuilderAssistant;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.springframework.dao.DuplicateKeyException;
 import org.springframework.test.util.ReflectionTestUtils;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 
@@ -29,6 +33,7 @@ import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.*;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 
 class UserFollowListTest {
@@ -36,13 +41,18 @@ class UserFollowListTest {
     private final StpLogic previous = StpUtil.getStpLogic();
     private final StpLogic login = mock(StpLogic.class);
     private final UserMapper users = mock(UserMapper.class);
+    private final UserFollowMapper follows = mock(UserFollowMapper.class);
+    private final EventRemindHandler reminders = mock(EventRemindHandler.class);
     private final UserFollowServiceImpl service = spy(new UserFollowServiceImpl());
 
     @BeforeEach
     void setup() {
         when(login.getLoginId()).thenReturn("123");
+        when(login.getLoginIdAsLong()).thenReturn(123L);
         StpUtil.setStpLogic(login);
         ReflectionTestUtils.setField(service, "userMapper", users);
+        ReflectionTestUtils.setField(service, "baseMapper", follows);
+        ReflectionTestUtils.setField(service, "eventRemindHandler", reminders);
         TableInfoHelper.initTableInfo(new MapperBuilderAssistant(new MybatisConfiguration(), "test"), UserFollow.class);
     }
 
@@ -66,6 +76,40 @@ class UserFollowListTest {
         }
         verify(mockService).listUserFollows(OWNER, true, 2, 20);
         verify(mockService).listUserFollows(OWNER, false, 2, 20);
+    }
+
+    @Test
+    void preservesTheBooleanRouteAndExposesBothDirectionsOnRequest() throws Exception {
+        UserFollowService mockService = mock(UserFollowService.class);
+        UserFollowController endpoint = new UserFollowController();
+        ReflectionTestUtils.setField(endpoint, "userFollowService", mockService);
+        String target = String.valueOf(OWNER);
+        when(mockService.isFollowing(target)).thenReturn(false);
+        when(mockService.followRelationship(target)).thenReturn(new UserFollowRelationshipVO(false, true));
+        org.springframework.test.web.servlet.MockMvc mvc = MockMvcBuilders.standaloneSetup(endpoint).build();
+        mvc.perform(get("/follow/is-following").param("followUserId", target))
+                .andExpect(jsonPath("$.data").value(false));
+        mvc.perform(get("/follow/is-following").param("followUserId", target).param("includeIncoming", "true"))
+                .andExpect(jsonPath("$.data.following").value(false))
+                .andExpect(jsonPath("$.data.followedBy").value(true));
+        mvc.perform(post("/follow/add").param("followUserId", target))
+                .andExpect(jsonPath("$.data").value(true));
+        verify(mockService).addFollow(target);
+    }
+
+    @Test
+    void retriesAndConcurrentInsertsNeverRemoveAnExistingFollow() {
+        when(users.selectById(OWNER)).thenReturn(new User());
+        when(follows.selectCount(any())).thenReturn(0L, 1L, 0L);
+        when(follows.insert(any(UserFollow.class))).thenReturn(1)
+                .thenThrow(new DuplicateKeyException("follow already exists"));
+        for (int attempt = 0; attempt < 3; attempt++) {
+            service.addFollow(String.valueOf(OWNER));
+        }
+        verify(follows, times(2)).insert(argThat(row ->
+                row.getUserId() == 123L && row.getFollowUserId() == OWNER));
+        verify(reminders).handleFollow(123L, OWNER);
+        verify(follows, never()).deleteById(any(java.io.Serializable.class));
     }
 
     @Test

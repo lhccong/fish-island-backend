@@ -12,9 +12,11 @@ import com.cong.fishisland.mapper.user.UserMapper;
 import com.cong.fishisland.model.entity.user.User;
 import com.cong.fishisland.model.entity.user.UserFollow;
 import com.cong.fishisland.model.vo.user.UserFollowVO;
+import com.cong.fishisland.model.vo.user.UserFollowRelationshipVO;
 import com.cong.fishisland.service.UserFollowService;
 import com.cong.fishisland.service.event.EventRemindHandler;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.dao.DuplicateKeyException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -46,21 +48,9 @@ public class UserFollowServiceImpl extends ServiceImpl<UserFollowMapper, UserFol
     @Override
     @Transactional(rollbackFor = Exception.class)
     public boolean toggleFollow(String followUserIdStr) {
-        ThrowUtils.throwIf(followUserIdStr == null, ErrorCode.PARAMS_ERROR, "被关注用户ID不合法");
-        Long followUserId;
-        try {
-            followUserId = Long.parseLong(followUserIdStr);
-        } catch (NumberFormatException e) {
-            throw new BusinessException(ErrorCode.PARAMS_ERROR, "被关注用户ID不合法");
-        }
-        ThrowUtils.throwIf(followUserId <= 0, ErrorCode.PARAMS_ERROR, "被关注用户ID不合法");
-
-        Long loginUserId = Long.parseLong(StpUtil.getLoginId().toString());
-        ThrowUtils.throwIf(loginUserId.equals(followUserId), ErrorCode.PARAMS_ERROR, "不能关注自己");
-
-        // 被关注用户必须存在
-        User targetUser = userMapper.selectById(followUserId);
-        ThrowUtils.throwIf(targetUser == null, ErrorCode.NOT_FOUND_ERROR, "用户不存在");
+        long followUserId = parseTargetId(followUserIdStr);
+        long loginUserId = StpUtil.getLoginIdAsLong();
+        validateTarget(loginUserId, followUserId);
 
         // 查询是否已关注
         UserFollow existing = this.baseMapper.selectOne(
@@ -74,17 +64,39 @@ public class UserFollowServiceImpl extends ServiceImpl<UserFollowMapper, UserFol
             this.baseMapper.deleteById(existing.getId());
             log.info("[UserFollow] 取消关注，userId={}, followUserId={}", loginUserId, followUserId);
             return false;
-        } else {
-            // 未关注 → 新增关注
-            UserFollow follow = new UserFollow();
-            follow.setUserId(loginUserId);
-            follow.setFollowUserId(followUserId);
-            this.save(follow);
-            log.info("[UserFollow] 新增关注，userId={}, followUserId={}", loginUserId, followUserId);
-            // 异步发送关注事件提醒
-            eventRemindHandler.handleFollow(loginUserId, followUserId);
-            return true;
         }
+        insertFollow(loginUserId, followUserId);
+        return true;
+    }
+
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public void addFollow(String followUserIdStr) {
+        long followUserId = parseTargetId(followUserIdStr);
+        long loginUserId = StpUtil.getLoginIdAsLong();
+        validateTarget(loginUserId, followUserId);
+        if (!isFollowing(loginUserId, followUserId)) {
+            insertFollow(loginUserId, followUserId);
+        }
+    }
+
+    private void validateTarget(long loginUserId, long followUserId) {
+        ThrowUtils.throwIf(loginUserId == followUserId, ErrorCode.PARAMS_ERROR, "不能关注自己");
+        User targetUser = userMapper.selectById(followUserId);
+        ThrowUtils.throwIf(targetUser == null, ErrorCode.NOT_FOUND_ERROR, "用户不存在");
+    }
+
+    private void insertFollow(long loginUserId, long followUserId) {
+        UserFollow follow = new UserFollow();
+        follow.setUserId(loginUserId);
+        follow.setFollowUserId(followUserId);
+        try {
+            this.baseMapper.insert(follow);
+        } catch (DuplicateKeyException alreadyFollowing) {
+            return;
+        }
+        log.info("[UserFollow] 新增关注，userId={}, followUserId={}", loginUserId, followUserId);
+        eventRemindHandler.handleFollow(loginUserId, followUserId);
     }
 
     @Override
@@ -129,16 +141,30 @@ public class UserFollowServiceImpl extends ServiceImpl<UserFollowMapper, UserFol
         if (!StpUtil.isLogin()) {
             return false;
         }
-        Long followUserId;
+        return isFollowing(StpUtil.getLoginIdAsLong(), parseTargetId(followUserIdStr));
+    }
+
+    @Override
+    public UserFollowRelationshipVO followRelationship(String targetId) {
+        long viewer = StpUtil.getLoginIdAsLong();
+        long target = parseTargetId(targetId);
+        return new UserFollowRelationshipVO(isFollowing(viewer, target), isFollowing(target, viewer));
+    }
+
+    private static long parseTargetId(String targetId) {
         try {
-            followUserId = Long.parseLong(followUserIdStr);
+            long id = Long.parseLong(targetId);
+            ThrowUtils.throwIf(id <= 0, ErrorCode.PARAMS_ERROR, "被关注用户ID不合法");
+            return id;
         } catch (NumberFormatException e) {
             throw new BusinessException(ErrorCode.PARAMS_ERROR, "被关注用户ID不合法");
         }
-        Long loginUserId = Long.parseLong(StpUtil.getLoginId().toString());
+    }
+
+    private boolean isFollowing(long userId, long followUserId) {
         return this.count(
                 new LambdaQueryWrapper<UserFollow>()
-                        .eq(UserFollow::getUserId, loginUserId)
+                        .eq(UserFollow::getUserId, userId)
                         .eq(UserFollow::getFollowUserId, followUserId)
         ) > 0;
     }

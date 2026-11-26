@@ -8,10 +8,12 @@ import com.cong.fishisland.common.exception.BusinessException;
 import com.cong.fishisland.model.dto.user.UserFollowPageRequest;
 import com.cong.fishisland.model.dto.user.UserFollowRequest;
 import com.cong.fishisland.model.vo.user.UserFollowVO;
+import com.cong.fishisland.model.vo.user.UserFollowRelationshipVO;
 import com.cong.fishisland.service.UserFollowService;
 import io.swagger.annotations.ApiOperation;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
@@ -34,7 +36,7 @@ public class UserFollowController {
     /**
      * 关注 / 取消关注
      * <p>
-     * 已关注则取消，未关注则新增，幂等操作。
+     * 已关注则取消，未关注则新增。
      */
     @GetMapping("/toggle")
     @ApiOperation(value = "关注/取消关注", notes = "已关注则取消，未关注则新增")
@@ -44,6 +46,13 @@ public class UserFollowController {
         }
         boolean result = userFollowService.toggleFollow(request.getFollowUserId());
         return ResultUtils.success(result);
+    }
+
+    @PostMapping("/add")
+    @ApiOperation("关注用户，已关注时直接成功")
+    public BaseResponse<Boolean> addFollow(@RequestParam("followUserId") String followUserId) {
+        userFollowService.addFollow(followUserId);
+        return ResultUtils.success(true);
     }
 
     /**
@@ -93,12 +102,19 @@ public class UserFollowController {
     /**
      * 判断是否已关注某用户
      */
-    @GetMapping("/is-following")
+    @GetMapping(value = "/is-following", params = "includeIncoming!=true")
     @ApiOperation(value = "是否已关注", notes = "判断当前用户是否已关注指定用户")
     public BaseResponse<Boolean> isFollowing(UserFollowRequest request) {
         if (request == null || request.getFollowUserId() == null || request.getFollowUserId().isEmpty()) {
             throw new BusinessException(ErrorCode.PARAMS_ERROR, "用户ID不合法");
         }
         return ResultUtils.success(userFollowService.isFollowing(request.getFollowUserId()));
+    }
+
+    @GetMapping(value = "/is-following", params = "includeIncoming=true")
+    @ApiOperation("查询当前账号和指定用户之间的双向关注关系")
+    public BaseResponse<UserFollowRelationshipVO> followRelationship(
+            @RequestParam("followUserId") String followUserId) {
+        return ResultUtils.success(userFollowService.followRelationship(followUserId));
     }
 }

@@ -6,6 +6,7 @@ import lombok.Value;
 
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 public final class PetCardCatalog {
     private PetCardCatalog() {}
@@ -47,6 +48,22 @@ public final class PetCardCatalog {
     public static class Catalog {
         List<Pool> pools;
         List<Card> cards;
+        List<Bond> factionBonds;
+    }
+
+    @Value
+    public static class Bond {
+        String id;
+        String name;
+        Set<String> cardIds;
+        List<BondBonus> three;
+        List<BondBonus> six;
+    }
+
+    @Value
+    public static class BondBonus {
+        String attribute;
+        int percentagePoints;
     }
 
     @Value

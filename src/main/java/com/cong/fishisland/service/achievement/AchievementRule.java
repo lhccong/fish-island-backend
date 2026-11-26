@@ -13,7 +13,9 @@ enum AchievementRule {
     CARDS("card-level", "百匣寻星", "抽卡等级", "cards", "级", 2, 1, 200, PetCardPlayRules.MAX_LEVEL),
     EQUIPMENT("equipment-level", "百炼铸星", "装备强化", "forge", "级", 1, 1, 100, MAX_EQUIP_LEVEL),
     PET("pet-level", "共赴山海", "宠物等级", "companion", "级", 10, 10, 500, 60),
-    TURNTABLE("turntable-draw-count", "转盘抽奖", "累计抽奖", "turntable", "次", 100, 100, 500, 300);
+    TURNTABLE("turntable-draw-count", "转盘抽奖", "累计抽奖", "turntable", "次", 100, 100, 500, 300),
+    SPONSOR("island-sponsor", "海岛同行", "单笔赞助满 1", "sponsor", "次", 1, 1, 1000, 1),
+    MAJOR_SPONSOR("island-major-sponsor", "大金主", "单笔赞助满 100", "major-sponsor", "次", 1, 1, 2000, 1);
 
     final String id;
     final String name;

@@ -19,6 +19,10 @@
     <select id="turntableDrawCount" resultType="int">
         SELECT COUNT(*) FROM turntable_draw_record WHERE userId = #{userId} AND isDelete = 0
     </select>
+    <select id="maxPaidSponsorship" resultType="java.math.BigDecimal">
+        SELECT MAX(totalFee) FROM pay_order
+        WHERE userId = #{userId} AND title = #{title} AND status = 'OD' AND isDelete = 0
+    </select>
     <select id="equipmentLevels" resultType="com.cong.fishisland.mapper.AchievementMapper$Equipment">
         SELECT f.equipSlot AS slot, COALESCE(MAX(f.equipLevel), 0) AS level
         FROM pet_equip_forge f JOIN fish_pet p ON p.petId = f.petId

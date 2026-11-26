@@ -17,6 +17,7 @@ import org.mybatis.spring.SqlSessionTemplate;
 import org.springframework.context.annotation.AnnotationConfigApplicationContext;
 import org.springframework.transaction.PlatformTransactionManager;
 
+import java.math.BigDecimal;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
@@ -33,7 +34,8 @@ class AchievementDatabaseTest {
     void usesSavedProgressAndPaysEachMilestoneOnceEvenWithConcurrentClaims() throws Exception {
         try (AnnotationConfigApplicationContext db = PetCardDatabaseContext.open(System.getenv("ACHIEVEMENT_VERIFY_JDBC"),
                 "file:sql/20261122_pet_card_catalog.sql", "file:sql/20261123_pet_card_play.sql",
-                "file:sql/20261123_achievements.sql", "file:sql/turntable.sql", "classpath:achievements/schema.sql")) {
+                "file:sql/20261123_achievements.sql", "file:sql/turntable.sql", "file:sql/xunhupay.sql",
+                "classpath:achievements/schema.sql")) {
             SqlSessionTemplate sessions = db.getBean(SqlSessionTemplate.class);
             sessions.getConfiguration().addMapper(Fixtures.class);
             Fixtures fixtures = sessions.getMapper(Fixtures.class);
@@ -67,10 +69,23 @@ class AchievementDatabaseTest {
                 fixtures.addDraw(2, 1, false);
             }
             fixtures.addDraw(2, 1, true);
+            String sponsor = "赞助摸鱼岛";
+            fixtures.addOrder(1, "qualified", sponsor, new BigDecimal("1.00"), "OD", false);
+            fixtures.addOrder(2, "small-1", sponsor, new BigDecimal("0.99"), "OD", false);
+            fixtures.addOrder(2, "small-2", sponsor, new BigDecimal("0.99"), "OD", false);
+            fixtures.addOrder(2, "pending", sponsor, BigDecimal.TEN, "PENDING", false);
+            fixtures.addOrder(2, "refunded", sponsor, BigDecimal.TEN, "CD", false);
+            fixtures.addOrder(2, "deleted", sponsor, BigDecimal.TEN, "OD", true);
+            fixtures.addOrder(2, "other", "其他订单", BigDecimal.TEN, "OD", false);
+            fixtures.addOrder(3, "rollback", sponsor, new BigDecimal("100.01"), "OD", false);
 
             Summary preview = service.list(1);
-            assertEquals(3600, claimable(preview));
+            assertEquals(4600, claimable(preview));
             assertEquals(0, preview.getAwardedPoints());
+            Track sponsorship = track(preview, "island-sponsor");
+            assertNull(sponsorship.getNext());
+            assertEquals(1000, sponsorship.getClaimablePoints());
+            assertEquals(0, track(preview, "island-major-sponsor").getClaimablePoints());
             Track userLevel = track(preview, "user-level");
             assertEquals(4, userLevel.getLevel());
             assertEquals(5, userLevel.getNext().intValue());
@@ -89,6 +104,7 @@ class AchievementDatabaseTest {
             assertEquals(0, fixtures.balance(1));
             Summary initial = service.list(2);
             assertEquals(0, claimable(initial));
+            assertEquals(1, track(initial, "island-sponsor").getNext().intValue());
             assertEquals(2, track(initial, "user-level").getNext().intValue());
             assertEquals(99, track(initial, "turntable-draw-count").getLevel());
             assertEquals(100, track(initial, "turntable-draw-count").getNext().intValue());
@@ -103,17 +119,26 @@ class AchievementDatabaseTest {
                 int firstReward = first.get(10, TimeUnit.SECONDS).getAwardedPoints();
                 int secondReward = second.get(10, TimeUnit.SECONDS).getAwardedPoints();
                 assertTrue(firstReward == 0 || secondReward == 0);
-                assertEquals(3600, firstReward + secondReward);
+                assertEquals(4600, firstReward + secondReward);
             } finally {
                 workers.shutdownNow();
             }
-            assertEquals(3600, fixtures.balance(1));
-            assertEquals(9, fixtures.entries(1));
+            assertEquals(4600, fixtures.balance(1));
+            assertEquals(10, fixtures.entries(1));
+            assertEquals(1, track(service.list(1), "island-sponsor").getClaimedTiers());
+            fixtures.addOrder(1, "below-major", sponsor, new BigDecimal("99.99"), "OD", false);
             assertEquals(0, service.claim(1).getAwardedPoints());
             fixtures.advanceFarm(1, 30);
             assertEquals(200, service.claim(1).getAwardedPoints());
-            assertEquals(3800, fixtures.balance(1));
+            assertEquals(4800, fixtures.balance(1));
             assertEquals(0, fixtures.balance(2));
+
+            fixtures.addOrder(1, "major", sponsor, new BigDecimal("100.00"), "OD", false);
+            Summary majorReward = service.claim(1);
+            assertEquals(2000, majorReward.getAwardedPoints());
+            assertEquals(1, track(majorReward, "island-major-sponsor").getClaimedTiers());
+            fixtures.addOrder(1, "major-again", sponsor, new BigDecimal("101.00"), "OD", false);
+            assertEquals(0, service.claim(1).getAwardedPoints());
 
             fixtures.advanceUser(2, 2);
             fixtures.addDraw(2, 2, false);
@@ -141,7 +166,7 @@ class AchievementDatabaseTest {
             assertEquals(0, fixtures.balance(3));
             assertEquals(0, fixtures.entries(3));
             failPetLedger.set(false);
-            assertEquals(700, service.claim(3).getAwardedPoints());
+            assertEquals(3700, service.claim(3).getAwardedPoints());
         }
     }
 
@@ -181,5 +206,10 @@ class AchievementDatabaseTest {
         @Insert("INSERT INTO turntable_draw_record (userId, turntableId, turntablePrizeId, isDelete) "
                 + "VALUES (#{id}, #{turntable}, 1, #{deleted})")
         void addDraw(@Param("id") long id, @Param("turntable") long turntable, @Param("deleted") boolean deleted);
+
+        @Insert("INSERT INTO pay_order (userId, tradeOrderId, title, totalFee, status, isDelete) "
+                + "VALUES (#{id}, #{order}, #{title}, #{fee}, #{status}, #{deleted})")
+        void addOrder(@Param("id") long id, @Param("order") String order, @Param("title") String title,
+                      @Param("fee") BigDecimal fee, @Param("status") String status, @Param("deleted") boolean deleted);
     }
 }
